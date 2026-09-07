@@ -2,11 +2,18 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Named so main.py's startup check and this default can't silently drift apart.
+# This exact string is public (it's right here, in this project's own source on
+# GitHub) — every stored credential is Fernet-encrypted with a key derived from
+# APP_SECRET_KEY, so leaving it at this default means anyone who gets the
+# database file can decrypt them. See main.py: _startup_warnings().
+DEFAULT_SECRET_KEY = "dev-only-insecure-key-change-me"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_secret_key: str = "dev-only-insecure-key-change-me"
+    app_secret_key: str = DEFAULT_SECRET_KEY
     app_password: str = ""
 
     database_url: str = "sqlite:///./data/humble.db"

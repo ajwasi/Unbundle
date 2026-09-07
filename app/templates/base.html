@@ -9,20 +9,28 @@
   {% block extra_head %}{% endblock %}
 </head>
 <body>
-  <nav class="sidebar">
-    <div class="brand">🎁 Humble Tracker</div>
-    <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Home</a>
-    <a href="/bundles" class="{{ 'active' if request.url.path.startswith('/bundles') else '' }}">Bundles</a>
-    <a href="/catalog" class="{{ 'active' if request.url.path.startswith('/catalog') else '' }}">Catalog</a>
-    <a href="/finance" class="{{ 'active' if request.url.path.startswith('/finance') else '' }}">Finance</a>
-    <a href="/steam" class="{{ 'active' if request.url.path.startswith('/steam') else '' }}">Steam</a>
-    <a href="/gog" class="{{ 'active' if request.url.path.startswith('/gog') else '' }}">GOG</a>
-    <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') else '' }}">Settings</a>
-  </nav>
-  <div class="page-wrapper">
-    <main>
-      {% block content %}{% endblock %}
-    </main>
+  {% if request.state.auth_configured is defined and not request.state.auth_configured %}
+  <div class="auth-warning-banner">
+    No login is configured — this app is open to anyone who can reach it.
+    Set <code>APP_PASSWORD</code> or configure SSO in <a href="/settings">Settings</a>.
+  </div>
+  {% endif %}
+  <div class="app-shell">
+    <nav class="sidebar">
+      <div class="brand">🎁 Humble Tracker</div>
+      <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Home</a>
+      <a href="/bundles" class="{{ 'active' if request.url.path.startswith('/bundles') else '' }}">Bundles</a>
+      <a href="/catalog" class="{{ 'active' if request.url.path.startswith('/catalog') else '' }}">Catalog</a>
+      <a href="/finance" class="{{ 'active' if request.url.path.startswith('/finance') else '' }}">Finance</a>
+      <a href="/steam" class="{{ 'active' if request.url.path.startswith('/steam') else '' }}">Steam</a>
+      <a href="/gog" class="{{ 'active' if request.url.path.startswith('/gog') else '' }}">GOG</a>
+      <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') else '' }}">Settings</a>
+    </nav>
+    <div class="page-wrapper">
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+    </div>
   </div>
 </body>
 </html>

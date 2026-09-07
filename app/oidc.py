@@ -35,6 +35,19 @@ def is_password_disabled(db: Session) -> bool:
     return bool(cfg and cfg.get("enabled") and cfg.get("disable_password"))
 
 
+def is_auth_configured(db: Session) -> bool:
+    """True if some login method is actually usable right now — either
+    APP_PASSWORD (and not turned off by SSO-only mode) or an enabled OIDC
+    provider. False means the app is wide open to anyone who can reach it.
+    Shared by AuthMiddleware (the actual gate), main.py's startup warning, and
+    the site-wide banner in base.html — one definition, so they can't drift.
+    """
+    from app.config import settings  # local import: settings has no reason to import oidc.py
+
+    password_allowed = bool(settings.app_password) and not is_password_disabled(db)
+    return password_allowed or is_oidc_enabled(db)
+
+
 def build_oauth_client(cfg: dict):
     oauth = OAuth()
     issuer = cfg["issuer"].rstrip("/")
