@@ -91,13 +91,16 @@ def _rotate_secret_key(new_secret_key: str) -> int:
     """
     db = SessionLocal()
     try:
-        creds = db.query(Credential).filter(Credential.encrypted_payload.isnot(None)).all()
-        # Computed here, before the loop below ever touches new_secret_key, so it's
-        # unambiguously just a row count — CodeQL's clear-text-logging query flagged
-        # rotate_secret_key()'s later `print(f"...{count}...")` as leaking the secret
-        # when this was computed via `return len(creds)` after the loop instead.
-        count = len(creds)
-        for cred in creds:
+        query = db.query(Credential).filter(Credential.encrypted_payload.isnot(None))
+        # A real SQL COUNT, not len() on the materialized rows below — CodeQL's
+        # clear-text-logging query kept flagging rotate_secret_key()'s summary
+        # print() even after the count was computed before new_secret_key was
+        # touched, which points at the row *objects* (each carrying
+        # .encrypted_payload) being treated as the sensitive value, not the key
+        # argument. This never materializes a Credential object at all, so
+        # there's nothing plausibly sensitive for it to have come from.
+        count = query.count()
+        for cred in query.all():
             data = decrypt_json(cred.encrypted_payload)
             cred.encrypted_payload = encrypt_json(data, secret_key=new_secret_key)
         db.commit()
