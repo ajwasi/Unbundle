@@ -3,7 +3,7 @@ import json
 import pytest
 from cryptography.fernet import Fernet
 
-from app.cli import _disable_oidc, _rotate_secret_key, _set_password
+from app.cli import _count_stored_credentials, _disable_oidc, _rotate_secret_key, _set_password
 from app.models.credential import SOURCE_APP_AUTH, SOURCE_GOG, SOURCE_OIDC, STATUS_NOT_CONFIGURED, Credential
 from app.security import _derive_key, _derive_key_legacy, check_app_password, decrypt_json, encrypt_json
 
@@ -76,8 +76,13 @@ def test_set_password_supersedes_env_var_password(db):
     assert check_app_password("overridden-password", db)
 
 
-def test_rotate_secret_key_returns_zero_when_nothing_stored(db):
-    assert _rotate_secret_key("new-key") == 0
+def test_count_stored_credentials_returns_zero_when_nothing_stored(db):
+    assert _count_stored_credentials() == 0
+
+
+def test_rotate_secret_key_is_a_noop_when_nothing_stored(db):
+    _rotate_secret_key("new-key")  # must not raise
+    assert _count_stored_credentials() == 0
 
 
 def test_rotate_secret_key_migrates_every_row_with_a_payload(db):
@@ -86,8 +91,8 @@ def test_rotate_secret_key_migrates_every_row_with_a_payload(db):
     db.add(Credential(source=SOURCE_APP_AUTH, encrypted_payload=None))  # no payload — must be skipped, not crash
     db.commit()
 
-    count = _rotate_secret_key("brand-new-key")
-    assert count == 2
+    _rotate_secret_key("brand-new-key")
+    assert _count_stored_credentials() == 2
 
 
 def test_rotate_secret_key_result_is_readable_under_the_new_key_only(db):
@@ -114,8 +119,8 @@ def test_rotate_secret_key_migrates_a_pre_upgrade_legacy_format_row_too(db):
     db.add(Credential(source=SOURCE_OIDC, encrypted_payload=legacy_token))
     db.commit()
 
-    count = _rotate_secret_key("brand-new-key")
-    assert count == 1
+    _rotate_secret_key("brand-new-key")
+    assert _count_stored_credentials() == 1
 
     cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one()
     new_key_fernet = Fernet(_derive_key("brand-new-key"))

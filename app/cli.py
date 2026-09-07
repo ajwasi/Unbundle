@@ -82,29 +82,44 @@ def set_password() -> None:
     print("Password updated. This overrides APP_PASSWORD immediately — no restart needed.")
 
 
-def _rotate_secret_key(new_secret_key: str) -> int:
+def _rotate_secret_key(new_secret_key: str) -> None:
     """Pure DB logic, no I/O — split out from rotate_secret_key() so tests can call
     this directly. Decrypts every stored credential under whatever APP_SECRET_KEY
     is currently configured (decrypt_json already handles both the current and
     legacy KDF, so this works regardless of when a row was last written) and
-    re-encrypts it under new_secret_key. Returns how many rows were migrated.
+    re-encrypts it under new_secret_key.
+
+    Returns nothing on purpose — see _count_stored_credentials() below for why
+    the row count used to come from this function's return value and no longer
+    does. Two prior attempts at satisfying CodeQL's clear-text-logging query by
+    reshaping *this* function's internals (computing the count before the loop
+    touches new_secret_key; using query.count() instead of len() on the row
+    objects) both still left the alert firing on rotate_secret_key()'s summary
+    print(). That points at a cruder mechanism than either fix assumed: a local
+    function call with no recognized sanitizer likely has its return value
+    treated as tainted whenever ANY argument is tainted, regardless of what the
+    function body actually does with it. The only reliable fix is structural —
+    make sure nothing that reaches that print() was ever computed by a function
+    that also received the secret as an argument.
     """
     db = SessionLocal()
     try:
-        query = db.query(Credential).filter(Credential.encrypted_payload.isnot(None))
-        # A real SQL COUNT, not len() on the materialized rows below — CodeQL's
-        # clear-text-logging query kept flagging rotate_secret_key()'s summary
-        # print() even after the count was computed before new_secret_key was
-        # touched, which points at the row *objects* (each carrying
-        # .encrypted_payload) being treated as the sensitive value, not the key
-        # argument. This never materializes a Credential object at all, so
-        # there's nothing plausibly sensitive for it to have come from.
-        count = query.count()
-        for cred in query.all():
+        for cred in db.query(Credential).filter(Credential.encrypted_payload.isnot(None)).all():
             data = decrypt_json(cred.encrypted_payload)
             cred.encrypted_payload = encrypt_json(data, secret_key=new_secret_key)
         db.commit()
-        return count
+    finally:
+        db.close()
+
+
+def _count_stored_credentials() -> int:
+    """Takes no arguments — deliberately never in a position to receive
+    new_secret_key, so its return value can't be conflated with it no matter
+    how coarse the static analysis is. See _rotate_secret_key's docstring.
+    """
+    db = SessionLocal()
+    try:
+        return db.query(Credential).filter(Credential.encrypted_payload.isnot(None)).count()
     finally:
         db.close()
 
@@ -119,8 +134,8 @@ def rotate_secret_key() -> None:
         print("Keys did not match.")
         sys.exit(1)
 
-    count = _rotate_secret_key(new_key)
-    print(f"Re-encrypted {count} stored credential(s) under the new key.")
+    _rotate_secret_key(new_key)
+    print(f"Re-encrypted {_count_stored_credentials()} stored credential(s) under the new key.")
     print()
     print("Do this now, in this exact order:")
     print("  1. Set APP_SECRET_KEY to the value you just entered (env var / .env / compose file).")
