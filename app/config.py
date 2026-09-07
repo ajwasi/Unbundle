@@ -1,0 +1,29 @@
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    app_secret_key: str = "dev-only-insecure-key-change-me"
+    app_password: str = ""
+
+    database_url: str = "sqlite:///./data/humble.db"
+    data_dir: Path = Path("./data")
+    downloads_dir: Path = Path("./data/downloads")
+    download_concurrency: int = 2
+
+    humble_cli_path: str = "/usr/local/bin/humble-cli"
+    # In the container this resolves under $HOME=/home/appuser (see Dockerfile) — the
+    # exact path humble-cli itself hardcodes. MUST be overridden via env var for any
+    # local/dev run outside Docker so it never collides with a real ~/.humble-cli-key
+    # on the host machine running this code.
+    humble_cli_key_path: Path = Path.home() / ".humble-cli-key"
+
+    def ensure_dirs(self) -> None:
+        for d in (self.data_dir, self.downloads_dir):
+            d.mkdir(parents=True, exist_ok=True)
+
+
+settings = Settings()

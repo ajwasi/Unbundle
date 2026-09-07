@@ -1,0 +1,23 @@
+<p>
+  Status:
+  <span class="badge badge-{{ 'ok' if gog_status == 'ok' else 'error' if gog_status == 'error' else 'not-configured' }}">
+    {{ gog_status | replace('_', ' ') }}
+  </span>
+</p>
+{% if gog_error %}<p style="color: var(--error);">{{ gog_error }}</p>{% endif %}
+
+<ol class="muted" style="padding-left: 1.2rem;">
+  <li><a href="{{ gog_login_url }}" target="_blank" rel="noopener">Log in to GOG &rarr;</a> (opens in a new tab)</li>
+  <li>After logging in, GOG shows a mostly-blank page. Copy the full URL from your
+      browser's address bar — it will contain <code>on_login_success</code> and a
+      <code>code=</code> value.</li>
+  <li>Paste it below right away and submit — the code expires quickly, so if this fails,
+      just repeat step 1 for a fresh one.</li>
+</ol>
+
+<form hx-post="/settings/gog" hx-target="#gog-card-body" hx-swap="innerHTML">
+  <div style="display: flex; gap: 0.5rem; max-width: 480px;">
+    <input type="text" name="pasted_code" placeholder="Paste the redirected URL or code here" style="flex: 1;">
+    <button type="submit">Connect</button>
+  </div>
+</form>

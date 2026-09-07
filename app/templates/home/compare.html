@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ bundle_name }} — Compare — Humble Tracker{% endblock %}
+{% block content %}
+<p><a href="/">&larr; Back to Home</a></p>
+<h1>{{ bundle_name }}</h1>
+<p class="muted">
+  {{ owned_count }} of {{ total_count }} item(s) already in your catalog
+  {%- if msrp_total %} &mdash; worth ${{ "%.2f"|format(msrp_total) }} if bought separately{% endif %}.
+  <a href="{{ product_url }}" target="_blank" rel="noopener">View on Humble Bundle &rarr;</a>
+</p>
+
+{% for tier in tiers %}
+<div class="card">
+  <h2>
+    {{ tier.label }}
+    {%- if tier.price_amount and not tier.is_bta and "$" not in tier.label %} (${{ "%.2f"|format(tier.price_amount) }}){% endif %}
+  </h2>
+  <p class="muted">{{ tier.owned_count }} of {{ tier.rows|length }} already in your catalog</p>
+  <table>
+    <thead>
+      <tr><th>Item</th><th>Type</th><th>Value</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for row in tier.rows %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td>{{ row.content_type or "—" }}</td>
+        <td>
+          {% if row.owned and row.avg_paid is not none %}
+          ${{ "%.2f"|format(row.avg_paid) }} <span class="muted" style="font-size: 0.8em;">avg paid</span>
+          {% elif row.msrp_amount %}
+          ${{ "%.2f"|format(row.msrp_amount) }}
+          {% else %}
+          &mdash;
+          {% endif %}
+        </td>
+        <td>
+          {% if row.owned %}
+          <span class="badge badge-ok">Already owned</span>
+          {% if row.owned_count > 1 %}
+          <button type="button" class="secondary" style="padding: 0.1rem 0.5rem;"
+                  hx-get="/catalog/item/{{ row.machine_name }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"
+                  onclick="document.getElementById('bundles-modal').showModal()">
+            &times;{{ row.owned_count }}
+          </button>
+          {% endif %}
+          {% else %}
+          <span class="badge badge-not-configured">New to you</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+<dialog id="bundles-modal">
+  <div id="bundles-modal-content">Loading&hellip;</div>
+  <form method="dialog" style="margin-top: 1rem;">
+    <button type="submit" class="secondary">Close</button>
+  </form>
+</dialog>
+{% endblock %}

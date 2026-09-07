@@ -1,0 +1,14 @@
+{% if running %}
+<span id="download-status" hx-get="/bundles/{{ gamekey }}/download/status" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
+  Downloading&hellip; this can take a while depending on file sizes.
+</span>
+{% elif message %}
+<span id="download-status" class="badge {{ 'badge-error' if 'failed' in message else 'badge-ok' }}">{{ message }}</span>
+{% if item_groups is defined %}
+<div id="item-table-wrapper" hx-swap-oob="true">
+  {% include "bundles/_item_table.html" %}
+</div>
+{% endif %}
+{% else %}
+<span id="download-status"></span>
+{% endif %}

@@ -1,0 +1,90 @@
+<p class="muted">
+  {{ filtered_count }} purchase(s){% if year %} in {{ year }}{% endif %}{% if month_name %} ({{ month_name }}){% endif %}{% if category %} of type "{{ category }}"{% endif %}
+  &mdash; ${{ "%.2f"|format(filtered_total) }} total.
+</p>
+
+<div class="card" style="display: flex; gap: 2rem; flex-wrap: wrap;">
+  <div style="flex: 2; min-width: 320px;">
+    <h3 style="margin-top: 0;">Spending by {{ "month" if granularity == "month" else "year" }}</h3>
+    {% if chart_labels %}
+    <canvas id="time-chart" height="220"></canvas>
+    {% else %}
+    <p class="muted">No data to chart.</p>
+    {% endif %}
+  </div>
+  <div style="flex: 1; min-width: 220px;">
+    <h3 style="margin-top: 0;">By type</h3>
+    {% if category_labels %}
+    <canvas id="category-chart" height="220"></canvas>
+    {% else %}
+    <p class="muted">No data to chart.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="overflow-x: auto;">
+  <table>
+    <thead>
+      <tr><th>Bundle</th><th>Type</th><th>Purchased</th><th>Price</th></tr>
+    </thead>
+    <tbody>
+      {% for b in rows %}
+      <tr>
+        <td><a href="/bundles/{{ b.gamekey }}">{{ b.name }}</a></td>
+        <td>{{ (b.category or "&mdash;") | safe }}</td>
+        <td>{{ (b.purchased_at.strftime("%Y-%m-%d") if b.purchased_at else "&mdash;") | safe }}</td>
+        <td>${{ "%.2f"|format(b.amount_spent) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No purchases match.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if rows %}
+    <tfoot>
+      <tr style="font-weight: 600; border-top: 2px solid var(--border);">
+        <td colspan="3">TOTAL ({{ filtered_count }})</td>
+        <td>${{ "%.2f"|format(filtered_total) }}</td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+
+<script>
+(function() {
+  var timeCanvas = document.getElementById('time-chart');
+  if (timeCanvas) {
+    var existingTime = Chart.getChart(timeCanvas);
+    if (existingTime) existingTime.destroy();
+    new Chart(timeCanvas, {
+      type: 'bar',
+      data: {
+        labels: {{ chart_labels | tojson }},
+        datasets: [{ label: 'Spent ($)', data: {{ chart_values | tojson }}, backgroundColor: '#2f6da1' }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return '$' + v; } } } }
+      }
+    });
+  }
+
+  var catCanvas = document.getElementById('category-chart');
+  if (catCanvas) {
+    var existingCat = Chart.getChart(catCanvas);
+    if (existingCat) existingCat.destroy();
+    new Chart(catCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: {{ category_labels | tojson }},
+        datasets: [{
+          data: {{ category_values | tojson }},
+          backgroundColor: ['#2f6da1', '#3f7a4d', '#b8862e', '#b0402f', '#7a5ea1', '#5ea3d9']
+        }]
+      },
+      options: { responsive: true }
+    });
+  }
+})();
+</script>

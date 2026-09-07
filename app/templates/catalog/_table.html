@@ -1,0 +1,42 @@
+{% macro sort_link(col, label) %}
+{% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
+<a href="#"
+   hx-get="/catalog?q={{ q | urlencode }}&dupes_only={{ 'true' if dupes_only else 'false' }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-target="#catalog-table" hx-swap="outerHTML">
+  {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
+</a>
+{% endmacro %}
+
+<div id="catalog-table">
+  <p class="muted">Showing {{ rows|length }} of {{ total_items }} item(s)</p>
+  <table>
+    <thead>
+      <tr>
+        <th>{{ sort_link('name', 'Item') }}</th>
+        <th>{{ sort_link('purchased', 'First Purchased') }}</th>
+        <th>{{ sort_link('count', 'Copies Owned') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.item_name }}</td>
+        <td>{{ (r.first_purchased.strftime("%Y-%m-%d") if r.first_purchased else "&mdash;") | safe }}</td>
+        <td>
+          {% if r.count > 1 %}
+          <button type="button" class="secondary" style="padding: 0.1rem 0.5rem;"
+                  hx-get="/catalog/item/{{ r.key }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"
+                  onclick="document.getElementById('bundles-modal').showModal()">
+            &times;{{ r.count }} bundles
+          </button>
+          {% else %}
+          <span class="muted">1</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="muted">No items match.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

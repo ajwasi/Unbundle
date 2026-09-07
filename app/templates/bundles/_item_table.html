@@ -1,0 +1,90 @@
+<form id="item-form" hx-post="/bundles/{{ bundle.gamekey }}/download" hx-target="#download-status" hx-swap="outerHTML">
+  {% if item_groups %}
+  <div class="toolbar">
+    <button type="submit">Download Selected</button>
+    <span class="muted">
+      (nothing checked = everything; check items, formats, or both to narrow it down)
+    </span>
+  </div>
+  {% endif %}
+
+  {% if all_formats %}
+  <div class="toolbar" style="margin-bottom: 0.5rem;">
+    <strong style="font-size: 0.9rem;">Bulk by format:</strong>
+    {% for key, label in all_formats %}
+    <label style="font-weight: normal; display: flex; gap: 0.3rem; align-items: center;">
+      <input type="checkbox" name="formats" value="{{ key }}"> {{ label }}
+    </label>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="overflow-x: auto;">
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="document.querySelectorAll('#item-form .item-check').forEach(c => c.checked = this.checked)"></th>
+          <th>Item</th>
+          {% for key, label in all_formats %}<th>{{ label }}</th>{% endfor %}
+          <th>Total Size</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in item_groups %}
+        <tr>
+          <td><input type="checkbox" class="item-check" name="items" value="{{ g.subproduct_index }}"></td>
+          <td>{{ g.item_name }}</td>
+          {% for key, label in all_formats %}
+          {% set info = g.by_format.get(key) %}
+          <td style="white-space: nowrap;">
+            {% if info %}
+              {{ info.size_bytes | human_size }}
+              {% if info.status == "completed" %}
+                <span class="badge badge-ok" title="Downloaded">&check;</span>
+              {% else %}
+                <button type="button" class="secondary" style="padding: 0.05rem 0.4rem; margin-left: 0.3rem;"
+                        hx-post="/bundles/{{ bundle.gamekey }}/download/item/{{ g.subproduct_index }}"
+                        hx-vals='{"format": {{ info.raw_format | tojson }}}'
+                        hx-target="#download-status" hx-swap="outerHTML"
+                        title="Download {{ label }} for {{ g.item_name }}">&darr;</button>
+              {% endif %}
+            {% else %}
+              <span class="muted">&mdash;</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+          <td style="white-space: nowrap;">
+            {{ g.total_size_bytes | human_size }}
+            {% if g.summary != "downloaded" %}
+            <button type="button" class="secondary" style="padding: 0.05rem 0.4rem; margin-left: 0.3rem;"
+                    hx-post="/bundles/{{ bundle.gamekey }}/download/item/{{ g.subproduct_index }}"
+                    hx-target="#download-status" hx-swap="outerHTML"
+                    title="Download all formats for {{ g.item_name }}">&darr;</button>
+            {% endif %}
+          </td>
+          <td>
+            {% if g.summary == "downloaded" %}<span class="badge badge-ok">downloaded</span>
+            {% elif g.summary == "failed" %}<span class="badge badge-error">failed</span>
+            {% elif g.summary == "partial" %}<span class="badge badge-pending">partial</span>
+            {% else %}<span class="muted">&mdash;</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ all_formats|length + 4 }}" class="muted">No downloadable files in this bundle.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if item_groups %}
+      <tfoot>
+        <tr style="font-weight: 600; border-top: 2px solid var(--border);">
+          <td></td>
+          <td>TOTAL ({{ footer.item_count }} item{{ "s" if footer.item_count != 1 else "" }})</td>
+          {% for key, label in all_formats %}<td>{{ footer.format_totals.get(key, 0) | human_size }}</td>{% endfor %}
+          <td>{{ footer.grand_total | human_size }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</form>

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ bundle.name }} — Humble Tracker{% endblock %}
+{% block content %}
+<p><a href="/bundles">&larr; Back to library</a></p>
+<h1>{{ bundle.name }}</h1>
+
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem;">
+    <h2 style="margin: 0;">Downloadable items ({{ item_groups|length }})</h2>
+    <div>
+      <strong>${{ "%.2f"|format(bundle.amount_spent) }}</strong> <span class="muted">total</span>
+      {%- if avg_item_price is not none %}
+      &mdash; <strong>${{ "%.2f"|format(avg_item_price) }}</strong> <span class="muted">avg/item</span>
+      {%- endif %}
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <span id="download-status"></span>
+  </div>
+
+  <div id="item-table-wrapper">
+    {% include "bundles/_item_table.html" %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Third-party keys ({{ entitlements|length }})</h2>
+  <p class="muted">
+    Ownership comes from your synced <a href="/steam">Steam</a>/<a href="/gog">GOG</a>
+    libraries — connect them in Settings if this always shows "unknown."
+  </p>
+  <table>
+    <thead><tr><th>Key</th><th>Platform</th><th>Revealed on Humble</th><th>Ownership</th></tr></thead>
+    <tbody>
+      {% for e in entitlements %}
+      <tr>
+        <td>{{ e.key_name }}</td>
+        <td>{{ e.platform or "—" }}</td>
+        <td>{{ "Yes" if e.redeemed_on_humble else "No" }}</td>
+        <td>
+          {% if not e.ownership_platform %}
+          <span class="muted">n/a</span>
+          {% elif e.owned is none %}
+          <span class="badge badge-not-configured">{{ e.ownership_platform }}: unknown</span>
+          {% elif e.owned %}
+          <span class="badge badge-ok">{{ e.ownership_platform }}: Yes</span>
+          {% else %}
+          <span class="badge badge-error">{{ e.ownership_platform }}: Never redeemed</span>
+          <a href="{{ e.redeem_url }}" target="_blank" rel="noopener">Redeem &rarr;</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No third-party keys in this bundle.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

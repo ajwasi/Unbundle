@@ -1,0 +1,13 @@
+{% set status = humble_status or "not_configured" %}
+<p>
+  Status:
+  <span class="badge badge-{{ 'ok' if status == 'ok' else 'error' if status == 'error' else 'not-configured' }}">
+    {{ status | replace('_', ' ') }}
+  </span>
+</p>
+{% if humble_error %}<p class="muted">{{ humble_error }}</p>{% endif %}
+
+<form hx-post="/settings/humble-key" hx-target="#humble-card-body" hx-swap="innerHTML">
+  <input type="password" name="session_key" placeholder="_simpleauth_sess value" required style="width: 320px;">
+  <button type="submit">{{ 'Reconnect' if status == 'error' else 'Save' }}</button>
+</form>

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Catalog — Humble Tracker{% endblock %}
+{% block content %}
+<h1>Catalog</h1>
+<p class="muted">
+  {{ total_items }} distinct item(s) across your library &mdash; {{ total_dupes }} purchased more than once
+  &mdash; ${{ "%.2f"|format(grand_total_spent) }} total spent across all bundles.
+</p>
+
+<div class="toolbar">
+  <input type="search" id="catalog-q" name="q" placeholder="Search items..." value="{{ q }}"
+         hx-get="/catalog" hx-trigger="keyup changed delay:300ms" hx-target="#catalog-table" hx-swap="outerHTML"
+         hx-include="#dupes-only" style="flex: 1;">
+  <label style="display: flex; gap: 0.4rem; align-items: center; font-weight: normal;">
+    <input type="checkbox" id="dupes-only" name="dupes_only" value="true" {{ "checked" if dupes_only else "" }}
+           hx-get="/catalog" hx-trigger="change" hx-target="#catalog-table" hx-swap="outerHTML" hx-include="#catalog-q">
+    Show only duplicates
+  </label>
+</div>
+
+{% include "catalog/_table.html" %}
+
+<dialog id="bundles-modal">
+  <div id="bundles-modal-content">Loading&hellip;</div>
+  <form method="dialog" style="margin-top: 1rem;">
+    <button type="submit" class="secondary">Close</button>
+  </form>
+</dialog>
+{% endblock %}

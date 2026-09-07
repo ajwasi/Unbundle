@@ -1,0 +1,62 @@
+<div id="storefront-bundles">
+  {% for key, label in category_labels %}
+  {% set items = by_category.get(key, []) %}
+  <div class="card">
+    <h2>{{ label }}</h2>
+    {% if not items %}
+      <p class="muted">No {{ label|lower }} bundles currently listed.</p>
+    {% else %}
+    <div class="bundle-grid">
+      {% for b in items %}
+      <div class="bundle-tile">
+        {% if b.end_date %}
+        <div class="countdown-timer" data-countdown-end="{{ b.end_date.isoformat() }}Z">calculating&hellip;</div>
+        {% endif %}
+        {% if b.image_url %}<img src="{{ b.image_url }}" alt="" loading="lazy">{% endif %}
+        <div class="bundle-tile-body">
+          <strong>{{ b.name }}</strong>
+          <p class="muted">{{ b.blurb | safe }}</p>
+          <div class="bundle-tile-actions">
+            <a href="/storefront/compare?url={{ b.product_url | urlencode }}">Compare to my catalog</a>
+            <a href="{{ b.product_url }}" target="_blank" rel="noopener">Buy on Humble Bundle &rarr;</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+  (function () {
+    // Humble's own end_date carries no timezone marker — treated as UTC (the
+    // "Z" suffix above), unverified against Humble's own site but the most
+    // reasonable default; if countdowns look off by a fixed number of hours,
+    // that assumption is the first thing to revisit.
+    if (window.__humbleCountdownInterval) clearInterval(window.__humbleCountdownInterval);
+
+    function formatRemaining(ms) {
+      if (ms <= 0) return "Sale ended";
+      const totalSeconds = Math.floor(ms / 1000);
+      const days = Math.floor(totalSeconds / 86400);
+      const hours = Math.floor((totalSeconds % 86400) / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      if (days > 0) return `${days}d ${hours}h ${minutes}m left`;
+      if (hours > 0) return `${hours}h ${minutes}m left`;
+      return `${minutes}m ${seconds}s left`;
+    }
+
+    function tick() {
+      document.querySelectorAll("#storefront-bundles [data-countdown-end]").forEach(function (el) {
+        const end = new Date(el.dataset.countdownEnd).getTime();
+        el.textContent = formatRemaining(end - Date.now());
+      });
+    }
+
+    tick();
+    window.__humbleCountdownInterval = setInterval(tick, 1000);
+  })();
+</script>

@@ -1,0 +1,22 @@
+<p>
+  Status:
+  <span class="badge badge-{{ 'ok' if steam_status == 'ok' else 'error' if steam_status == 'error' else 'not-configured' }}">
+    {{ steam_status | replace('_', ' ') }}
+  </span>
+</p>
+{% if steam_error %}<p style="color: var(--error);">{{ steam_error }}</p>{% endif %}
+{% if steam_connected_as %}<p style="color: var(--success);">{{ steam_connected_as }}</p>{% endif %}
+
+<form hx-post="/settings/steam" hx-target="#steam-card-body" hx-swap="innerHTML">
+  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+    <label>
+      API Key {% if steam_has_key %}<span class="muted">(leave blank to keep the saved one)</span>{% endif %}
+      <input type="password" name="api_key" placeholder="{{ '••••••••' if steam_has_key else '' }}" style="width: 100%;">
+    </label>
+    <label>
+      SteamID64 or profile URL
+      <input type="text" name="steamid" value="{{ steam_id_display }}" placeholder="76561198... or steamcommunity.com/id/yourname" style="width: 100%;">
+    </label>
+    <button type="submit" style="align-self: flex-start;">{{ 'Reconnect' if steam_status == 'error' else 'Save' }}</button>
+  </div>
+</form>

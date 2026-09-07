@@ -1,0 +1,53 @@
+<div id="steam-content">
+  {% if steam_status == "error" %}
+  <p style="color: var(--error);">{{ steam_error }}</p>
+  {% endif %}
+
+  {% if steam_status != "not_configured" %}
+  <p class="muted">
+    {{ game_count }} game(s) owned &mdash; {{ total_playtime_hours }} hour(s) total playtime.
+    {{ checked_entitlement_count }} bundle key(s) checked against this library.
+  </p>
+
+  <div class="card">
+    <h2>Never Redeemed on Steam ({{ unredeemed|length }})</h2>
+    <p class="muted">Steam keys granted by your bundles that don't match anything in your Steam library.</p>
+    {% if unredeemed %}
+    <table>
+      <thead><tr><th>Key</th><th>From Bundle</th><th>Revealed on Humble</th><th></th></tr></thead>
+      <tbody>
+        {% for row in unredeemed %}
+        <tr>
+          <td>{{ row.key_name }}</td>
+          <td><a href="/bundles/{{ row.gamekey }}">{{ row.bundle_name }}</a></td>
+          <td>{{ "Yes" if row.redeemed_on_humble else "No" }}</td>
+          <td><a href="{{ row.redeem_url }}" target="_blank" rel="noopener">Redeem on Humble Bundle &rarr;</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">{{ "Every checked Steam key is already in your library — nothing to redeem." if game_count else "No games loaded yet — click Refresh." }}</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Owned Games ({{ game_count }})</h2>
+    {% if games %}
+    <table>
+      <thead><tr><th>Name</th><th>Playtime</th></tr></thead>
+      <tbody>
+        {% for g in games %}
+        <tr>
+          <td>{{ g.name }}</td>
+          <td>{{ (g.playtime_forever_minutes / 60) | round(1) }} hrs</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No games loaded yet — click Refresh.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

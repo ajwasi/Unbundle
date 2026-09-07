@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}GOG — Humble Tracker{% endblock %}
+{% block content %}
+<h1>GOG Library</h1>
+
+{% if gog_status == "not_configured" %}
+<p class="muted">GOG isn't connected yet. Connect it in <a href="/settings">Settings</a>.</p>
+{% else %}
+<div class="toolbar">
+  <form hx-post="/gog/refresh" hx-target="#gog-content" hx-swap="outerHTML" style="margin: 0;">
+    <button type="submit" class="secondary">Refresh</button>
+  </form>
+</div>
+{% endif %}
+
+{% include "gog/_content.html" %}
+{% endblock %}

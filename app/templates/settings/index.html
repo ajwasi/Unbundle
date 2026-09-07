@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Settings — Humble Tracker{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+
+<div class="card" id="humble-card">
+  <h2>Humble Bundle</h2>
+  <p class="muted">
+    Paste your <code>_simpleauth_sess</code> session cookie from a logged-in
+    humblebundle.com browser tab. There's no username/password login here —
+    Humble's login is behind Cloudflare's bot protection, which blocks
+    non-browser login attempts outright — so this is the same manual cookie
+    handoff humble-cli itself uses. It doesn't expire on a fixed schedule, but
+    Humble may invalidate it eventually; if actions start failing, come back
+    here and paste a fresh one.
+  </p>
+  <div id="humble-card-body">
+    {% include "settings/_humble_form.html" %}
+  </div>
+</div>
+
+<div class="card" id="oidc-card">
+  <h2>Single Sign-On (OIDC)</h2>
+  <p class="muted">
+    Log in via an external identity provider (e.g. Authentik) instead of, or alongside,
+    the app password. Point this at an OIDC application you've set up for Humble Tracker —
+    any standards-compliant provider that supports discovery works.
+  </p>
+  <div id="oidc-card-body">
+    {% include "settings/_oidc_form.html" %}
+  </div>
+</div>
+
+<div class="card" id="steam-card">
+  <h2>Steam</h2>
+  <p class="muted">
+    Compares your bundles' Steam keys against your actual Steam library, so you can see
+    which ones you've never redeemed. Get a free API key at
+    <code>steamcommunity.com/dev/apikey</code>, and either your SteamID64 or your profile
+    URL/vanity name (e.g. <code>steamcommunity.com/id/yourname</code>). Your Steam profile
+    and game details need to be set to Public for the owned-games list to be readable.
+  </p>
+  <div id="steam-card-body">
+    {% include "settings/_steam_form.html" %}
+  </div>
+</div>
+
+<div class="card" id="gog-card">
+  <h2>GOG</h2>
+  <p class="muted">
+    Compares your bundles' GOG keys against your actual GOG library. Unlike Steam, GOG has
+    no public API key or a redirect URI this app can register for itself — connecting means
+    a one-time manual step (log in on GOG's real site, then copy the resulting URL back
+    here), similar in spirit to the Humble cookie above but for a code that expires within
+    a minute or two, so it may take a try or two. See the steps below. Note: very few Humble
+    bundles actually expose a matchable GOG key today (confirmed against this library: 2
+    GOG-type keys total, neither matchable), so don't expect much from the "never redeemed"
+    comparison yet — the games catalog itself still works regardless.
+  </p>
+  <div id="gog-card-body">
+    {% include "settings/_gog_form.html" %}
+  </div>
+</div>
+{% endblock %}

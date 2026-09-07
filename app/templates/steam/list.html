@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Steam — Humble Tracker{% endblock %}
+{% block content %}
+<h1>Steam Library</h1>
+
+{% if steam_status == "not_configured" %}
+<p class="muted">Steam isn't connected yet. Add your API key and SteamID in <a href="/settings">Settings</a>.</p>
+{% else %}
+<div class="toolbar">
+  <form hx-post="/steam/refresh" hx-target="#steam-content" hx-swap="outerHTML" style="margin: 0;">
+    <button type="submit" class="secondary">Refresh</button>
+  </form>
+</div>
+{% endif %}
+
+{% include "steam/_content.html" %}
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Bundles — Humble Tracker{% endblock %}
+{% block content %}
+<h1>Your Humble Bundle Library</h1>
+
+<div class="card">
+  <strong>${{ "%.2f"|format(grand_total_spent) }} total spent</strong> across {{ total_count }} bundle(s)
+  <div class="toolbar" style="margin-top: 0.5rem; margin-bottom: 0;">
+    {% for row in category_breakdown %}
+    <span class="muted">{{ row.category }}: ${{ "%.2f"|format(row.total) }} ({{ row.count }})</span>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="toolbar">
+  <form hx-get="/bundles" hx-target="#bundle-table" hx-swap="outerHTML"
+        hx-trigger="keyup changed delay:300ms from:input, change from:select"
+        style="display: flex; gap: 0.75rem; flex: 1; margin: 0;">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="dir" value="{{ dir }}">
+    <input type="search" name="q" placeholder="Search bundle name..." value="{{ q }}" style="flex: 1;">
+    <select name="category">
+      <option value="">All categories</option>
+      {% for c in categories %}
+      <option value="{{ c }}" {{ "selected" if c == category else "" }}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <input type="number" name="min_items" placeholder="Min items" min="0"
+           value="{{ min_items if min_items is not none else '' }}" style="width: 8rem;">
+  </form>
+  <form hx-post="/bundles/refresh" hx-target="#refresh-status" hx-swap="outerHTML" style="margin: 0;">
+    <button type="submit">Refresh from Humble</button>
+  </form>
+</div>
+<p><div id="refresh-status"></div></p>
+
+{% include "bundles/_table.html" %}
+{% endblock %}

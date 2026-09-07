@@ -1,0 +1,43 @@
+<p>
+  Status:
+  <span class="badge badge-{{ 'ok' if oidc_enabled else 'not-configured' }}">
+    {{ 'enabled' if oidc_enabled else 'not configured' }}
+  </span>
+  {% if oidc_disable_password %}<span class="badge badge-pending">password login disabled</span>{% endif %}
+</p>
+{% if oidc_error %}<p style="color: var(--error);">{{ oidc_error }}</p>{% endif %}
+
+<p class="muted">
+  Redirect URI to register in your identity provider:
+  <code>{{ oidc_redirect_uri }}</code>
+</p>
+
+<form hx-post="/settings/oidc" hx-target="#oidc-card-body" hx-swap="innerHTML">
+  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+    <label>
+      Issuer URL
+      <input type="text" name="issuer" value="{{ oidc_issuer }}" placeholder="https://auth.example.com/application/o/humble-tracker/" style="width: 100%;">
+    </label>
+    <label>
+      Client ID
+      <input type="text" name="client_id" value="{{ oidc_client_id }}" style="width: 100%;">
+    </label>
+    <label>
+      Client Secret {% if oidc_has_secret %}<span class="muted">(leave blank to keep the saved one)</span>{% endif %}
+      <input type="password" name="client_secret" placeholder="{{ '••••••••' if oidc_has_secret else '' }}" style="width: 100%;">
+    </label>
+    <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
+      <input type="checkbox" name="enabled" value="true" {{ "checked" if oidc_enabled else "" }}>
+      Enable SSO login
+    </label>
+    <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
+      <input type="checkbox" name="disable_password" value="true" {{ "checked" if oidc_disable_password else "" }}>
+      Require SSO only (turns off password login)
+    </label>
+    <p class="muted">
+      If this ever locks you out (SSO misconfigured or the identity provider is unreachable), run
+      <code>docker exec -it &lt;container&gt; python -m app.cli disable-oidc</code> to restore password login.
+    </p>
+    <button type="submit" style="align-self: flex-start;">Save</button>
+  </div>
+</form>

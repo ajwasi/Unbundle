@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Humble Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/htmx.min.js"></script>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="brand">🎁 Humble Tracker</div>
+    <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Home</a>
+    <a href="/bundles" class="{{ 'active' if request.url.path.startswith('/bundles') else '' }}">Bundles</a>
+    <a href="/catalog" class="{{ 'active' if request.url.path.startswith('/catalog') else '' }}">Catalog</a>
+    <a href="/finance" class="{{ 'active' if request.url.path.startswith('/finance') else '' }}">Finance</a>
+    <a href="/steam" class="{{ 'active' if request.url.path.startswith('/steam') else '' }}">Steam</a>
+    <a href="/gog" class="{{ 'active' if request.url.path.startswith('/gog') else '' }}">GOG</a>
+    <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') else '' }}">Settings</a>
+  </nav>
+  <div class="page-wrapper">
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<h3 style="margin-top: 0;">{{ item_name }}</h3>
+<p class="muted">Included in {{ bundles|length }} bundle(s) you've purchased:</p>
+<ul>
+  {% for b in bundles %}
+  <li>
+    <a href="/bundles/{{ b.gamekey }}">{{ b.bundle_name }}</a>
+    <span class="muted">
+      &mdash; {{ b.purchased_at.strftime("%Y-%m-%d") if b.purchased_at else "unknown date" }},
+      ${{ "%.2f"|format(b.amount_spent) }} bundle / {{ b.item_count }} item(s)
+      {%- if b.item_count %} (${{ "%.2f"|format(b.amount_spent / b.item_count) }}/item){% endif %}
+    </span>
+  </li>
+  {% else %}
+  <li class="muted">No bundles found.</li>
+  {% endfor %}
+</ul>
+{% if bundles|length > 1 and avg_item_value is not none %}
+<p style="font-weight: 600;">Average price per item across these {{ bundles|length }} bundles: ${{ "%.2f"|format(avg_item_value) }}</p>
+{% endif %}

@@ -1,0 +1,52 @@
+import os
+from pathlib import Path
+
+from app.downloads.paths import long_path_safe, predict_download_path, sanitize_dir_name
+
+
+def test_sanitize_replaces_each_invalid_character():
+    assert sanitize_dir_name('a/b\\c?d%e*f:g|h"i<j>k;l=m') == "a b c d e f g h i j k l m"
+
+
+def test_sanitize_replaces_newline():
+    assert sanitize_dir_name("line1\nline2") == "line1 line2"
+
+
+def test_sanitize_does_not_collapse_resulting_double_spaces():
+    # Confirmed against the real binary: "Humble Software REBundle: VEGAS Pro"
+    # (": " already has a following space) becomes a double space, not a single
+    # one — humble-cli does no whitespace cleanup, so neither can this.
+    assert sanitize_dir_name("Humble Software REBundle: VEGAS Pro") == "Humble Software REBundle  VEGAS Pro"
+
+
+def test_sanitize_leaves_ordinary_names_untouched():
+    assert sanitize_dir_name("Ordinary Bundle Name") == "Ordinary Bundle Name"
+
+
+def test_predict_download_path_builds_three_level_path():
+    result = predict_download_path("My: Bundle", "Item/Name", "file.epub")
+    assert result == Path("My  Bundle") / "Item Name" / "file.epub"
+
+
+# long_path_safe branches on the *real* os.name rather than an injectable seam,
+# and Path() construction itself dispatches on that same global (WindowsPath vs.
+# PosixPath) — monkeypatching os.name to fake the other platform was tried and
+# rejected: it corrupted pathlib's own dispatch mid-test and broke pytest's own
+# failure reporting. So this only exercises whichever branch the CI/dev host
+# actually is; both branches do get covered over time (Windows dev machine +
+# Linux Docker deployment target), just never both in the same run.
+def test_long_path_safe_matches_current_platform(tmp_path):
+    target = tmp_path / "file.txt"
+    result = long_path_safe(target)
+    if os.name == "nt":
+        assert str(result).startswith("\\\\?\\")
+        assert str(target.resolve()) in str(result)
+    else:
+        assert result == target
+
+
+def test_long_path_safe_does_not_double_prefix(tmp_path):
+    target = tmp_path / "file.txt"
+    once = long_path_safe(target)
+    twice = long_path_safe(once)
+    assert str(twice).count("\\\\?\\") <= 1
