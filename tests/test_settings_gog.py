@@ -51,3 +51,25 @@ def test_save_gog_shows_reconnect_button_after_error(authed_client, db):
 
     resp = authed_client.get("/settings")
     assert "it may have expired" in resp.text
+
+
+def test_settings_page_hides_disconnect_button_when_not_configured(authed_client):
+    resp = authed_client.get("/settings")
+    assert "/settings/gog/disconnect" not in resp.text
+
+
+def test_disconnect_gog_removes_credential(authed_client, db):
+    db.add(Credential(source=SOURCE_GOG, status=STATUS_OK, encrypted_payload=None))
+    db.commit()
+
+    resp = authed_client.post("/settings/gog/disconnect")
+    assert resp.status_code == 200
+    assert db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none() is None
+    assert "not configured" in resp.text.lower()
+
+
+def test_disconnect_gog_shows_button_only_when_configured(authed_client, db):
+    db.add(Credential(source=SOURCE_GOG, status=STATUS_OK))
+    db.commit()
+    resp = authed_client.get("/settings")
+    assert "/settings/gog/disconnect" in resp.text

@@ -4,15 +4,18 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.connectors.humble_connector import order_page_url
+from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_STEAM
 from app.models.steam_game import SteamGame
+from app.ratelimit import RateLimiter, rate_limit
 from app.sync import steam_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/steam")
+_refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 
 def _unredeemed_rows(db: Session) -> list[dict]:
@@ -55,7 +58,7 @@ def steam_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "steam/list.html", _context(db))
 
 
-@router.post("/refresh", response_class=HTMLResponse)
+@router.post("/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "steam-refresh")), Depends(require_csrf)])
 async def refresh_steam(request: Request, db: Session = Depends(get_db)):
     try:
         await steam_sync.refresh_steam_library(db)

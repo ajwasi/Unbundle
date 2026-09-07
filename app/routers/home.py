@@ -12,7 +12,9 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.connectors import storefront
+from app.csrf import require_csrf
 from app.deps import get_db
+from app.ratelimit import RateLimiter, rate_limit
 from app.routers.catalog import _avg_item_value, _build_catalog
 from app.templates_env import templates
 
@@ -20,6 +22,7 @@ router = APIRouter()
 
 CATEGORY_LABELS = [("games", "Games"), ("books", "Books"), ("software", "Software")]
 _ALLOWED_STOREFRONT_HOST = urlparse(storefront.BASE_URL).hostname
+_refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 
 def _grouped(bundles: list[storefront.StorefrontBundle]) -> dict[str, list]:
@@ -41,7 +44,7 @@ async def home(request: Request):
     )
 
 
-@router.post("/storefront/refresh", response_class=HTMLResponse)
+@router.post("/storefront/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "storefront-refresh")), Depends(require_csrf)])
 async def refresh_storefront(request: Request):
     bundles = await storefront.fetch_current_bundles(force=True)
     return templates.TemplateResponse(

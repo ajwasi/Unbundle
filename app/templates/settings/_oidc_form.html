@@ -13,6 +13,7 @@
 </p>
 
 <form hx-post="/settings/oidc" hx-target="#oidc-card-body" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
     <label>
       Issuer URL

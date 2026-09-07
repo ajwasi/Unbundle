@@ -21,8 +21,17 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
+import nh3
 
 BASE_URL = "https://www.humblebundle.com"
+# marketing_blurb renders with autoescaping bypassed (see home/_bundles.html) so
+# Humble's own <em>-style emphasis shows up as intended — sanitized here rather
+# than trusted outright, so a compromised or malicious listing can't inject
+# markup/JS through it. Real blurbs confirmed to use at least <em>; the rest of
+# this allowlist is the plausible-and-harmless rest of that same family, no
+# attributes on any of them (closes off href="javascript:..." / onerror=... etc.
+# by construction, not by trying to enumerate bad attributes).
+_ALLOWED_BLURB_TAGS = {"em", "strong", "b", "i", "br"}
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
@@ -118,7 +127,7 @@ async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
                         category=category,
                         machine_name=product.get("machine_name") or "",
                         name=product.get("tile_name") or product.get("tile_short_name") or "",
-                        blurb=product.get("marketing_blurb") or "",
+                        blurb=nh3.clean(product.get("marketing_blurb") or "", tags=_ALLOWED_BLURB_TAGS, attributes={}),
                         product_url=f"{BASE_URL}{product_url}" if product_url else "",
                         image_url=product.get("tile_image") or "",
                         start_date=_parse_datetime(product.get("start_date|datetime")),

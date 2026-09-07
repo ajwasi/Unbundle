@@ -111,6 +111,42 @@ async def test_run_job_fails_when_cli_exits_nonzero_even_if_file_present(db, mak
 
 
 @pytest.mark.asyncio
+async def test_run_job_marks_failed_without_touching_filesystem_when_name_is_dotdot(db, make_bundle, tmp_path):
+    # sanitize_dir_name() strips path separators but not "..", which contains
+    # none — a bundle name of exactly ".." (only plausible if Humble's own data
+    # contained it) must not let the verification step climb out of downloads_dir.
+    order = make_order(
+        name="..",
+        subproducts=[
+            make_subproduct(
+                human_name="Cool Book",
+                downloads=[{"download_struct": [{"name": "EPUB", "file_size": 10, "url": {"web": "https://dl.humble.com/book.epub"}}]}],
+            )
+        ],
+    )
+    bundle = make_bundle(gamekey="GK1", order=order)
+
+    # A real file one level above downloads_dir, at the path the escape would target.
+    escape_target = settings.downloads_dir.parent / "Cool Book" / "book.epub"
+
+    job = DownloadJob(gamekey=bundle.gamekey, bundle_name=bundle.name)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    with patch("app.downloads.worker.runner.run_download_job", new=AsyncMock(return_value=(0, "ok"))):
+        await worker._run_job(job.id, bundle.gamekey, None, None)
+
+    db.refresh(job)
+    assert job.status == JOB_FAILED
+    assert not escape_target.exists()
+
+    row = db.query(Download).filter(Download.gamekey == bundle.gamekey).one()
+    assert row.status == STATUS_FAILED
+    assert "outside downloads root" in row.error_message
+
+
+@pytest.mark.asyncio
 async def test_run_job_only_verifies_requested_indices(db, make_bundle):
     order = make_order(
         subproducts=[

@@ -69,6 +69,29 @@ async def test_fetch_current_bundles_parses_all_three_categories():
 
 
 @pytest.mark.asyncio
+async def test_fetch_current_bundles_sanitizes_blurb_markup():
+    # blurb renders with autoescaping bypassed (see home/_bundles.html), so a
+    # compromised or malicious listing must not be able to inject script/markup
+    # through it even though this field is otherwise trusted.
+    # Note: deliberately no literal "</script>" substring in the payload below —
+    # that would prematurely terminate the *test fixture's* naive regex-based
+    # extraction of the surrounding <script id="landingPage-json-data"> block
+    # (a test-harness limitation, unrelated to nh3's real handling of <script>,
+    # which was separately confirmed interactively).
+    product = _product()
+    product["marketing_blurb"] = 'Buy <a href="javascript:alert(1)">now</a><img src=x onerror=alert(1)>!'
+    html = _listing_html({"games": [product]})
+    resp = httpx.Response(200, text=html, request=httpx.Request("GET", "https://x"))
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
+        bundles = await storefront.fetch_current_bundles()
+    blurb = bundles[0].blurb
+    assert "javascript:" not in blurb
+    assert "onerror" not in blurb
+    assert "<a" not in blurb and "<img" not in blurb
+    assert "Buy" in blurb and "now" in blurb  # stripped tags still keep their visible text
+
+
+@pytest.mark.asyncio
 async def test_fetch_current_bundles_parses_start_and_end_dates():
     from datetime import datetime
 

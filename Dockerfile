@@ -14,6 +14,14 @@ ENV HOME=/root
 ARG HUMBLE_CLI_VERSION=v0.23.2
 ARG TARGETARCH
 
+# smbl64/humble-cli publishes no checksums.txt or signature for its releases
+# (confirmed 2026-09-07 against the real v0.23.2 release assets via the GitHub
+# API — no checksum manifest, nothing in the release notes either), so these
+# are self-computed against the exact bytes of the exact pinned version above.
+# Bumping HUMBLE_CLI_VERSION means recomputing and updating both of these.
+ARG HUMBLE_CLI_SHA256_AMD64=026f2b9a5c4594a51e66ef3d249e28dead50f2494e931738c7ea84e8ac44660a
+ARG HUMBLE_CLI_SHA256_ARM64=870b5fad2376a4a58b69b1cd55776a159a9a66b559dea5c252cb29812b83f694
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
@@ -29,9 +37,15 @@ RUN apt-get update \
 # Dockerfile downloaded the untarred URL directly, which 404s; never verified
 # until now since Docker Desktop isn't installed on the dev machine this was
 # written on).
-RUN curl -fsSL \
+RUN case "${TARGETARCH}" in \
+      amd64) expected="${HUMBLE_CLI_SHA256_AMD64}" ;; \
+      arm64) expected="${HUMBLE_CLI_SHA256_ARM64}" ;; \
+      *) echo "No pinned humble-cli checksum for TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL \
       "https://github.com/smbl64/humble-cli/releases/download/${HUMBLE_CLI_VERSION}/humble-cli-linux-${TARGETARCH}.tar.gz" \
       -o /tmp/humble-cli.tar.gz \
+    && echo "${expected}  /tmp/humble-cli.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/humble-cli.tar.gz -C /tmp \
     && mv "/tmp/humble-cli-linux-${TARGETARCH}" /usr/local/bin/humble-cli \
     && rm /tmp/humble-cli.tar.gz \

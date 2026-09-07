@@ -65,6 +65,14 @@ def test_login_page_sanitizes_next_in_rendered_form(client):
     assert "evil.example.com" not in resp.text
 
 
+def test_login_rate_limited_after_too_many_attempts(client):
+    for _ in range(10):
+        resp = client.post("/login", data={"password": "wrong", "next": "/"})
+        assert resp.status_code == 401
+    resp = client.post("/login", data={"password": "test-password", "next": "/"}, follow_redirects=False)
+    assert resp.status_code == 429
+
+
 def test_logout_clears_session_cookie(authed_client):
     resp = authed_client.post("/logout", follow_redirects=False)
     assert resp.status_code == 303

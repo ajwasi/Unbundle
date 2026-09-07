@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.connectors import gog_connector, steam_connector
 from app.connectors.humble_connector import HumbleConnector
+from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.credential import (
     SOURCE_GOG,
@@ -108,7 +109,7 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "settings/index.html", context)
 
 
-@router.post("/humble-key", response_class=HTMLResponse)
+@router.post("/humble-key", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def save_humble_key(request: Request, session_key: str = Form(...), db: Session = Depends(get_db)):
     session_key = session_key.strip()
     result = await HumbleConnector({"session_key": session_key}).check_credentials()
@@ -138,7 +139,7 @@ async def save_humble_key(request: Request, session_key: str = Form(...), db: Se
     )
 
 
-@router.post("/oidc", response_class=HTMLResponse)
+@router.post("/oidc", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def save_oidc(
     request: Request,
     issuer: str = Form(""),
@@ -185,7 +186,7 @@ async def save_oidc(
     return templates.TemplateResponse(request, "settings/_oidc_form.html", _oidc_context(request, db, error))
 
 
-@router.post("/steam", response_class=HTMLResponse)
+@router.post("/steam", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def save_steam(request: Request, api_key: str = Form(""), steamid: str = Form(""), db: Session = Depends(get_db)):
     api_key = api_key.strip()
     steamid_input = steamid.strip()
@@ -220,7 +221,16 @@ async def save_steam(request: Request, api_key: str = Form(""), steamid: str = F
     return templates.TemplateResponse(request, "settings/_steam_form.html", context)
 
 
-@router.post("/gog", response_class=HTMLResponse)
+@router.post("/steam/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def disconnect_steam(request: Request, db: Session = Depends(get_db)):
+    cred = db.query(Credential).filter(Credential.source == SOURCE_STEAM).one_or_none()
+    if cred:
+        db.delete(cred)
+        db.commit()
+    return templates.TemplateResponse(request, "settings/_steam_form.html", _steam_context(db))
+
+
+@router.post("/gog", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def save_gog(request: Request, pasted_code: str = Form(""), db: Session = Depends(get_db)):
     code = gog_connector.extract_code(pasted_code)
 
@@ -240,4 +250,13 @@ async def save_gog(request: Request, pasted_code: str = Form(""), db: Session = 
     cred.last_error = error
     db.commit()
 
+    return templates.TemplateResponse(request, "settings/_gog_form.html", _gog_context(db))
+
+
+@router.post("/gog/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def disconnect_gog(request: Request, db: Session = Depends(get_db)):
+    cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none()
+    if cred:
+        db.delete(cred)
+        db.commit()
     return templates.TemplateResponse(request, "settings/_gog_form.html", _gog_context(db))
