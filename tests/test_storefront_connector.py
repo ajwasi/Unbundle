@@ -178,6 +178,25 @@ def _tier_item(machine_name, human_name, content_type="ebook", price=10.0):
 
 
 @pytest.mark.asyncio
+async def test_fetch_bundle_detail_rejects_a_url_on_another_host():
+    # Defense-in-depth: home.py's /storefront/compare route already validates the
+    # host before ever calling this, but this connector must not blindly trust an
+    # arbitrary caller (or a future one) to have done that.
+    with patch("httpx.AsyncClient.get", new=AsyncMock()) as mock_get:
+        with pytest.raises(ValueError, match="outside"):
+            await storefront.fetch_bundle_detail("https://evil.example.com/books/x")
+    mock_get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_bundle_detail_rejects_non_https_scheme():
+    with patch("httpx.AsyncClient.get", new=AsyncMock()) as mock_get:
+        with pytest.raises(ValueError, match="outside"):
+            await storefront.fetch_bundle_detail("http://www.humblebundle.com/books/x")
+    mock_get.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_fetch_bundle_detail_parses_name_and_msrp():
     bundle_data = {
         "basic_data": {"human_name": "My Bundle", "msrp|money": {"amount": 100.0}},
