@@ -25,7 +25,6 @@ import httpx
 import nh3
 
 BASE_URL = "https://www.humblebundle.com"
-_BASE_HOST = urlparse(BASE_URL).hostname
 # marketing_blurb renders with autoescaping bypassed (see home/_bundles.html) so
 # Humble's own <em>-style emphasis shows up as intended — sanitized here rather
 # than trusted outright, so a compromised or malicious listing can't inject
@@ -147,19 +146,21 @@ async def fetch_bundle_detail(product_url: str, force: bool = False) -> Storefro
         return cached[1]
 
     # home.py's /storefront/compare route already validates this before ever calling
-    # here, but CodeQL's SSRF query flagged the client.get() below regardless — a
-    # guard in a *different* function than its sink apparently isn't credited, same
-    # "local function call caller can't credit" limitation already hit for the
-    # open-redirect and clear-text-logging alerts elsewhere in this app. Repeating the
-    # check here, in the same function as the actual request, is both the fix and
-    # genuine defense-in-depth for this module's only other (hypothetical) caller.
+    # here, but CodeQL's SSRF query flagged the client.get() below regardless, twice:
+    # once with the guard only in that caller, and again with an equivalent
+    # guard-clause-with-early-raise added here. Neither satisfied it. This shape —
+    # the request itself only inside the true branch of a direct literal-string host
+    # comparison, no raise/early-return in between — deliberately mirrors CodeQL's
+    # own documented py/full-ssrf "GOOD" example as closely as possible; a
+    # guard-clause that raises in the *invalid* case apparently isn't recognized the
+    # same way as the sink being reached only via the *valid* branch of an if/else.
     parsed = urlparse(product_url)
-    if parsed.scheme != "https" or parsed.hostname != _BASE_HOST:
+    if parsed.scheme == "https" and parsed.hostname == "www.humblebundle.com":
+        async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
+            resp = await client.get(product_url)
+            resp.raise_for_status()
+    else:
         raise ValueError(f"Refusing to fetch a bundle detail URL outside {BASE_URL}")
-
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
-        resp = await client.get(product_url)
-        resp.raise_for_status()
 
     match = _DETAIL_MARKER.search(resp.text)
     if not match:
