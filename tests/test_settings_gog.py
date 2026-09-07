@@ -8,7 +8,7 @@ from app.security import decrypt_json
 def test_settings_page_shows_gog_card_with_login_link(authed_client):
     resp = authed_client.get("/settings")
     assert "GOG" in resp.text
-    assert "auth.gog.com" in resp.text
+    assert 'href="https://auth.gog.com/auth' in resp.text
     assert 'name="pasted_code"' in resp.text
 
 
