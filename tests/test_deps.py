@@ -30,7 +30,7 @@ def test_login_page_itself_is_never_gated(client):
 def test_wide_open_when_no_password_and_no_oidc(client, monkeypatch):
     # Original pre-OIDC default, preserved: an app with no configured login method
     # at all stays fully open rather than becoming permanently inaccessible.
-    monkeypatch.setattr("app.deps.settings.app_password", "")
+    monkeypatch.setattr("app.config.settings.app_password", "")
     resp = client.get("/bundles", follow_redirects=False)
     assert resp.status_code == 200
 
@@ -41,7 +41,7 @@ def test_gated_when_only_password_set(client):
 
 
 def test_gated_when_only_oidc_enabled_and_no_password(client, db, monkeypatch):
-    monkeypatch.setattr("app.deps.settings.app_password", "")
+    monkeypatch.setattr("app.config.settings.app_password", "")
     _save_oidc(db, enabled=True)
     resp = client.get("/bundles", follow_redirects=False)
     assert resp.status_code == 303
@@ -61,6 +61,26 @@ def test_existing_session_rejected_once_password_disabled_requires_new_login(aut
     _save_oidc(db, enabled=True, disable_password=True)
     resp = authed_client.get("/bundles")
     assert resp.status_code == 200
+
+
+def test_warning_banner_shown_when_wide_open(client, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.get("/")
+    assert "no login is configured" in resp.text.lower()
+
+
+def test_warning_banner_absent_when_password_configured(authed_client):
+    resp = authed_client.get("/")
+    assert "no login is configured" not in resp.text.lower()
+
+
+def test_warning_banner_shown_on_login_page_when_wide_open(client, monkeypatch):
+    # An edge case (AuthMiddleware wouldn't normally send anyone here in this
+    # state), but someone could still browse to it directly, and the banner
+    # should reflect reality wherever it's checked.
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.get("/login")
+    assert "no login is configured" in resp.text.lower()
 
 
 def test_auth_oidc_paths_are_never_gated(client, db):

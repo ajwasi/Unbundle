@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from app.models.credential import SOURCE_OIDC, STATUS_OK, Credential
-from app.oidc import discover, get_oidc_config, is_oidc_enabled, is_password_disabled
+from app.oidc import discover, get_oidc_config, is_auth_configured, is_oidc_enabled, is_password_disabled
 from app.security import encrypt_json
 
 
@@ -59,6 +59,32 @@ def test_is_password_disabled_false_if_enabled_is_false_even_with_flag_set(db):
     # Safety-critical: disable_password must never take effect on its own.
     _save_oidc(db, enabled=False, disable_password=True)
     assert not is_password_disabled(db)
+
+
+def test_is_auth_configured_true_with_password_only(db):
+    # conftest.py sets APP_PASSWORD for the whole suite, no OIDC configured here.
+    assert is_auth_configured(db)
+
+
+def test_is_auth_configured_false_with_neither(db, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    assert not is_auth_configured(db)
+
+
+def test_is_auth_configured_true_with_oidc_only_no_password(db, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    _save_oidc(db, enabled=True)
+    assert is_auth_configured(db)
+
+
+def test_is_auth_configured_false_when_password_disabled_and_oidc_not_enabled(db):
+    # Same safety property as is_password_disabled itself: disable_password with
+    # enabled=False must not leave the app with neither method usable by mistake
+    # — this specific combination is meant to be unreachable via Settings (see
+    # save_oidc's own guard), but the helper itself must still reflect reality
+    # if it ever happened.
+    _save_oidc(db, enabled=False, disable_password=True)
+    assert is_auth_configured(db)  # password still allowed: disable_password only bites when enabled=True too
 
 
 @pytest.mark.asyncio

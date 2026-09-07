@@ -45,7 +45,15 @@ def _extract_vanity_name(raw: str) -> str:
 
 async def resolve_steamid(api_key: str, steamid_or_url: str) -> str:
     """Returns a resolved SteamID64 string. Raises ValueError if the input
-    can't be resolved (bad vanity name, bad key, or a network problem)."""
+    can't be resolved (bad vanity name, bad key, or a network problem).
+
+    Deliberately never calls resp.raise_for_status() — its exception message
+    includes the full request URL, and this request has `api_key` in the query
+    string. That message was confirmed to flow straight into Credential.last_error
+    (a plaintext column) and the Settings UI, i.e. a real API-key leak on any
+    transient Steam-side error. Status codes are checked manually instead, with
+    hand-written messages that never reference the request/response objects.
+    """
     candidate = steamid_or_url.strip()
     if _STEAM_ID_RE.match(candidate):
         return candidate
@@ -53,7 +61,8 @@ async def resolve_steamid(api_key: str, steamid_or_url: str) -> str:
     vanity = _extract_vanity_name(candidate)
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(f"{BASE_URL}/ISteamUser/ResolveVanityURL/v0001/", params={"key": api_key, "vanityurl": vanity})
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        raise ValueError(f"Steam rejected the profile lookup (HTTP {resp.status_code}).")
     data = (resp.json().get("response")) or {}
     if data.get("success") != 1:
         raise ValueError(f"Could not resolve Steam profile '{vanity}' — {data.get('message', 'not found')}.")
@@ -87,12 +96,15 @@ async def check_credentials(api_key: str, steamid64: str) -> CredentialStatus:
 
 
 async def fetch_owned_games(api_key: str, steamid64: str) -> list[SteamGameData]:
+    # See resolve_steamid's docstring: no raise_for_status() here either, for the
+    # same reason — this request also carries `api_key` in the query string.
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             f"{BASE_URL}/IPlayerService/GetOwnedGames/v0001/",
             params={"key": api_key, "steamid": steamid64, "include_appinfo": "true", "include_played_free_games": "true", "format": "json"},
         )
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        raise ValueError(f"Steam rejected the games request (HTTP {resp.status_code}).")
     # A private profile (or one game-details-hidden) comes back as a 200 with an
     # empty {"response": {}} — no error status at all, confirmed Steam API behavior.
     games_json = (resp.json().get("response") or {}).get("games")
