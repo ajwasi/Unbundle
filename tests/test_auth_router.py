@@ -36,6 +36,35 @@ def test_login_redirects_to_requested_next(client):
     assert resp.headers["location"] == "/catalog"
 
 
+def test_login_rejects_scheme_relative_next_as_open_redirect(client):
+    resp = client.post(
+        "/login", data={"password": "test-password", "next": "//evil.example.com"}, follow_redirects=False
+    )
+    assert resp.headers["location"] == "/"
+
+
+def test_login_rejects_absolute_url_next_as_open_redirect(client):
+    resp = client.post(
+        "/login",
+        data={"password": "test-password", "next": "https://evil.example.com"},
+        follow_redirects=False,
+    )
+    assert resp.headers["location"] == "/"
+
+
+def test_login_rejects_backslash_next_as_open_redirect(client):
+    resp = client.post(
+        "/login", data={"password": "test-password", "next": "/\\evil.example.com"}, follow_redirects=False
+    )
+    assert resp.headers["location"] == "/"
+
+
+def test_login_page_sanitizes_next_in_rendered_form(client):
+    resp = client.get("/login?next=https://evil.example.com")
+    assert 'value="/"' in resp.text
+    assert "evil.example.com" not in resp.text
+
+
 def test_logout_clears_session_cookie(authed_client):
     resp = authed_client.post("/logout", follow_redirects=False)
     assert resp.status_code == 303
@@ -95,6 +124,22 @@ def test_oidc_callback_success_sets_session_cookie(client, db):
         resp = client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
     assert resp.status_code == 303
     assert "humble_tracker_session" in resp.cookies
+
+
+def test_oidc_callback_sanitizes_malicious_next_from_session(client, db):
+    from fastapi.responses import RedirectResponse
+
+    _save_oidc(db, enabled=True)
+    with patch("app.routers.auth.build_oauth_client") as mock_build:
+        mock_build.return_value.authorize_redirect = AsyncMock(
+            return_value=RedirectResponse("https://auth.example.com/authorize", status_code=302)
+        )
+        client.get("/auth/oidc/login?next=https://evil.example.com", follow_redirects=False)
+
+    with patch("app.routers.auth.build_oauth_client") as mock_build:
+        mock_build.return_value.authorize_access_token = AsyncMock(return_value={"userinfo": {"sub": "user1"}})
+        resp = client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
+    assert resp.headers["location"] == "/"
 
 
 def test_oidc_callback_failure_shows_login_error(client, db):

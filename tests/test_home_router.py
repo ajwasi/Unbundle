@@ -98,6 +98,25 @@ def test_compare_rejects_url_not_on_humblebundle_domain(authed_client):
     assert resp.status_code == 400
 
 
+def test_compare_rejects_userinfo_host_bypass(authed_client):
+    # Classic open-redirect/SSRF host-check bypass: everything before the "@" is
+    # userinfo, not the host, so a naive prefix/substring check on the raw string
+    # could be fooled into treating this as a humblebundle.com URL. urlparse's
+    # .hostname correctly reports "evil.example.com" here.
+    resp = authed_client.get("/storefront/compare?url=https://www.humblebundle.com@evil.example.com/x")
+    assert resp.status_code == 400
+
+
+def test_compare_rejects_lookalike_subdomain(authed_client):
+    resp = authed_client.get("/storefront/compare?url=https://www.humblebundle.com.evil.example.com/x")
+    assert resp.status_code == 400
+
+
+def test_compare_rejects_non_https_scheme(authed_client):
+    resp = authed_client.get("/storefront/compare?url=http://www.humblebundle.com/x")
+    assert resp.status_code == 400
+
+
 def test_compare_shows_owned_vs_new_items(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Owned Item", machine_name="owned")]))
 

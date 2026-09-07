@@ -5,6 +5,7 @@ the user's own Catalog via the shared machine_name identity key.
 """
 
 from datetime import datetime
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -18,6 +19,7 @@ from app.templates_env import templates
 router = APIRouter()
 
 CATEGORY_LABELS = [("games", "Games"), ("books", "Books"), ("software", "Software")]
+_ALLOWED_STOREFRONT_HOST = urlparse(storefront.BASE_URL).hostname
 
 
 def _grouped(bundles: list[storefront.StorefrontBundle]) -> dict[str, list]:
@@ -51,7 +53,8 @@ async def refresh_storefront(request: Request):
 
 @router.get("/storefront/compare", response_class=HTMLResponse)
 async def compare(request: Request, url: str, db: Session = Depends(get_db)):
-    if not url.startswith(storefront.BASE_URL + "/"):
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname != _ALLOWED_STOREFRONT_HOST:
         raise HTTPException(status_code=400, detail="Invalid bundle URL")
 
     detail = await storefront.fetch_bundle_detail(url)

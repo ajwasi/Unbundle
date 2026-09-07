@@ -17,9 +17,19 @@ from app.templates_env import templates
 router = APIRouter()
 
 
+def _safe_next(next: str | None) -> str:
+    # `next` round-trips through a query param, a hidden form field, and a session
+    # value — all attacker-suppliable, none of it meant to ever leave this app. A
+    # leading "//" or "/\" is browser shorthand for a scheme-relative absolute URL
+    # (e.g. "//evil.com"), so reject anything but a genuine single-slash-rooted path.
+    if not next or not next.startswith("/") or next.startswith("//") or next.startswith("/\\"):
+        return "/"
+    return next
+
+
 def _login_context(db: Session, next: str, error: str | None) -> dict:
     return {
-        "next": next,
+        "next": _safe_next(next),
         "error": error,
         "oidc_enabled": is_oidc_enabled(db),
         "password_enabled": not is_password_disabled(db),
@@ -36,7 +46,7 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
     if is_password_disabled(db) or not check_app_password(password, db):
         context = _login_context(db, next, "Incorrect password")
         return templates.TemplateResponse(request, "auth/login.html", context, status_code=401)
-    response = RedirectResponse(url=next or "/", status_code=303)
+    response = RedirectResponse(url=_safe_next(next), status_code=303)
     response.set_cookie(SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax")
     return response
 
@@ -53,7 +63,7 @@ async def oidc_login(request: Request, next: str = "/", db: Session = Depends(ge
     cfg = get_oidc_config(db)
     if not cfg or not cfg.get("enabled"):
         raise HTTPException(status_code=404, detail="OIDC is not configured")
-    request.session["oidc_next"] = next or "/"
+    request.session["oidc_next"] = _safe_next(next)
     client = build_oauth_client(cfg)
     redirect_uri = str(request.url_for("oidc_callback"))
     return await client.authorize_redirect(request, redirect_uri)
@@ -74,7 +84,7 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
             status_code=401,
         )
 
-    next_url = request.session.pop("oidc_next", "/")
+    next_url = _safe_next(request.session.pop("oidc_next", "/"))
     response = RedirectResponse(url=next_url, status_code=303)
     response.set_cookie(SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax")
     return response
