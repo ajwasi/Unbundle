@@ -28,6 +28,7 @@ from datetime import datetime  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.csrf import require_csrf  # noqa: E402
 from app.db import Base, engine, SessionLocal  # noqa: E402
 from app.deps import get_db  # noqa: E402
 
@@ -43,6 +44,19 @@ def _fresh_schema():
     Base.metadata.create_all(engine)
     yield
     Base.metadata.drop_all(engine)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """Rate limiter instances (app/ratelimit.py) are module-level singletons that
+    outlive any single test's TestClient — without this, hit counts would
+    accumulate across the whole suite (every authed_client fixture use alone posts
+    to /login) and eventually start rejecting unrelated tests' requests.
+    """
+    from app.ratelimit import reset_all
+
+    reset_all()
+    yield
 
 
 @pytest.fixture(autouse=True)
@@ -81,6 +95,29 @@ def app_instance():
 
 @pytest.fixture
 def client(app_instance, db):
+    """CSRF enforcement (app/csrf.py) is bypassed by default here, the same way
+    get_db is overridden — hundreds of existing tests POST to mutating routes
+    without needing to know CSRF machinery exists at all. Tests that actually
+    exercise require_csrf itself (tests/test_csrf.py) use raw_client instead,
+    which does NOT carry this override.
+    """
+
+    def _override_get_db():
+        yield db
+
+    app_instance.dependency_overrides[get_db] = _override_get_db
+    app_instance.dependency_overrides[require_csrf] = lambda: None
+    with TestClient(app_instance) as c:
+        yield c
+    app_instance.dependency_overrides.clear()
+
+
+@pytest.fixture
+def raw_client(app_instance, db):
+    """Like `client`, but WITHOUT the require_csrf override — for tests that
+    verify the CSRF mechanism itself actually enforces something.
+    """
+
     def _override_get_db():
         yield db
 

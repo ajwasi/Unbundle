@@ -39,6 +39,33 @@ def test_save_steam_private_profile_rejected(authed_client, db):
     assert "private" in resp.text.lower()
 
 
+def test_settings_page_hides_disconnect_button_when_not_configured(authed_client):
+    resp = authed_client.get("/settings")
+    assert "/settings/steam/disconnect" not in resp.text
+
+
+def test_disconnect_steam_removes_credential(authed_client, db):
+    db.add(Credential(source=SOURCE_STEAM, status=STATUS_OK, encrypted_payload=None))
+    db.commit()
+
+    resp = authed_client.post("/settings/steam/disconnect")
+    assert resp.status_code == 200
+    assert db.query(Credential).filter(Credential.source == SOURCE_STEAM).one_or_none() is None
+    assert "not configured" in resp.text.lower()
+
+
+def test_disconnect_steam_shows_button_only_when_configured(authed_client, db):
+    db.add(Credential(source=SOURCE_STEAM, status=STATUS_OK))
+    db.commit()
+    resp = authed_client.get("/settings")
+    assert "/settings/steam/disconnect" in resp.text
+
+
+def test_disconnect_steam_is_a_noop_when_nothing_configured(authed_client, db):
+    resp = authed_client.post("/settings/steam/disconnect")
+    assert resp.status_code == 200
+
+
 def test_save_steam_bad_vanity_name_rejected(authed_client, db):
     with patch("app.routers.settings.steam_connector.resolve_steamid", new=AsyncMock(side_effect=ValueError("Could not resolve Steam profile 'x'."))):
         resp = authed_client.post("/settings/steam", data={"api_key": "k", "steamid": "x"})

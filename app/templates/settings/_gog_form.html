@@ -16,8 +16,17 @@
 </ol>
 
 <form hx-post="/settings/gog" hx-target="#gog-card-body" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <div style="display: flex; gap: 0.5rem; max-width: 480px;">
     <input type="text" name="pasted_code" placeholder="Paste the redirected URL or code here" style="flex: 1;">
     <button type="submit">Connect</button>
   </div>
 </form>
+
+{% if gog_status != 'not_configured' %}
+<form hx-post="/settings/gog/disconnect" hx-target="#gog-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect GOG? This removes the saved refresh token; already-matched ownership data is kept." style="margin-top: 0.6rem;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <button type="submit" class="secondary">Disconnect</button>
+</form>
+{% endif %}

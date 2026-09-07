@@ -3,15 +3,18 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.connectors.humble_connector import order_page_url
+from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_GOG
 from app.models.gog_game import GogGame
+from app.ratelimit import RateLimiter, rate_limit
 from app.sync import gog_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/gog")
+_refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 
 def _unredeemed_rows(db: Session) -> list[dict]:
@@ -53,7 +56,7 @@ def gog_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "gog/list.html", _context(db))
 
 
-@router.post("/refresh", response_class=HTMLResponse)
+@router.post("/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "gog-refresh")), Depends(require_csrf)])
 async def refresh_gog(request: Request, db: Session = Depends(get_db)):
     try:
         await gog_sync.refresh_gog_library(db)

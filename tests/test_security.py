@@ -1,6 +1,11 @@
+import json
+
 import pytest
+from cryptography.fernet import Fernet
 
 from app.security import (
+    _derive_key,
+    _derive_key_legacy,
     check_app_password,
     create_session_token,
     decrypt_json,
@@ -16,6 +21,30 @@ def test_encrypt_decrypt_round_trip():
     token = encrypt_json(data)
     assert token != data
     assert decrypt_json(token) == data
+
+
+def test_new_kdf_is_not_just_the_legacy_kdf_relabeled():
+    assert _derive_key("same-secret") != _derive_key_legacy("same-secret")
+
+
+def test_decrypt_json_still_opens_a_pre_upgrade_legacy_format_token():
+    # Simulates a Credential.encrypted_payload written before the PBKDF2 upgrade —
+    # decrypt_json must still open it under the currently-configured APP_SECRET_KEY
+    # (conftest.py sets this to "test-only-secret-key") via its fallback path, so
+    # existing stored credentials don't go dark the moment this code ships.
+    legacy_fernet = Fernet(_derive_key_legacy("test-only-secret-key"))
+    token = legacy_fernet.encrypt(json.dumps({"legacy": True}).encode("utf-8"))
+    assert decrypt_json(token) == {"legacy": True}
+
+
+def test_encrypt_json_can_target_a_key_other_than_the_configured_one():
+    # This is what the rotate-secret-key CLI tool relies on: encrypting under a
+    # *new* key before that key is the one actually configured in settings.
+    token = encrypt_json({"a": 1}, secret_key="a-different-key")
+    with pytest.raises(ValueError):
+        decrypt_json(token)  # wrong under the still-configured settings.app_secret_key
+    other_fernet = Fernet(_derive_key("a-different-key"))
+    assert json.loads(other_fernet.decrypt(token)) == {"a": 1}
 
 
 def test_decrypt_rejects_tampered_token():

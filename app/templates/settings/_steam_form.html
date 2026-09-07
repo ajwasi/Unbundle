@@ -8,6 +8,7 @@
 {% if steam_connected_as %}<p style="color: var(--success);">{{ steam_connected_as }}</p>{% endif %}
 
 <form hx-post="/settings/steam" hx-target="#steam-card-body" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
     <label>
       API Key {% if steam_has_key %}<span class="muted">(leave blank to keep the saved one)</span>{% endif %}
@@ -20,3 +21,11 @@
     <button type="submit" style="align-self: flex-start;">{{ 'Reconnect' if steam_status == 'error' else 'Save' }}</button>
   </div>
 </form>
+
+{% if steam_status != 'not_configured' %}
+<form hx-post="/settings/steam/disconnect" hx-target="#steam-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect Steam? This removes the saved API key and SteamID; already-matched ownership data is kept." style="margin-top: 0.6rem;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <button type="submit" class="secondary">Disconnect</button>
+</form>
+{% endif %}

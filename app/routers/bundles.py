@@ -7,6 +7,7 @@ from sqlalchemy import asc, desc, func
 from sqlalchemy.orm import Session
 
 from app.connectors.humble_connector import order_page_url, parse_bundle
+from app.csrf import require_csrf
 from app.deps import get_db
 from app.downloads import worker
 from app.models.bundle import Bundle
@@ -14,10 +15,16 @@ from app.models.bundle_entitlement import BundleEntitlement
 from app.models.download import STATUS_COMPLETED as FILE_COMPLETED, STATUS_FAILED as FILE_FAILED, Download
 from app.models.download_job import STATUS_FAILED as JOB_FAILED, STATUS_COMPLETED as JOB_COMPLETED
 from app.models.sync_run import STATUS_FAILED, STATUS_SUCCESS
+from app.ratelimit import RateLimiter, rate_limit
 from app.sync import refresh
 from app.templates_env import templates
 
 router = APIRouter(prefix="/bundles")
+
+# A full library sync hits Humble's real API repeatedly (paginated order list +
+# batched details) — refreshing is an occasional manual action, so there's no
+# legitimate reason to need more than a handful of these per minute.
+_refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 _SORT_COLUMNS = {
     "name": Bundle.name,
@@ -90,7 +97,7 @@ def list_bundles(
     return templates.TemplateResponse(request, "bundles/list.html", context)
 
 
-@router.post("/refresh", response_class=HTMLResponse)
+@router.post("/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "bundles-refresh")), Depends(require_csrf)])
 async def refresh_bundles(request: Request):
     try:
         await refresh.start_refresh()
@@ -281,7 +288,7 @@ def bundle_detail(request: Request, gamekey: str, db: Session = Depends(get_db))
     return templates.TemplateResponse(request, "bundles/detail.html", context)
 
 
-@router.post("/{gamekey}/download", response_class=HTMLResponse)
+@router.post("/{gamekey}/download", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def trigger_download(
     request: Request,
     gamekey: str,
@@ -305,7 +312,7 @@ async def trigger_download(
     return templates.TemplateResponse(request, "bundles/_download_status.html", {"gamekey": gamekey, "running": True})
 
 
-@router.post("/{gamekey}/download/item/{subproduct_index}", response_class=HTMLResponse)
+@router.post("/{gamekey}/download/item/{subproduct_index}", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def trigger_item_download(
     request: Request,
     gamekey: str,

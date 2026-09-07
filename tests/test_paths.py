@@ -1,7 +1,15 @@
 import os
 from pathlib import Path
 
-from app.downloads.paths import long_path_safe, predict_download_path, sanitize_dir_name
+import pytest
+
+from app.downloads.paths import (
+    PathTraversalError,
+    long_path_safe,
+    predict_download_path,
+    resolve_within,
+    sanitize_dir_name,
+)
 
 
 def test_sanitize_replaces_each_invalid_character():
@@ -26,6 +34,23 @@ def test_sanitize_leaves_ordinary_names_untouched():
 def test_predict_download_path_builds_three_level_path():
     result = predict_download_path("My: Bundle", "Item/Name", "file.epub")
     assert result == Path("My  Bundle") / "Item Name" / "file.epub"
+
+
+def test_resolve_within_accepts_a_normal_nested_path(tmp_path):
+    result = resolve_within(tmp_path, Path("Bundle") / "Item" / "file.epub")
+    assert result == (tmp_path / "Bundle" / "Item" / "file.epub").resolve()
+
+
+def test_resolve_within_rejects_dotdot_climbing_out_of_root(tmp_path):
+    # sanitize_dir_name() strips path separators but ".." contains none, so a
+    # bundle/item name of exactly ".." reaches here unchanged from predict_download_path.
+    with pytest.raises(PathTraversalError):
+        resolve_within(tmp_path, Path("..") / ".." / "evil.txt")
+
+
+def test_resolve_within_rejects_dotdot_in_a_middle_segment(tmp_path):
+    with pytest.raises(PathTraversalError):
+        resolve_within(tmp_path, Path("Bundle") / ".." / ".." / "evil.txt")
 
 
 # long_path_safe branches on the *real* os.name rather than an injectable seam,

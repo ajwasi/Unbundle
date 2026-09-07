@@ -9,12 +9,20 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
+from app.csrf import require_csrf
 from app.deps import get_db
 from app.oidc import build_oauth_client, get_oidc_config, is_oidc_enabled, is_password_disabled
+from app.ratelimit import RateLimiter, rate_limit
 from app.security import SESSION_COOKIE_NAME, check_app_password, create_session_token
 from app.templates_env import templates
 
 router = APIRouter()
+
+# Timing-safe comparison (security.py) protects against reading the password back
+# via response-time differences, but says nothing about attempt *rate* — this bounds
+# it separately. 10/min is loose enough that a real user fumbling their password
+# won't hit it, but bounds automated guessing to ~14k attempts/day per source IP.
+_login_limiter = RateLimiter(max_calls=10, period_seconds=60)
 
 
 def _safe_next(next: str | None) -> str:
@@ -41,7 +49,7 @@ def login_page(request: Request, next: str = "/", db: Session = Depends(get_db))
     return templates.TemplateResponse(request, "auth/login.html", _login_context(db, next, None))
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(rate_limit(_login_limiter, "login")), Depends(require_csrf)])
 def login_submit(request: Request, password: str = Form(...), next: str = Form("/"), db: Session = Depends(get_db)):
     if is_password_disabled(db) or not check_app_password(password, db):
         context = _login_context(db, next, "Incorrect password")
@@ -51,7 +59,7 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
     return response
 
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(require_csrf)])
 def logout():
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(SESSION_COOKIE_NAME)

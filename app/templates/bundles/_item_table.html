@@ -1,4 +1,5 @@
 <form id="item-form" hx-post="/bundles/{{ bundle.gamekey }}/download" hx-target="#download-status" hx-swap="outerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   {% if item_groups %}
   <div class="toolbar">
     <button type="submit">Download Selected</button>

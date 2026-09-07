@@ -8,6 +8,7 @@
 {% else %}
 <div class="toolbar">
   <form hx-post="/gog/refresh" hx-target="#gog-content" hx-swap="outerHTML" style="margin: 0;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="secondary">Refresh</button>
   </form>
 </div>

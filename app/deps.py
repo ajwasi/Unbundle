@@ -2,6 +2,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
+from app.csrf import COOKIE_NAME as CSRF_COOKIE_NAME, ensure_csrf_cookie
 from app.db import SessionLocal, get_db  # get_db re-exported: routers do `db: Session = Depends(get_db)`
 from app.oidc import is_auth_configured
 from app.security import SESSION_COOKIE_NAME, verify_session_token
@@ -34,6 +35,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.url.path.startswith(_STATIC_PREFIX):
             return await call_next(request)
 
+        # Ensured here (rather than lazily wherever a form happens to render) so
+        # it's set on every response uniformly, including the very first request
+        # of a new session — the login page itself is one of the forms this
+        # protects, so it can't wait until after auth.
+        csrf_token = ensure_csrf_cookie(request)
+        request.state.csrf_token = csrf_token
+        csrf_cookie_is_new = request.cookies.get(CSRF_COOKIE_NAME) != csrf_token
+
+        def _finish(response):
+            if csrf_cookie_is_new:
+                response.set_cookie(CSRF_COOKIE_NAME, csrf_token, httponly=True, samesite="lax")
+            return response
+
         db = SessionLocal()
         try:
             auth_configured = is_auth_configured(db)
@@ -42,13 +56,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.auth_configured = auth_configured
 
         if request.url.path.startswith(_PUBLIC_PATH_PREFIXES):
-            return await call_next(request)
+            return _finish(await call_next(request))
 
         if not auth_configured:
-            return await call_next(request)
+            return _finish(await call_next(request))
 
         token = request.cookies.get(SESSION_COOKIE_NAME)
         if not verify_session_token(token):
-            return RedirectResponse(url=f"/login?next={request.url.path}", status_code=303)
+            return _finish(RedirectResponse(url=f"/login?next={request.url.path}", status_code=303))
 
-        return await call_next(request)
+        return _finish(await call_next(request))

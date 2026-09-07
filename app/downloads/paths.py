@@ -17,12 +17,33 @@ from pathlib import Path
 _INVALID_CHARS = set('/\\?%*:|"<>;=')
 
 
+class PathTraversalError(ValueError):
+    """Raised when a predicted download path would resolve outside its root."""
+
+
 def sanitize_dir_name(name: str) -> str:
     return "".join(" " if ch in _INVALID_CHARS or ch == "\n" else ch for ch in name)
 
 
 def predict_download_path(bundle_name: str, item_name: str, filename: str) -> Path:
     return Path(sanitize_dir_name(bundle_name)) / sanitize_dir_name(item_name) / filename
+
+
+def resolve_within(root: Path, rel_path: Path) -> Path:
+    """Join rel_path onto root and confirm the result didn't escape it.
+
+    sanitize_dir_name() strips path separators but never touches "..", which
+    isn't a separator itself — a bundle/item name of exactly ".." (only
+    plausible if Humble's own data contained it) would otherwise let a
+    predicted path climb out of downloads_dir. Defense-in-depth: this is the
+    single choke point every predicted path passes through before touching
+    the filesystem.
+    """
+    root_resolved = root.resolve()
+    candidate = (root_resolved / rel_path).resolve()
+    if not candidate.is_relative_to(root_resolved):
+        raise PathTraversalError(f"Predicted path '{rel_path}' resolves outside downloads root")
+    return candidate
 
 
 def long_path_safe(path: Path) -> Path:

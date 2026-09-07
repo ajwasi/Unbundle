@@ -108,23 +108,7 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
                     and (not formats or item.file_format in formats)
                 ]
 
-                any_failed = False
-                for item in expected:
-                    rel_path = paths.predict_download_path(bundle.name, item.item_name, item.original_filename)
-                    abs_path = downloads_root / rel_path
-                    check_path = paths.long_path_safe(abs_path)
-                    exists = check_path.is_file()
-                    actual_size = check_path.stat().st_size if exists else 0
-                    # Not an exact match against item.expected_size_bytes: confirmed against a real
-                    # account (2026-09-06) that Humble's own API-reported file_size can be stale
-                    # relative to the file actually served (observed both directions — one book's
-                    # real file was ~5x larger than its metadata, another ~20% smaller). humble-cli
-                    # itself never validates size after a fresh download either, only uses it to
-                    # decide whether to skip re-fetching an already-present file. Non-empty + present
-                    # is the honest success signal; exact-match produced false "failed" verdicts on
-                    # genuinely-successful downloads.
-                    ok = exists and actual_size > 0
-
+                def _row_for(item) -> Download:
                     row = (
                         db.query(Download)
                         .filter(
@@ -141,12 +125,40 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
                             original_filename=item.original_filename,
                         )
                         db.add(row)
-
                     row.download_job_id = job_id
                     row.bundle_name = bundle.name
                     row.subproduct_index = item.subproduct_index
                     row.file_format = item.file_format
                     row.source_url = item.source_url
+                    return row
+
+                any_failed = False
+                for item in expected:
+                    rel_path = paths.predict_download_path(bundle.name, item.item_name, item.original_filename)
+                    try:
+                        abs_path = paths.resolve_within(downloads_root, rel_path)
+                    except paths.PathTraversalError as exc:
+                        row = _row_for(item)
+                        row.status = FILE_FAILED
+                        row.error_message = str(exc)
+                        db.flush()
+                        any_failed = True
+                        continue
+
+                    check_path = paths.long_path_safe(abs_path)
+                    exists = check_path.is_file()
+                    actual_size = check_path.stat().st_size if exists else 0
+                    # Not an exact match against item.expected_size_bytes: confirmed against a real
+                    # account (2026-09-06) that Humble's own API-reported file_size can be stale
+                    # relative to the file actually served (observed both directions — one book's
+                    # real file was ~5x larger than its metadata, another ~20% smaller). humble-cli
+                    # itself never validates size after a fresh download either, only uses it to
+                    # decide whether to skip re-fetching an already-present file. Non-empty + present
+                    # is the honest success signal; exact-match produced false "failed" verdicts on
+                    # genuinely-successful downloads.
+                    ok = exists and actual_size > 0
+
+                    row = _row_for(item)
                     # Ground truth (the file actually on disk) once we have it, not Humble's
                     # metadata value — see the "ok" comment above on why they can disagree.
                     row.expected_size_bytes = actual_size if ok else item.expected_size_bytes

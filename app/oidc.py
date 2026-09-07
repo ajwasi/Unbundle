@@ -25,13 +25,15 @@ def get_oidc_config(db: Session) -> dict | None:
     return decrypt_json(cred.encrypted_payload)
 
 
-def is_oidc_enabled(db: Session) -> bool:
-    cfg = get_oidc_config(db)
+def is_oidc_enabled(db: Session, cfg: dict | None = None) -> bool:
+    # cfg lets a caller that already has it (is_auth_configured, below) skip a
+    # redundant get_oidc_config() — pass explicitly only when you already have it.
+    cfg = get_oidc_config(db) if cfg is None else cfg
     return bool(cfg and cfg.get("enabled"))
 
 
-def is_password_disabled(db: Session) -> bool:
-    cfg = get_oidc_config(db)
+def is_password_disabled(db: Session, cfg: dict | None = None) -> bool:
+    cfg = get_oidc_config(db) if cfg is None else cfg
     return bool(cfg and cfg.get("enabled") and cfg.get("disable_password"))
 
 
@@ -41,11 +43,17 @@ def is_auth_configured(db: Session) -> bool:
     provider. False means the app is wide open to anyone who can reach it.
     Shared by AuthMiddleware (the actual gate), main.py's startup warning, and
     the site-wide banner in base.html — one definition, so they can't drift.
+
+    Fetches the OIDC config once and passes it to both checks below rather
+    than letting each call get_oidc_config() independently — this runs on
+    every single request via AuthMiddleware, so the extra DB round trip and
+    Fernet decrypt would otherwise be paid twice per request for no reason.
     """
     from app.config import settings  # local import: settings has no reason to import oidc.py
 
-    password_allowed = bool(settings.app_password) and not is_password_disabled(db)
-    return password_allowed or is_oidc_enabled(db)
+    cfg = get_oidc_config(db)
+    password_allowed = bool(settings.app_password) and not is_password_disabled(db, cfg)
+    return password_allowed or is_oidc_enabled(db, cfg)
 
 
 def build_oauth_client(cfg: dict):

@@ -8,6 +8,15 @@ def test_list_bundles_requires_auth(client):
     assert resp.status_code == 303
 
 
+def test_refresh_rate_limited_after_too_many_requests(authed_client):
+    with patch("app.routers.bundles.refresh.start_refresh", new=AsyncMock()):
+        for _ in range(5):
+            resp = authed_client.post("/bundles/refresh")
+            assert resp.status_code == 200
+        resp = authed_client.post("/bundles/refresh")
+    assert resp.status_code == 429
+
+
 def test_list_bundles_shows_seeded_bundle(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(name="Findable Bundle"))
     resp = authed_client.get("/bundles")

@@ -5,10 +5,15 @@ to the running container or the host running this app directly:
 
     docker exec -it <container> python -m app.cli disable-oidc
     docker exec -it <container> python -m app.cli set-password
+    docker exec -it <container> python -m app.cli rotate-secret-key
 
 `disable-oidc` turns off SSO-only mode (and SSO entirely) so APP_PASSWORD works again.
 `set-password` stores a DB-side password override (see security.py: check_app_password)
 that takes precedence over APP_PASSWORD, without needing to edit env vars or restart.
+`rotate-secret-key` re-encrypts every stored credential from the currently-configured
+APP_SECRET_KEY onto a new one you provide — necessary after a suspected leak, since
+every Credential.encrypted_payload is Fernet-derived from that one key and simply
+changing it (without this) leaves every stored credential permanently undecryptable.
 """
 
 import getpass
@@ -77,7 +82,47 @@ def set_password() -> None:
     print("Password updated. This overrides APP_PASSWORD immediately — no restart needed.")
 
 
-COMMANDS = {"disable-oidc": disable_oidc, "set-password": set_password}
+def _rotate_secret_key(new_secret_key: str) -> int:
+    """Pure DB logic, no I/O — split out from rotate_secret_key() so tests can call
+    this directly. Decrypts every stored credential under whatever APP_SECRET_KEY
+    is currently configured (decrypt_json already handles both the current and
+    legacy KDF, so this works regardless of when a row was last written) and
+    re-encrypts it under new_secret_key. Returns how many rows were migrated.
+    """
+    db = SessionLocal()
+    try:
+        creds = db.query(Credential).filter(Credential.encrypted_payload.isnot(None)).all()
+        for cred in creds:
+            data = decrypt_json(cred.encrypted_payload)
+            cred.encrypted_payload = encrypt_json(data, secret_key=new_secret_key)
+        db.commit()
+        return len(creds)
+    finally:
+        db.close()
+
+
+def rotate_secret_key() -> None:
+    new_key = getpass.getpass("New APP_SECRET_KEY: ")
+    if not new_key:
+        print("Refusing to rotate to an empty key.")
+        sys.exit(1)
+    confirm = getpass.getpass("Confirm new APP_SECRET_KEY: ")
+    if new_key != confirm:
+        print("Keys did not match.")
+        sys.exit(1)
+
+    count = _rotate_secret_key(new_key)
+    print(f"Re-encrypted {count} stored credential(s) under the new key.")
+    print()
+    print("Do this now, in this exact order:")
+    print("  1. Set APP_SECRET_KEY to the value you just entered (env var / .env / compose file).")
+    print("  2. Restart the app.")
+    print("Until step 1 is done, what was just re-encrypted will NOT decrypt under the still-")
+    print("running old key — this command prepares the migration, it can't change the running")
+    print("environment for you.")
+
+
+COMMANDS = {"disable-oidc": disable_oidc, "set-password": set_password, "rotate-secret-key": rotate_secret_key}
 
 
 def main() -> None:

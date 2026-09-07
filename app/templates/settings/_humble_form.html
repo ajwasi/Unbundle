@@ -8,6 +8,7 @@
 {% if humble_error %}<p class="muted">{{ humble_error }}</p>{% endif %}
 
 <form hx-post="/settings/humble-key" hx-target="#humble-card-body" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <input type="password" name="session_key" placeholder="_simpleauth_sess value" required style="width: 320px;">
   <button type="submit">{{ 'Reconnect' if status == 'error' else 'Save' }}</button>
 </form>
