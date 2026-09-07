@@ -25,19 +25,26 @@ router = APIRouter()
 _login_limiter = RateLimiter(max_calls=10, period_seconds=60)
 
 
-def _safe_next(next: str | None) -> str:
+def _is_safe_next(next: str | None) -> bool:
     # `next` round-trips through a query param, a hidden form field, and a session
     # value — all attacker-suppliable, none of it meant to ever leave this app. A
     # leading "//" or "/\" is browser shorthand for a scheme-relative absolute URL
-    # (e.g. "//evil.com"), so reject anything but a genuine single-slash-rooted path.
-    if not next or not next.startswith("/") or next.startswith("//") or next.startswith("/\\"):
-        return "/"
-    return next
+    # (e.g. "//evil.com"), so only a genuine single-slash-rooted path counts as safe.
+    #
+    # Deliberately a boolean predicate, not a function that takes the tainted value
+    # and returns a "cleaned" one (that was the original shape here, as _safe_next()
+    # — CodeQL's open-redirect query kept flagging both RedirectResponse call sites
+    # below even with that guard in place, the same "local function call caller
+    # can't credit" pattern already hit and fixed for rotate-secret-key's clear-text-
+    # logging alert). Each call site below does its own `x if _is_safe_next(x) else
+    # "/"` right next to where the value is actually used, so the guard condition and
+    # the guarded use are both visible in the same function CodeQL is analyzing.
+    return bool(next) and next.startswith("/") and not next.startswith("//") and not next.startswith("/\\")
 
 
 def _login_context(db: Session, next: str, error: str | None) -> dict:
     return {
-        "next": _safe_next(next),
+        "next": next if _is_safe_next(next) else "/",
         "error": error,
         "oidc_enabled": is_oidc_enabled(db),
         "password_enabled": not is_password_disabled(db),
@@ -54,7 +61,8 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
     if is_password_disabled(db) or not check_app_password(password, db):
         context = _login_context(db, next, "Incorrect password")
         return templates.TemplateResponse(request, "auth/login.html", context, status_code=401)
-    response = RedirectResponse(url=_safe_next(next), status_code=303)
+    safe_next = next if _is_safe_next(next) else "/"
+    response = RedirectResponse(url=safe_next, status_code=303)
     response.set_cookie(SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax")
     return response
 
@@ -71,7 +79,7 @@ async def oidc_login(request: Request, next: str = "/", db: Session = Depends(ge
     cfg = get_oidc_config(db)
     if not cfg or not cfg.get("enabled"):
         raise HTTPException(status_code=404, detail="OIDC is not configured")
-    request.session["oidc_next"] = _safe_next(next)
+    request.session["oidc_next"] = next if _is_safe_next(next) else "/"
     client = build_oauth_client(cfg)
     redirect_uri = str(request.url_for("oidc_callback"))
     return await client.authorize_redirect(request, redirect_uri)
@@ -92,7 +100,8 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
             status_code=401,
         )
 
-    next_url = _safe_next(request.session.pop("oidc_next", "/"))
-    response = RedirectResponse(url=next_url, status_code=303)
+    stored_next = request.session.pop("oidc_next", "/")
+    safe_next = stored_next if _is_safe_next(stored_next) else "/"
+    response = RedirectResponse(url=safe_next, status_code=303)
     response.set_cookie(SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax")
     return response
