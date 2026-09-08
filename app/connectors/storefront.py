@@ -145,22 +145,29 @@ async def fetch_bundle_detail(product_url: str, force: bool = False) -> Storefro
     if cached and not force and time.monotonic() - cached[0] < DETAIL_TTL_SECONDS:
         return cached[1]
 
-    # home.py's /storefront/compare route already validates this before ever calling
-    # here, but CodeQL's SSRF query flagged the client.get() below regardless, twice:
-    # once with the guard only in that caller, and again with an equivalent
-    # guard-clause-with-early-raise added here. Neither satisfied it. This shape —
-    # the request itself only inside the true branch of a direct literal-string host
-    # comparison, no raise/early-return in between — deliberately mirrors CodeQL's
-    # own documented py/full-ssrf "GOOD" example as closely as possible; a
-    # guard-clause that raises in the *invalid* case apparently isn't recognized the
-    # same way as the sink being reached only via the *valid* branch of an if/else.
+    # Three prior attempts at validating product_url in place — a caller-side check
+    # in home.py; a guard-clause-with-early-raise here; the sink moved inside the
+    # true branch of a direct literal comparison — all still left CodeQL's SSRF
+    # query flagging client.get() below. Validating a tainted string doesn't clear a
+    # direct source-to-sink dataflow edge in its model, no matter how the validation
+    # is shaped, as long as that same tainted string is still what's passed to the
+    # sink. This is CodeQL's own documented fix for py/full-ssrf instead: never let
+    # the sink see the original tainted value at all. Rebuild the request URL from
+    # BASE_URL (a trusted literal) plus only the path/query/fragment pulled out of
+    # product_url — the scheme+host that actually determines *destination* is now
+    # always the literal string, never attacker-influenced.
     parsed = urlparse(product_url)
-    if parsed.scheme == "https" and parsed.hostname == "www.humblebundle.com":
-        async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
-            resp = await client.get(product_url)
-            resp.raise_for_status()
-    else:
+    if parsed.scheme != "https" or parsed.hostname != "www.humblebundle.com":
         raise ValueError(f"Refusing to fetch a bundle detail URL outside {BASE_URL}")
+    safe_url = f"{BASE_URL}{parsed.path}"
+    if parsed.query:
+        safe_url = f"{safe_url}?{parsed.query}"
+    if parsed.fragment:
+        safe_url = f"{safe_url}#{parsed.fragment}"
+
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
+        resp = await client.get(safe_url)
+        resp.raise_for_status()
 
     match = _DETAIL_MARKER.search(resp.text)
     if not match:
