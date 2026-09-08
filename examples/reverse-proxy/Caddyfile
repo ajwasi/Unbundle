@@ -1,0 +1,14 @@
+# Caddy gets automatic HTTPS (Let's Encrypt) for free just from having a real
+# domain in the site address below — no separate cert/renewal setup needed.
+#
+# Usage: replace humble.example.com with your real domain, point its DNS at
+# this host, then run Caddy with this file (e.g. `caddy run --config Caddyfile`,
+# or add a "caddy" service to docker-compose.yml using this file). Caddy needs
+# to reach the app over the same Docker network — see the README's "Reverse
+# proxy / HTTPS" section for the accompanying app-side settings
+# (BEHIND_HTTPS_PROXY=true, FORWARDED_ALLOW_IPS) and for why the app's own
+# "ports" mapping should be removed once this is in front of it.
+
+humble.example.com {
+	reverse_proxy app:8000
+}

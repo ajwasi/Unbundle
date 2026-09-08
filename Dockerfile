@@ -1,3 +1,13 @@
+# Separate stage purely to capture the git commit this image was built from
+# (app/version.py reads the resulting VERSION file) — kept out of the final
+# stage below so it never needs git installed or .git present in the actual
+# runtime image, just the one resulting file.
+FROM python:3.12-slim AS version
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+COPY . .
+RUN git rev-parse --short HEAD > VERSION || echo unknown > VERSION
+
 FROM python:3.12-slim
 WORKDIR /app
 
@@ -56,6 +66,7 @@ COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
 COPY alembic.ini ./
 COPY app/ ./app/
+COPY --from=version /app/VERSION ./VERSION
 
 RUN mkdir -p /data
 VOLUME /data

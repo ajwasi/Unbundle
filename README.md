@@ -28,13 +28,20 @@ Docker-based, no external services required beyond the ones you choose to connec
   GOG library (Humble's API essentially never provides a GOG product ID to match on
   directly, unlike Steam) — see the GOG card in Settings for specifics before expecting
   much here.
-- **Auth** — a single shared password (`APP_PASSWORD`) by default, or OIDC/SSO
-  (Authentik, Keycloak, etc.) configured from Settings, with password login
-  optionally turned off once SSO is verified working. An emergency CLI recovery
-  tool (see below) covers both "locked out of SSO" and "forgot the password."
+- **Auth** — a one-time setup screen on first launch requires setting a password
+  before the app is usable at all, or OIDC/SSO (Authentik, Keycloak, etc.) configured
+  from Settings afterward, with password login optionally turned off once SSO is
+  verified working. An emergency CLI recovery tool (see below) covers both "locked
+  out of SSO" and "forgot the password." A logout button lives at the bottom of the
+  sidebar.
 - **Backups** — automatic daily backups on a schedule you set from Settings (how many
   to keep, what time UTC), a manual "Back up now," one-click download of any existing
   backup, and upload-to-restore for disaster recovery. See Backups below.
+- **Version tracking** — the sidebar shows the running build's short git commit SHA
+  (no release/tag process exists yet, so this is the honest "what's actually
+  running"), with a periodic background check against GitHub's `main` branch
+  surfacing an "Update available" link when it's out of date, plus a matching
+  `humble_tracker_update_available` metric for your own alerting.
 
 ## Quick start
 
@@ -63,10 +70,12 @@ top of every page:
   value itself isn't the placeholder default or something guessable. Leaving it
   unset/default logs a startup warning and is the one thing worth getting right before
   exposing this beyond your own machine.
-- **Set `APP_PASSWORD` or configure OIDC.** An app with neither configured stays fully
-  open to anyone who can reach it (unchanged from this project's original default —
-  useful for a quick local trial, wrong for anything reachable beyond localhost). A
-  startup warning and a site-wide banner both call this out if it's ever true.
+- **First launch always requires setting a password.** Every request redirects to a
+  one-time `/setup` screen until either a password is set there (or via
+  `set-password`/`APP_PASSWORD`, see below) or OIDC is configured — there's no way to
+  run this app wide open. The startup warning and site-wide banner from earlier
+  versions of this app still exist as a defense-in-depth fallback but shouldn't
+  normally fire.
 - **Rotating `APP_SECRET_KEY` after a suspected leak** requires re-encrypting every
   stored credential first, or they become permanently undecryptable the moment the key
   changes:
@@ -116,6 +125,32 @@ doesn't do on its own:
 docker exec <container> python -c \
   "import sqlite3; sqlite3.connect('/data/humble.db').backup(sqlite3.connect('/data/humble.db.bak'))"
 ```
+
+## Reverse proxy / HTTPS
+
+By default this app assumes plain HTTP on a trusted LAN, same as `audiobook-tracker`.
+To put a real domain and HTTPS in front of it:
+
+1. **Stop publishing the app's port to the host** — remove or comment out
+   `docker-compose.yml`'s `ports: ["8010:8000"]` under the `app` service once a
+   reverse proxy is taking over that job, so the app is only reachable through the
+   proxy, not directly.
+2. **Set `BEHIND_HTTPS_PROXY=true`** in `.env` — marks the session/CSRF cookies
+   `Secure`. Leave this `false` until step 1 is actually done and HTTPS is really in
+   front of the app; a `Secure` cookie over plain HTTP means the browser silently
+   refuses to send it back, locking out every login.
+3. `docker-compose.yml` already sets `FORWARDED_ALLOW_IPS=*` for the app service —
+   this tells uvicorn to trust `X-Forwarded-*` headers from anywhere on the Compose
+   network (uvicorn's own default only trusts `127.0.0.1`, which a reverse proxy
+   running as its own container never connects from). This is safe specifically
+   *because* of step 1: nothing else can reach the app directly to spoof those
+   headers once its port isn't published.
+4. Point your reverse proxy at the app's Compose service name and port
+   (`app:8000`, not `localhost:8010` — same internal-network addressing the
+   observability stack below already uses). Example configs for Caddy (automatic
+   HTTPS from just a domain name) and nginx (bring your own certs, or skip TLS here
+   entirely if something like Nginx Proxy Manager/Synology's own reverse proxy/
+   Traefik is already terminating it) are in `examples/reverse-proxy/`.
 
 ## Observability
 
