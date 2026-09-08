@@ -221,6 +221,23 @@ async def save_steam(request: Request, api_key: str = Form(""), steamid: str = F
     return templates.TemplateResponse(request, "settings/_steam_form.html", context)
 
 
+@router.post("/humble/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def disconnect_humble(request: Request, db: Session = Depends(get_db)):
+    cred = _humble_credential(db)
+    if cred:
+        db.delete(cred)
+        db.commit()
+
+    # humble-cli reads this plaintext file directly (see save_humble_key above) —
+    # leaving it behind after "disconnect" would mean the CLI subprocess (and
+    # anyone with filesystem access) could still authenticate as this account.
+    settings.humble_cli_key_path.unlink(missing_ok=True)
+
+    return templates.TemplateResponse(
+        request, "settings/_humble_form.html", {"humble_status": STATUS_NOT_CONFIGURED, "humble_error": None}
+    )
+
+
 @router.post("/steam/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def disconnect_steam(request: Request, db: Session = Depends(get_db)):
     cred = db.query(Credential).filter(Credential.source == SOURCE_STEAM).one_or_none()

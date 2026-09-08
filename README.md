@@ -85,6 +85,31 @@ top of every page:
   fully unofficial and community-reverse-engineered (`app/connectors/gog_connector.py`).
   Both could change without notice.
 
+## Backups
+
+`./data/humble.db` is the entire application state — bundle/order history, tags,
+credentials, everything — as one ordinary SQLite file on the host (a plain bind mount,
+not a Docker-managed volume), so any regular file-backup tool already works with no
+app-specific export feature needed.
+
+Two things worth getting right:
+
+- **Back up `APP_SECRET_KEY` alongside the database, not just the database.** Every
+  stored credential is encrypted with a key derived from it (see Security notes above)
+  — a `.db` file restored without the matching secret key lists your bundles fine but
+  can't decrypt any saved Humble/Steam/GOG/OIDC credentials; you'd have to reconnect
+  everything from scratch.
+- **Prefer a consistent snapshot over copying the file directly** while the container
+  is running — this app doesn't enable WAL mode, so there's no separate `-wal`/`-shm`
+  file to miss, but a `cp` can still race a write. Python's stdlib `sqlite3` (already in
+  the image) has an atomic backup API that's safe against a live database:
+  ```bash
+  docker exec <container> python -c \
+    "import sqlite3; sqlite3.connect('/data/humble.db').backup(sqlite3.connect('/data/humble.db.bak'))"
+  ```
+  Copying `data/humble.db` straight from the host while the app is idle (no request in
+  flight) works too — the snapshot above just removes the need to time it.
+
 ## Observability
 
 `GET /metrics` exposes an OpenTelemetry-instrumented Prometheus scrape endpoint —
@@ -173,8 +198,6 @@ HTTP/session involved.
 
 - No session refresh for the Humble cookie, same as humble-cli itself — if calls start
   failing with an auth error, reconnect in Settings.
-- No disconnect flow for the Humble connection itself (Steam and GOG both have one) —
-  reconnecting just means pasting a fresh cookie over the old one.
 - GOG's real-world coverage is low: most bundles that include GOG keys don't expose a
   matchable identifier in Humble's API, so don't expect the GOG page to find much even
   once connected.

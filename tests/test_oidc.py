@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
+from app.cli import _set_password
 from app.models.credential import SOURCE_OIDC, STATUS_OK, Credential
 from app.oidc import discover, get_oidc_config, is_auth_configured, is_oidc_enabled, is_password_disabled
 from app.security import encrypt_json
@@ -69,6 +70,17 @@ def test_is_auth_configured_true_with_password_only(db):
 def test_is_auth_configured_false_with_neither(db, monkeypatch):
     monkeypatch.setattr("app.config.settings.app_password", "")
     assert not is_auth_configured(db)
+
+
+def test_is_auth_configured_true_with_db_password_and_no_env_var(db, monkeypatch):
+    """A password set via `python -m app.cli set-password` must be enough on
+    its own to enable AuthMiddleware's gate — previously is_auth_configured()
+    only ever looked at the APP_PASSWORD env var, so a DB-only password left
+    the app silently wide open despite a password having been "set".
+    """
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    _set_password("a-real-db-password")
+    assert is_auth_configured(db)
 
 
 def test_is_auth_configured_true_with_oidc_only_no_password(db, monkeypatch):

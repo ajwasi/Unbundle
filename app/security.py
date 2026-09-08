@@ -113,17 +113,33 @@ def verify_password_hash(candidate: str, stored: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
+def _stored_password_hash(db: Session) -> str | None:
+    cred = db.query(Credential).filter(Credential.source == SOURCE_APP_AUTH).one_or_none()
+    if not cred or not cred.encrypted_payload:
+        return None
+    return decrypt_json(cred.encrypted_payload).get("password_hash")
+
+
+def has_db_password(db: Session) -> bool:
+    """True if a password has been set via `python -m app.cli set-password` —
+    a real, independently-sufficient login method, not just an APP_PASSWORD
+    fallback. app/oidc.py's is_auth_configured() needs this check too: without
+    it, a DB-only password (no APP_PASSWORD env var set at all) never actually
+    enables AuthMiddleware's gate, leaving the app silently wide open despite
+    a password having been "set".
+    """
+    return _stored_password_hash(db) is not None
+
+
 def check_app_password(candidate: str, db: Session) -> bool:
     """A DB-stored password (set via `python -m app.cli set-password`, see cli.py) always
     takes precedence over APP_PASSWORD when present — this is what lets the emergency reset
     tool change the effective password at runtime without touching env vars or restarting.
     Falls back to the env-var plaintext comparison otherwise (unchanged original behavior).
     """
-    cred = db.query(Credential).filter(Credential.source == SOURCE_APP_AUTH).one_or_none()
-    if cred and cred.encrypted_payload:
-        stored_hash = decrypt_json(cred.encrypted_payload).get("password_hash")
-        if stored_hash:
-            return verify_password_hash(candidate, stored_hash)
+    stored_hash = _stored_password_hash(db)
+    if stored_hash:
+        return verify_password_hash(candidate, stored_hash)
     return bool(settings.app_password) and hmac.compare_digest(candidate, settings.app_password)
 
 

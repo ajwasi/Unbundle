@@ -12,3 +12,11 @@
   <input type="password" name="session_key" placeholder="_simpleauth_sess value" required style="width: 320px;">
   <button type="submit">{{ 'Reconnect' if status == 'error' else 'Save' }}</button>
 </form>
+
+{% if status != 'not_configured' %}
+<form hx-post="/settings/humble/disconnect" hx-target="#humble-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect Humble? This removes the saved session cookie everywhere, including humble-cli's own key file; your synced library data is kept." style="margin-top: 0.6rem;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <button type="submit" class="secondary">Disconnect</button>
+</form>
+{% endif %}
