@@ -88,7 +88,7 @@ def test_list_bundles_search_tolerates_blank_select_and_number_fields(authed_cli
     search box look like it silently did nothing.
     """
     make_bundle(gamekey="GK1", order=make_order(name="Findable Bundle"))
-    resp = authed_client.get("/bundles?sort=name&dir=asc&q=Findable&category=&min_items=&tag_id=")
+    resp = authed_client.get("/bundles?sort=name&dir=asc&q=Findable&category=&min_items=&tag_id=&redeemed=")
     assert resp.status_code == 200
     assert "Findable Bundle" in resp.text
 
@@ -138,6 +138,41 @@ def test_list_bundles_never_redeemed_badge_checks_gog_too(authed_client, make_bu
 
     resp = authed_client.get("/bundles")
     assert "Never redeemed" in resp.text
+
+
+def _seed_unredeemed_and_clean_bundles(db, make_bundle):
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    unredeemed = make_bundle(gamekey="UNREDEEMED", order=make_order(name="Unredeemed Bundle"))
+    db.add(BundleEntitlement(gamekey=unredeemed.gamekey, machine_name="m", keyindex=0, key_name="Some Game", steam_app_id="220", steam_owned=False))
+    clean = make_bundle(gamekey="CLEAN", order=make_order(name="Clean Bundle"))
+    db.add(BundleEntitlement(gamekey=clean.gamekey, machine_name="m", keyindex=0, key_name="Owned Game", steam_app_id="221", steam_owned=True))
+    db.commit()
+    return unredeemed, clean
+
+
+def test_list_bundles_redeemed_filter_unredeemed_shows_only_flagged(authed_client, make_bundle, db):
+    _seed_unredeemed_and_clean_bundles(db, make_bundle)
+
+    resp = authed_client.get("/bundles?redeemed=unredeemed")
+    assert "Unredeemed Bundle" in resp.text
+    assert "Clean Bundle" not in resp.text
+
+
+def test_list_bundles_redeemed_filter_redeemed_excludes_flagged(authed_client, make_bundle, db):
+    _seed_unredeemed_and_clean_bundles(db, make_bundle)
+
+    resp = authed_client.get("/bundles?redeemed=redeemed")
+    assert "Clean Bundle" in resp.text
+    assert "Unredeemed Bundle" not in resp.text
+
+
+def test_list_bundles_redeemed_filter_blank_shows_both(authed_client, make_bundle, db):
+    _seed_unredeemed_and_clean_bundles(db, make_bundle)
+
+    resp = authed_client.get("/bundles")
+    assert "Unredeemed Bundle" in resp.text
+    assert "Clean Bundle" in resp.text
 
 
 def test_list_bundles_sort_by_price_desc(authed_client, make_bundle):

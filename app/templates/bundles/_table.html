@@ -1,7 +1,7 @@
 {% macro sort_link(col, label) %}
 {% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
 <a href="#"
-   hx-get="/bundles?q={{ q | urlencode }}&category={{ category | urlencode }}&min_items={{ min_items if min_items is not none else '' }}&tag_id={{ tag_id if tag_id is not none else '' }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-get="/bundles?q={{ q | urlencode }}&category={{ category | urlencode }}&min_items={{ min_items if min_items is not none else '' }}&tag_id={{ tag_id if tag_id is not none else '' }}&redeemed={{ redeemed | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
    hx-target="#bundle-table" hx-swap="outerHTML">
   {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
 </a>
@@ -13,7 +13,8 @@
     {%- if q %} matching "{{ q }}"{% endif -%}
     {%- if category %} in category "{{ category }}"{% endif -%}
     {%- if min_items %} with at least {{ min_items }} item(s){% endif -%}
-    &mdash; ${{ "%.2f"|format(filtered_total_spent) }} spent{% if q or category or min_items %} (this view){% endif %}
+    {%- if redeemed == "unredeemed" %} with unredeemed keys{% elif redeemed == "redeemed" %} fully redeemed{% endif -%}
+    &mdash; ${{ "%.2f"|format(filtered_total_spent) }} spent{% if q or category or min_items or redeemed %} (this view){% endif %}
   </p>
   <table>
     <thead>
