@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -6,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
+from app import backup
 from app.config import DEFAULT_SECRET_KEY, settings
 from app.db import SessionLocal
 from app.deps import AuthMiddleware
@@ -54,7 +56,15 @@ async def lifespan(app: FastAPI):
         print(f"WARNING: {warning}", file=sys.stderr)
     refresh.sweep_stale_runs()
     worker.sweep_stale_jobs()
-    yield
+
+    # The one genuinely perpetual background task in this app — see backup.py's
+    # own docstring for why scheduled backups are a deliberate exception to the
+    # "nothing runs unless a request triggers it" pattern everything else follows.
+    scheduler_task = asyncio.create_task(backup.run_scheduler_loop())
+    try:
+        yield
+    finally:
+        scheduler_task.cancel()
 
 
 app = FastAPI(title="Humble Tracker", lifespan=lifespan)

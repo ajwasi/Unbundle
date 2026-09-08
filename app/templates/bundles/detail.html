@@ -43,7 +43,17 @@
     <tbody>
       {% for e in entitlements %}
       <tr>
-        <td>{{ e.key_name }}</td>
+        <td>
+          {{ e.key_name }}
+          {% if e.external_redeem_url %}
+          <br><a href="{{ e.external_redeem_url }}" target="_blank" rel="noopener">Redeem &rarr;</a>
+          {% endif %}
+          {% if e.days_until_expired is not none %}
+          <br><span class="badge {{ 'badge-pending' if e.platform == 'external_key' else 'badge-not-configured' }}">
+            {{ "Expired" if e.days_until_expired < 0 else "Expires in " ~ e.days_until_expired ~ "d" }}
+          </span>
+          {% endif %}
+        </td>
         <td>{{ e.platform or "—" }}</td>
         <td>{{ "Yes" if e.redeemed_on_humble else "No" }}</td>
         <td>

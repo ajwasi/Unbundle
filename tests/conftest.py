@@ -35,7 +35,7 @@ from app.deps import get_db  # noqa: E402
 # Import every model module so its table registers on Base.metadata before
 # create_all runs below — a model that's never imported anywhere in the process
 # would otherwise silently get no table at all.
-from app.models import bundle, bundle_entitlement, credential, download, download_job, steam_game, sync_run, tag  # noqa: E402,F401
+from app.models import backup_settings, bundle, bundle_entitlement, credential, download, download_job, steam_game, sync_run, tag  # noqa: E402,F401
 from tests.factories import make_order  # noqa: E402
 
 
@@ -56,6 +56,23 @@ def _fresh_rate_limits():
     from app.ratelimit import reset_all
 
     reset_all()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _fresh_backups_dir():
+    """Same reasoning as _fresh_downloads_dir below — settings.data_dir is a
+    single process-wide path for the whole test session, so backup files one
+    test creates would otherwise still be sitting there for the next test's
+    list_backups()/retention assertions.
+    """
+    import shutil
+
+    from app.config import settings
+
+    backups_dir = settings.data_dir / "backups"
+    shutil.rmtree(backups_dir, ignore_errors=True)
+    backups_dir.mkdir(parents=True, exist_ok=True)
     yield
 
 

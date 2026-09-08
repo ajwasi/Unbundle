@@ -345,6 +345,113 @@ def test_bundle_detail_shows_unknown_for_unmatched_steam_keys(authed_client, mak
     assert "unknown" in resp.text.lower()
 
 
+def test_bundle_detail_shows_external_redeem_link_once_revealed(authed_client, make_bundle, db):
+    import json
+
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    make_bundle(gamekey="GK1")
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Learn to Code Course",
+            redeemed_on_humble=True,
+            raw_json=json.dumps({
+                "key_type": "external_key",
+                "custom_html": '<a href="https://training.example.com/courses/1?coupon=ABC">Click here to claim</a>',
+            }),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/bundles/GK1")
+    assert 'href="https://training.example.com/courses/1?coupon=ABC"' in resp.text
+
+
+def test_bundle_detail_omits_external_redeem_link_before_reveal(authed_client, make_bundle, db):
+    import json
+
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    make_bundle(gamekey="GK1")
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Learn to Code Course",
+            redeemed_on_humble=False,
+            raw_json=json.dumps({
+                "key_type": "external_key",
+                "custom_html": '<a href="https://training.example.com/courses/1?coupon=ABC">Click here to claim</a>',
+            }),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/bundles/GK1")
+    assert "training.example.com" not in resp.text
+
+
+def test_bundle_detail_shows_expiry_countdown_in_yellow_for_external_key(authed_client, make_bundle, db):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    future = (datetime.now(timezone.utc) + timedelta(days=5)).replace(microsecond=0).isoformat().replace("+00:00", "")
+    make_bundle(gamekey="GK1")
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Unity Asset",
+            raw_json=json.dumps({"key_type": "external_key", "expiration_date": future}),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/bundles/GK1")
+    assert "Expires in 5d" in resp.text or "Expires in 4d" in resp.text
+    assert "badge-pending" in resp.text
+
+
+def test_bundle_detail_shows_expired_badge_for_past_expiration(authed_client, make_bundle, db):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    past = (datetime.now(timezone.utc) - timedelta(days=30)).replace(microsecond=0).isoformat().replace("+00:00", "")
+    make_bundle(gamekey="GK1")
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Unity Asset",
+            raw_json=json.dumps({"key_type": "external_key", "expiration_date": past}),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/bundles/GK1")
+    assert "Expired" in resp.text
+
+
+def test_bundle_detail_expiry_badge_not_yellow_for_steam_keys(authed_client, make_bundle, db):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    future = (datetime.now(timezone.utc) + timedelta(days=5)).replace(microsecond=0).isoformat().replace("+00:00", "")
+    make_bundle(gamekey="GK1")
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Steam Game",
+            steam_app_id="220", steam_owned=True,
+            raw_json=json.dumps({"key_type": "steam", "expiration_date": future}),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/bundles/GK1")
+    assert "badge-pending" not in resp.text
+    assert "badge-not-configured" in resp.text
+
+
 def test_trigger_download_404_for_unknown_gamekey(authed_client):
     resp = authed_client.post("/bundles/NOPE/download", data={})
     assert resp.status_code == 404

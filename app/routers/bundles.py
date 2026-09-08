@@ -1,5 +1,7 @@
 import json
+import re
 from collections import Counter
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -266,6 +268,43 @@ def _build_item_context(gamekey: str, bundle: Bundle, db: Session) -> dict:
     }
 
 
+_HREF_PATTERN = re.compile(r'href="([^"]+)"')
+
+
+def _extract_redeem_link(raw: dict) -> str | None:
+    """external_key/generic entries (course/training vouchers, non-gaming
+    redeem codes) carry their real third-party redemption link buried in an
+    HTML blob — Humble uses custom_html on some entries and
+    custom_instructions_html on others for the same thing, never a plain URL
+    field. Only ever used to build our own <a href>, never rendered as HTML
+    itself, so this doesn't need nh3 sanitization — just a scheme check
+    before trusting the extracted value as a link at all.
+    """
+    html = raw.get("custom_html") or raw.get("custom_instructions_html") or ""
+    match = _HREF_PATTERN.search(html)
+    if not match:
+        return None
+    url = match.group(1)
+    return url if url.startswith(("http://", "https://")) else None
+
+
+def _days_until_expired(raw: dict) -> int | None:
+    """Computed live from expiration_date rather than trusting raw_json's own
+    num_days_until_expired, which is just a snapshot from whenever this
+    bundle was last synced and only gets staler with time. No timezone marker
+    on Humble's own value — treated as UTC, same assumption already made for
+    storefront listings' end_date.
+    """
+    raw_date = raw.get("expiration_date") or raw.get("expiry_date")
+    if not raw_date:
+        return None
+    try:
+        expires_at = datetime.fromisoformat(raw_date).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return (expires_at - datetime.now(timezone.utc)).days
+
+
 def _entitlement_rows(gamekey: str, entitlements: list[BundleEntitlement]) -> list[dict]:
     """key_type isn't its own persisted column (raw_json already has it, same
     "re-derive at render time" choice made for downloads) — used to pick which
@@ -277,9 +316,10 @@ def _entitlement_rows(gamekey: str, entitlements: list[BundleEntitlement]) -> li
     rows = []
     for e in entitlements:
         try:
-            key_type = (json.loads(e.raw_json) if e.raw_json else {}).get("key_type", "")
+            raw = json.loads(e.raw_json) if e.raw_json else {}
         except (ValueError, TypeError):
-            key_type = ""
+            raw = {}
+        key_type = raw.get("key_type", "")
 
         ownership_platform = None
         owned = None
@@ -296,6 +336,8 @@ def _entitlement_rows(gamekey: str, entitlements: list[BundleEntitlement]) -> li
                 "ownership_platform": ownership_platform,
                 "owned": owned,
                 "redeem_url": order_page_url(gamekey),
+                "external_redeem_url": _extract_redeem_link(raw) if e.redeemed_on_humble else None,
+                "days_until_expired": _days_until_expired(raw),
             }
         )
     return rows

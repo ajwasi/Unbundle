@@ -13,7 +13,7 @@ from authlib.integrations.starlette_client import OAuth
 from sqlalchemy.orm import Session
 
 from app.models.credential import SOURCE_OIDC, Credential
-from app.security import decrypt_json
+from app.security import decrypt_json, has_db_password
 
 OIDC_SCOPES = "openid profile email"
 
@@ -38,11 +38,12 @@ def is_password_disabled(db: Session, cfg: dict | None = None) -> bool:
 
 
 def is_auth_configured(db: Session) -> bool:
-    """True if some login method is actually usable right now — either
-    APP_PASSWORD (and not turned off by SSO-only mode) or an enabled OIDC
-    provider. False means the app is wide open to anyone who can reach it.
-    Shared by AuthMiddleware (the actual gate), main.py's startup warning, and
-    the site-wide banner in base.html — one definition, so they can't drift.
+    """True if some login method is actually usable right now — either a
+    password (APP_PASSWORD or one set via `python -m app.cli set-password`,
+    and not turned off by SSO-only mode) or an enabled OIDC provider. False
+    means the app is wide open to anyone who can reach it. Shared by
+    AuthMiddleware (the actual gate), main.py's startup warning, and the
+    site-wide banner in base.html — one definition, so they can't drift.
 
     Fetches the OIDC config once and passes it to both checks below rather
     than letting each call get_oidc_config() independently — this runs on
@@ -52,7 +53,7 @@ def is_auth_configured(db: Session) -> bool:
     from app.config import settings  # local import: settings has no reason to import oidc.py
 
     cfg = get_oidc_config(db)
-    password_allowed = bool(settings.app_password) and not is_password_disabled(db, cfg)
+    password_allowed = (bool(settings.app_password) or has_db_password(db)) and not is_password_disabled(db, cfg)
     return password_allowed or is_oidc_enabled(db, cfg)
 
 
