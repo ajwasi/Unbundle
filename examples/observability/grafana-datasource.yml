@@ -1,0 +1,10 @@
+# Grafana's datasource-provisioning format — mounted into
+# /etc/grafana/provisioning/datasources/ so Prometheus is already configured as
+# a data source on first boot, no manual UI setup needed.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true

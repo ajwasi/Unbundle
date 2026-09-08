@@ -28,10 +28,11 @@ class Settings(BaseSettings):
     download_concurrency: int = 2
 
     humble_cli_path: str = "/usr/local/bin/humble-cli"
-    # In the container this resolves under $HOME=/home/appuser (see Dockerfile) — the
-    # exact path humble-cli itself hardcodes. MUST be overridden via env var for any
-    # local/dev run outside Docker so it never collides with a real ~/.humble-cli-key
-    # on the host machine running this code.
+    # In the container this resolves under $HOME=/root (the Dockerfile runs as root and
+    # sets this explicitly — see its own comment on why) — the exact path humble-cli
+    # itself hardcodes. MUST be overridden via env var for any local/dev run outside
+    # Docker so it never collides with a real ~/.humble-cli-key on the host machine
+    # running this code.
     humble_cli_key_path: Path = Path.home() / ".humble-cli-key"
 
     def ensure_dirs(self) -> None:

@@ -1,0 +1,11 @@
+# Mounted read-only into the prometheus service by the "observability" profile
+# in the repo root's docker-compose.yml. "app:8000" — not "localhost:8010" — is
+# deliberate: inside that same Compose network, Prometheus reaches the app via
+# its service name and *container* port, not the host-mapped one.
+scrape_configs:
+  - job_name: humble-tracker
+    static_configs:
+      - targets: ["app:8000"]
+    # Uncomment if METRICS_TOKEN is set in .env:
+    # authorization:
+    #   credentials: <the same value as METRICS_TOKEN>
