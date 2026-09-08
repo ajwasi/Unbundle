@@ -30,6 +30,9 @@ Docker-based, no external services required beyond the ones you choose to connec
   (Authentik, Keycloak, etc.) configured from Settings, with password login
   optionally turned off once SSO is verified working. An emergency CLI recovery
   tool (see below) covers both "locked out of SSO" and "forgot the password."
+- **Backups** — automatic daily backups on a schedule you set from Settings (how many
+  to keep, what time UTC), a manual "Back up now," one-click download of any existing
+  backup, and upload-to-restore for disaster recovery. See Backups below.
 
 ## Quick start
 
@@ -87,28 +90,30 @@ top of every page:
 
 ## Backups
 
-`./data/humble.db` is the entire application state — bundle/order history, tags,
-credentials, everything — as one ordinary SQLite file on the host (a plain bind mount,
-not a Docker-managed volume), so any regular file-backup tool already works with no
-app-specific export feature needed.
+The Backups card in Settings handles this in-app: enable a daily backup at whatever
+time (UTC) you choose, set how many to keep, and older ones are pruned automatically.
+"Back up now" runs one immediately; each existing backup has a one-click download; and
+uploading a `.db` file back through the same card restores it — the live database is
+automatically backed up right before the swap, so a restore is itself undo-able from
+the same list a moment later. Backups land in `./data/backups/` and use the same
+atomic `sqlite3` backup API (safe against a live, in-use database) as the manual
+approach below.
 
-Two things worth getting right:
+One thing worth getting right regardless of how a backup was made: **back up
+`APP_SECRET_KEY` alongside the database, not just the database.** Every stored
+credential is encrypted with a key derived from it (see Security notes above) — a
+`.db` file restored without the matching secret key lists your bundles fine but can't
+decrypt any saved Humble/Steam/GOG/OIDC credentials; you'd have to reconnect
+everything from scratch.
 
-- **Back up `APP_SECRET_KEY` alongside the database, not just the database.** Every
-  stored credential is encrypted with a key derived from it (see Security notes above)
-  — a `.db` file restored without the matching secret key lists your bundles fine but
-  can't decrypt any saved Humble/Steam/GOG/OIDC credentials; you'd have to reconnect
-  everything from scratch.
-- **Prefer a consistent snapshot over copying the file directly** while the container
-  is running — this app doesn't enable WAL mode, so there's no separate `-wal`/`-shm`
-  file to miss, but a `cp` can still race a write. Python's stdlib `sqlite3` (already in
-  the image) has an atomic backup API that's safe against a live database:
-  ```bash
-  docker exec <container> python -c \
-    "import sqlite3; sqlite3.connect('/data/humble.db').backup(sqlite3.connect('/data/humble.db.bak'))"
-  ```
-  Copying `data/humble.db` straight from the host while the app is idle (no request in
-  flight) works too — the snapshot above just removes the need to time it.
+`./data/humble.db` (and `./data/backups/`) are ordinary files on the host — a plain
+bind mount, not a Docker-managed volume — so any external file-backup tool works too,
+with no app-specific export needed, e.g. for an off-box copy the in-app feature
+doesn't do on its own:
+```bash
+docker exec <container> python -c \
+  "import sqlite3; sqlite3.connect('/data/humble.db').backup(sqlite3.connect('/data/humble.db.bak'))"
+```
 
 ## Observability
 

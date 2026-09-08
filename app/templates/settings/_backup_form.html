@@ -1,0 +1,54 @@
+{% if backup_error %}<p style="color: var(--error);">{{ backup_error }}</p>{% endif %}
+<p class="muted">
+  {% if backup_last_backup_at %}Last backup: {{ backup_last_backup_at.strftime('%Y-%m-%d %H:%M UTC') }}{% else %}No backups yet.{% endif %}
+</p>
+
+<form hx-post="/settings/backups/config" hx-target="#backup-card-body" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;">
+    <label><input type="checkbox" name="enabled" {{ "checked" if backup_enabled else "" }}> Back up automatically every day at</label>
+    <input type="time" name="daily_time_utc" value="{{ backup_daily_time_utc }}" required>
+    <span class="muted">UTC</span>
+    <label>Keep <input type="number" name="retention_count" value="{{ backup_retention_count }}" min="1" style="width: 4rem;"> most recent</label>
+    <button type="submit">Save</button>
+  </div>
+</form>
+
+<div class="toolbar" style="margin-top: 0.75rem;">
+  <form hx-post="/settings/backups/run" hx-target="#backup-card-body" hx-swap="innerHTML">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="secondary">Back up now</button>
+  </form>
+</div>
+
+<table style="margin-top: 0.75rem;">
+  <thead><tr><th>Backup</th><th>Size</th><th>Created</th><th></th></tr></thead>
+  <tbody>
+    {% for b in backups %}
+    <tr>
+      <td>{{ b.name }}</td>
+      <td>{{ b.size_bytes | human_size }}</td>
+      <td>{{ b.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</td>
+      <td><a href="/settings/backups/{{ b.name }}/download">Download</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">No backups yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="card" style="margin-top: 1rem; border-color: var(--error);">
+  <strong>Restore from a backup</strong>
+  <p class="muted">
+    Replaces everything currently in the app with the contents of the uploaded file.
+    The current database is backed up automatically right before the swap, so this is
+    itself undo-able from this same list afterward — but double-check the file first.
+  </p>
+  <form hx-post="/settings/backups/restore" hx-target="#backup-card-body" hx-swap="innerHTML"
+        hx-encoding="multipart/form-data" enctype="multipart/form-data"
+        hx-confirm="Restore this backup? Everything currently in the app will be replaced with the uploaded file's contents.">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <input type="file" name="backup_file" accept=".db" required>
+    <button type="submit" class="secondary">Upload and restore</button>
+  </form>
+</div>

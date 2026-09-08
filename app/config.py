@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     humble_cli_key_path: Path = Path.home() / ".humble-cli-key"
 
     def ensure_dirs(self) -> None:
-        for d in (self.data_dir, self.downloads_dir):
+        for d in (self.data_dir, self.downloads_dir, self.data_dir / "backups"):
             d.mkdir(parents=True, exist_ok=True)
 
 
