@@ -17,10 +17,13 @@ unredeemed-key counts, connector status, last sync time) — each callback opens
 its own short-lived SessionLocal() and is invoked lazily whenever /metrics is
 actually scraped, mirroring this app's existing "compute fresh from the DB, no
 persisted duplicate state" convention (see catalog.py, finance.py) rather than
-needing every write path instrumented and kept in sync. The one exception is
-rate_limit_rejections_total: a rate-limit rejection isn't state sitting in the
+needing every write path instrumented and kept in sync. Two exceptions:
+rate_limit_rejections_total (a rate-limit rejection isn't state sitting in the
 DB anywhere, so that one really is a push counter, incremented directly in
-app/ratelimit.py at the moment a request is rejected.
+app/ratelimit.py at the moment a request is rejected) and update_available
+(reads app/version.py's own periodically-refreshed in-memory cache instead —
+nothing to query, and re-hitting GitHub's API on every scrape would be both
+pointless and a good way to get rate-limited).
 """
 
 from opentelemetry import metrics
@@ -37,6 +40,7 @@ from app.models.credential import SOURCE_GOG, SOURCE_HUMBLE, SOURCE_STEAM, STATU
 from app.models.download import Download
 from app.models.download_job import DownloadJob
 from app.models.sync_run import STATUS_SUCCESS, SyncRun
+from app.version import is_update_available
 
 METER_NAME = "humble_tracker"
 
@@ -86,9 +90,11 @@ def _unredeemed_key_counts(options):
         steam = db.query(BundleEntitlement).filter(
             BundleEntitlement.steam_app_id.isnot(None), BundleEntitlement.steam_owned.is_(False)
         ).count()
-        gog = db.query(BundleEntitlement).filter(
-            BundleEntitlement.gog_id.isnot(None), BundleEntitlement.gog_owned.is_(False)
-        ).count()
+        # No gog_id.isnot(None) requirement — sync/gog_sync.py falls back to
+        # name-matching when gog_id is absent (virtually always), so gog_owned
+        # alone is the correct "was this checked" signal (same fix already
+        # applied to routers/gog.py's own unredeemed-list query).
+        gog = db.query(BundleEntitlement).filter(BundleEntitlement.gog_owned.is_(False)).count()
         return [
             metrics.Observation(steam, {"platform": "steam"}),
             metrics.Observation(gog, {"platform": "gog"}),
@@ -107,6 +113,12 @@ def _connector_status(options):
         ]
     finally:
         db.close()
+
+
+def _update_available(options):
+    # Not DB-backed like the others (see module docstring) — reads app/version.py's
+    # own periodically-refreshed cache, cheap and non-blocking at scrape time.
+    return [metrics.Observation(1 if is_update_available() else 0)]
 
 
 def _last_sync_timestamp(options):
@@ -155,6 +167,11 @@ meter.create_observable_gauge(
     unit="s",
     callbacks=[_last_sync_timestamp],
     description="Unix timestamp of the last successful library sync",
+)
+meter.create_observable_gauge(
+    "humble_tracker.update_available",
+    callbacks=[_update_available],
+    description="Whether a newer commit than the running version exists on GitHub's main branch (1) or not (0)",
 )
 
 

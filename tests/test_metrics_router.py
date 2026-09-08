@@ -80,6 +80,31 @@ def test_unredeemed_key_gauge_counts_only_unredeemed_steam_keys(client, make_bun
     assert _metric_value(resp.text, "humble_tracker_entitlements_unredeemed", 'platform="steam"') == 1.0
 
 
+def test_unredeemed_key_gauge_counts_name_matched_gog_keys_too(client, make_bundle, db):
+    # gog_owned can be set via name-matching alone (sync/gog_sync.py), with no
+    # gog_id ever populated — this gauge must not require gog_id, or every
+    # name-matched row would be silently excluded (same bug already fixed in
+    # routers/gog.py's own unredeemed-list query).
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    bundle = make_bundle(gamekey="GK1", order=make_order())
+    db.add(BundleEntitlement(gamekey=bundle.gamekey, machine_name="a", keyindex=0, key_name="Liberated", gog_id=None, gog_owned=False))
+    db.commit()
+
+    resp = client.get("/metrics")
+    assert _metric_value(resp.text, "humble_tracker_entitlements_unredeemed", 'platform="gog"') == 1.0
+
+
+def test_update_available_gauge_reflects_cached_flag(client, monkeypatch):
+    monkeypatch.setattr("app.version._update_available", True)
+    resp = client.get("/metrics")
+    assert _metric_value(resp.text, "humble_tracker_update_available") == 1.0
+
+    monkeypatch.setattr("app.version._update_available", False)
+    resp = client.get("/metrics")
+    assert _metric_value(resp.text, "humble_tracker_update_available") == 0.0
+
+
 def test_rate_limit_rejection_counter_increments_on_429(client):
     # rate_limit() runs before require_csrf() in /login's dependency list, so this
     # counts every attempt regardless of CSRF validity — no need for a real token here.

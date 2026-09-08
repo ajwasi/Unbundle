@@ -27,11 +27,19 @@ def test_login_page_itself_is_never_gated(client):
     assert resp.status_code == 200
 
 
-def test_wide_open_when_no_password_and_no_oidc(client, monkeypatch):
-    # Original pre-OIDC default, preserved: an app with no configured login method
-    # at all stays fully open rather than becoming permanently inaccessible.
+def test_unconfigured_redirects_to_setup_instead_of_running_wide_open(client, monkeypatch):
+    # Reversed from this app's original default (explicit user decision): no
+    # configured login method at all now forces /setup rather than letting
+    # requests through — see routers/auth.py's /setup docstring.
     monkeypatch.setattr("app.config.settings.app_password", "")
     resp = client.get("/bundles", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/setup"
+
+
+def test_setup_itself_is_never_redirected_away_from_when_unconfigured(client, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.get("/setup", follow_redirects=False)
     assert resp.status_code == 200
 
 

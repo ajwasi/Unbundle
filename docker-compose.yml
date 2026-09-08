@@ -7,6 +7,14 @@ services:
       - ./data:/data
     env_file:
       - .env
+    environment:
+      # Trusts X-Forwarded-* from anywhere on the Compose network — safe *because*
+      # the accompanying guidance (README's "Reverse proxy / HTTPS" section) is to
+      # stop publishing the "ports" mapping above once a reverse proxy is in front
+      # of this app, so nothing else can reach it directly to spoof these headers.
+      # Not an app Settings field (uvicorn reads this env var directly), so it's
+      # set here rather than in .env.example.
+      - FORWARDED_ALLOW_IPS=*
     restart: unless-stopped
 
   # Both behind the "observability" profile — `docker compose up` alone never

@@ -47,6 +47,24 @@ def _fresh_schema():
 
 
 @pytest.fixture(autouse=True)
+def _no_real_update_checks(monkeypatch):
+    """app.main's lifespan starts version.run_update_check_loop(), which calls
+    check_for_update() immediately on startup — every test that spins up a
+    TestClient (most of this suite) would otherwise make a real network call to
+    GitHub's API, violating this suite's zero-network-access rule (and adding
+    real, sometimes-slow latency to every single test in the process). Patches
+    the loop wrapper, not check_for_update itself — tests/test_version.py calls
+    check_for_update() directly and needs the real thing.
+    """
+
+    async def _noop():
+        return None
+
+    monkeypatch.setattr("app.version.run_update_check_loop", _noop)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _fresh_rate_limits():
     """Rate limiter instances (app/ratelimit.py) are module-level singletons that
     outlive any single test's TestClient — without this, hit counts would

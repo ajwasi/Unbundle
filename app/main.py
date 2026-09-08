@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import backup
+from app import backup, version
 from app.config import DEFAULT_SECRET_KEY, settings
 from app.db import SessionLocal
 from app.deps import AuthMiddleware
@@ -61,10 +61,12 @@ async def lifespan(app: FastAPI):
     # own docstring for why scheduled backups are a deliberate exception to the
     # "nothing runs unless a request triggers it" pattern everything else follows.
     scheduler_task = asyncio.create_task(backup.run_scheduler_loop())
+    update_check_task = asyncio.create_task(version.run_update_check_loop())
     try:
         yield
     finally:
         scheduler_task.cancel()
+        update_check_task.cancel()
 
 
 app = FastAPI(title="Humble Tracker", lifespan=lifespan)
@@ -73,7 +75,12 @@ app.add_middleware(AuthMiddleware)
 # Short-lived signed-cookie session used only to hold the OIDC handshake's state/nonce
 # (authlib's requirement) and the post-login redirect target — unrelated to and separate
 # from SESSION_COOKIE_NAME, which is this app's own long-lived auth session.
-app.add_middleware(SessionMiddleware, secret_key=settings.app_secret_key, session_cookie="humble_tracker_oidc_state")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.app_secret_key,
+    session_cookie="humble_tracker_oidc_state",
+    https_only=settings.behind_https_proxy,
+)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(auth.router)

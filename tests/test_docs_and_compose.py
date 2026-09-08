@@ -68,6 +68,15 @@ def test_compose_app_service_mounts_data_volume_and_env_file():
     assert ".env" in app["env_file"]
 
 
+def test_compose_app_service_trusts_proxy_headers_from_the_compose_network():
+    # Not a Settings field (uvicorn reads this env var directly, see
+    # app/deps.py's AuthMiddleware docstring / README's "Reverse proxy / HTTPS"
+    # section) — checked here instead of the generic Settings-vs-.env.example
+    # cross-check below, which only knows about real Settings fields.
+    app = _load_yaml("docker-compose.yml")["services"]["app"]
+    assert "FORWARDED_ALLOW_IPS=*" in app["environment"]
+
+
 def test_compose_container_port_matches_dockerfile_expose():
     app = _load_yaml("docker-compose.yml")["services"]["app"]
     container_port = app["ports"][0].split(":")[1]

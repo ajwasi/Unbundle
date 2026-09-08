@@ -9,9 +9,11 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
+from app.cli import _set_password
+from app.config import settings
 from app.csrf import require_csrf
 from app.deps import get_db
-from app.oidc import build_oauth_client, get_oidc_config, is_oidc_enabled, is_password_disabled
+from app.oidc import build_oauth_client, get_oidc_config, is_auth_configured, is_oidc_enabled, is_password_disabled
 from app.ratelimit import RateLimiter, rate_limit
 from app.security import SESSION_COOKIE_NAME, check_app_password, create_session_token
 from app.templates_env import templates
@@ -72,7 +74,9 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
         response = RedirectResponse(url=next, status_code=303)
     else:
         response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax")
+    response.set_cookie(
+        SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.behind_https_proxy
+    )
     return response
 
 
@@ -80,6 +84,44 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
 def logout():
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(SESSION_COOKIE_NAME)
+    return response
+
+
+# AuthMiddleware (app/deps.py) forces every request here whenever no login method
+# is configured at all — a deliberate reversal of this app's original "wide open,
+# just warn loudly" default, per explicit user decision: a fresh deployment (or an
+# existing one that's never had a password set) is unusable until this succeeds.
+# Both routes re-check is_auth_configured() themselves rather than trusting the
+# middleware alone, since this must never become a way to reset an existing
+# password without already being logged in.
+@router.get("/setup", response_class=HTMLResponse)
+def setup_page(request: Request, db: Session = Depends(get_db)):
+    if is_auth_configured(db):
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(request, "auth/setup.html", {"error": None})
+
+
+@router.post("/setup", dependencies=[Depends(require_csrf)])
+def setup_submit(
+    request: Request, password: str = Form(""), confirm_password: str = Form(""), db: Session = Depends(get_db)
+):
+    if is_auth_configured(db):
+        return RedirectResponse(url="/", status_code=303)
+
+    error = None
+    if not password:
+        error = "Password cannot be empty."
+    elif password != confirm_password:
+        error = "Passwords do not match."
+
+    if error:
+        return templates.TemplateResponse(request, "auth/setup.html", {"error": error}, status_code=400)
+
+    _set_password(password)
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(
+        SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.behind_https_proxy
+    )
     return response
 
 
@@ -117,5 +159,7 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
         response = RedirectResponse(url=stored_next, status_code=303)
     else:
         response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax")
+    response.set_cookie(
+        SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.behind_https_proxy
+    )
     return response

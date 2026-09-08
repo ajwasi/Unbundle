@@ -27,6 +27,16 @@
       <a href="/steam" class="{{ 'active' if request.url.path.startswith('/steam') else '' }}">Steam</a>
       <a href="/gog" class="{{ 'active' if request.url.path.startswith('/gog') else '' }}">GOG</a>
       <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') else '' }}">Settings</a>
+      {% if not request.url.path.startswith('/login') and not request.url.path.startswith('/setup') %}
+      <form method="post" action="/logout" style="margin-top: auto; padding: 0.65rem 1.25rem 0;">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+        <button type="submit" class="secondary" style="width: 100%;">Log out</button>
+      </form>
+      {% endif %}
+      <div class="muted" style="padding: 0.5rem 1.25rem 0; font-size: 0.75rem; {{ 'margin-top: auto;' if request.url.path.startswith('/login') or request.url.path.startswith('/setup') else '' }}">
+        v{{ app_version }}
+        {%- if is_update_available() %} &middot; <a href="https://github.com/ajwasi/Unbundle/compare/{{ app_version }}...main" target="_blank" rel="noopener">Update available</a>{% endif -%}
+      </div>
     </nav>
     <div class="page-wrapper">
       <main>

@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
-from app.models.credential import SOURCE_OIDC, STATUS_OK, Credential
-from app.security import encrypt_json
+from app.models.credential import SOURCE_APP_AUTH, SOURCE_OIDC, STATUS_OK, Credential
+from app.security import check_app_password, encrypt_json
 
 
 def _save_oidc(db, **overrides):
@@ -23,6 +23,17 @@ def test_login_success_sets_session_cookie_and_redirects(client):
     assert resp.status_code == 303
     assert resp.headers["location"] == "/"
     assert "humble_tracker_session" in resp.cookies
+
+
+def test_login_session_cookie_not_secure_by_default(client):
+    resp = client.post("/login", data={"password": "test-password", "next": "/"}, follow_redirects=False)
+    assert "secure" not in resp.headers["set-cookie"].lower()
+
+
+def test_login_session_cookie_secure_when_behind_https_proxy(client, monkeypatch):
+    monkeypatch.setattr("app.config.settings.behind_https_proxy", True)
+    resp = client.post("/login", data={"password": "test-password", "next": "/"}, follow_redirects=False)
+    assert "secure" in resp.headers["set-cookie"].lower()
 
 
 def test_login_wrong_password_rejected(client):
@@ -80,6 +91,74 @@ def test_logout_clears_session_cookie(authed_client):
     # Subsequent protected request should bounce back to login.
     resp2 = authed_client.get("/bundles", follow_redirects=False)
     assert resp2.status_code == 303
+
+
+def test_sidebar_shows_logout_link_when_authed(authed_client):
+    resp = authed_client.get("/")
+    assert 'action="/logout"' in resp.text
+
+
+def test_login_page_has_no_logout_link(client):
+    resp = client.get("/login")
+    assert 'action="/logout"' not in resp.text
+
+
+def test_unconfigured_app_redirects_any_request_to_setup(client, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.get("/bundles", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/setup"
+
+
+def test_setup_page_shows_form_when_not_configured(client, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.get("/setup")
+    assert resp.status_code == 200
+    assert 'name="password"' in resp.text
+    assert 'name="confirm_password"' in resp.text
+
+
+def test_setup_page_redirects_to_root_when_already_configured(client):
+    resp = client.get("/setup", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"
+
+
+def test_setup_post_redirects_to_root_when_already_configured(client, db):
+    resp = client.post(
+        "/setup", data={"password": "new-pw", "confirm_password": "new-pw"}, follow_redirects=False
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"
+    # Never touched — already-configured means this must not act like a reset.
+    assert db.query(Credential).filter(Credential.source == SOURCE_APP_AUTH).one_or_none() is None
+
+
+def test_setup_success_sets_password_and_logs_in(client, db, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.post(
+        "/setup", data={"password": "fresh-password", "confirm_password": "fresh-password"}, follow_redirects=False
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"
+    assert "humble_tracker_session" in resp.cookies
+    assert check_app_password("fresh-password", db) is True
+
+
+def test_setup_rejects_empty_password(client, db, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.post("/setup", data={"password": "", "confirm_password": ""})
+    assert resp.status_code == 400
+    assert "cannot be empty" in resp.text
+    assert db.query(Credential).filter(Credential.source == SOURCE_APP_AUTH).one_or_none() is None
+
+
+def test_setup_rejects_mismatched_passwords(client, db, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.post("/setup", data={"password": "one-password", "confirm_password": "different-password"})
+    assert resp.status_code == 400
+    assert "do not match" in resp.text
+    assert db.query(Credential).filter(Credential.source == SOURCE_APP_AUTH).one_or_none() is None
 
 
 def test_login_page_shows_sso_button_when_oidc_enabled(client, db):

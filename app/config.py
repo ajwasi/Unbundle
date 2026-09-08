@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # trusted LAN). Empty means /metrics is unauthenticated, same "insecure but explicit"
     # default this app already uses for APP_PASSWORD.
     metrics_token: str = ""
+    # Marks the session/CSRF cookies Secure. Only turn this on once a reverse proxy
+    # is actually terminating real HTTPS in front of this app — browsers refuse to
+    # send a Secure cookie back over plain HTTP, so enabling this without HTTPS in
+    # front locks out every login. See README's "Reverse proxy / HTTPS" section.
+    behind_https_proxy: bool = False
 
     database_url: str = "sqlite:///./data/humble.db"
     data_dir: Path = Path("./data")
