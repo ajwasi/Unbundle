@@ -88,6 +88,23 @@ def _enforce_retention(retention_count: int) -> None:
         old_file.unlink(missing_ok=True)
 
 
+def valid_backup_names() -> set[str]:
+    """The allowlist a caller-supplied filename must be checked against for both
+    download and delete — never sanitize-and-join a caller-controlled path.
+    """
+    return {p.name for p in backups_dir().glob("humble-*.db")}
+
+
+def delete_backup(filename: str) -> bool:
+    """True if filename was a real backup and got deleted, False if it wasn't
+    (the caller is expected to have already validated against valid_backup_names()
+    for anything user-facing — this re-checks so it's still safe standalone)."""
+    if filename not in valid_backup_names():
+        return False
+    (backups_dir() / filename).unlink()
+    return True
+
+
 def list_backups() -> list[dict]:
     files = sorted(backups_dir().glob("humble-*.db"), reverse=True)
     return [

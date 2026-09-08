@@ -18,10 +18,13 @@ _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 
 def _unredeemed_rows(db: Session) -> list[dict]:
+    # gog_owned.is_(False) alone is the right filter — it's set by either the
+    # gog_id or the name-matching path in sync/gog_sync.py, so requiring
+    # gog_id here too would silently hide every name-matched row.
     rows = (
         db.query(BundleEntitlement, Bundle)
         .join(Bundle, Bundle.gamekey == BundleEntitlement.gamekey)
-        .filter(BundleEntitlement.gog_id.isnot(None), BundleEntitlement.gog_owned.is_(False))
+        .filter(BundleEntitlement.gog_owned.is_(False))
         .order_by(Bundle.name)
         .all()
     )
@@ -40,7 +43,7 @@ def _unredeemed_rows(db: Session) -> list[dict]:
 def _context(db: Session) -> dict:
     cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none()
     games = db.query(GogGame).order_by(GogGame.title).all()
-    checked_count = db.query(BundleEntitlement).filter(BundleEntitlement.gog_id.isnot(None)).count()
+    checked_count = db.query(BundleEntitlement).filter(BundleEntitlement.gog_owned.isnot(None)).count()
     return {
         "gog_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "gog_error": cred.last_error if cred else None,

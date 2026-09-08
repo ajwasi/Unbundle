@@ -5,6 +5,7 @@ every refresh rather than cached, since the whole refresh is one quick
 operation and access tokens are only good for about an hour anyway.
 """
 
+import json
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -28,20 +29,54 @@ def get_gog_credential(db: Session) -> dict | None:
 
 
 def match_entitlements_to_gog(db: Session) -> int:
-    """Same logic as steam_sync.match_entitlements_to_steam, against gog_id
-    instead — see BundleEntitlement's docstring for why this affects very
-    few real rows today (Humble rarely populates gog_id at all).
+    """Prefers gog_id when Humble happens to provide one (rare — see
+    BundleEntitlement's docstring), falling back to a case-insensitive exact
+    title match otherwise. Name matching is the only signal available for
+    real GOG-type entitlements in practice: confirmed against this account's
+    actual history that Humble's key_name for a GOG entry is a clean,
+    unadorned title (e.g. "Liberated", "Wanderlust: Travel Stories") that
+    matched GOG's own catalog title exactly, byte-for-byte, in both real
+    cases seen so far.
+
+    Deliberately no fuzzy/substring matching — a wrong confident match is
+    worse than an honest "not yet checked", the same philosophy already
+    applied to un-appid'd Steam combo keys.
     """
     owned_ids = {g.product_id for g in db.query(GogGame.product_id).all()}
-    rows = db.query(BundleEntitlement).filter(BundleEntitlement.gog_id.isnot(None)).all()
-    for row in rows:
-        try:
-            product_id = int(row.gog_id)
-        except (TypeError, ValueError):
+    owned_titles = {g.title.strip().casefold() for g in db.query(GogGame.title).all()}
+
+    matched = 0
+    for row in db.query(BundleEntitlement).all():
+        # gog_id's mere presence already implies a GOG-type entry (same as
+        # steam_app_id for Steam, see steam_sync.py) — no key_type check needed.
+        product_id = None
+        if row.gog_id:
+            try:
+                product_id = int(row.gog_id)
+            except (TypeError, ValueError):
+                product_id = None
+
+        if product_id is not None:
+            row.gog_owned = product_id in owned_ids
+            matched += 1
             continue
-        row.gog_owned = product_id in owned_ids
+
+        # key_name is generic (every entitlement has one), so name-matching
+        # needs an explicit key_type check first — otherwise an origin/uplay/
+        # generic key that happens to share a title with something in the GOG
+        # library would get a false-positive match.
+        try:
+            key_type = (json.loads(row.raw_json) if row.raw_json else {}).get("key_type")
+        except (ValueError, TypeError):
+            key_type = None
+        if key_type != "gog":
+            continue
+
+        row.gog_owned = row.key_name.strip().casefold() in owned_titles
+        matched += 1
+
     db.commit()
-    return len(rows)
+    return matched
 
 
 def save_refresh_token(db: Session, refresh_token: str) -> None:

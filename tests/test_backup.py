@@ -49,6 +49,23 @@ def test_enforce_retention_deletes_oldest_beyond_count(db):
     assert remaining == names[1:]
 
 
+def test_delete_backup_removes_a_real_file(db):
+    backup.backups_dir().mkdir(parents=True, exist_ok=True)
+    (backup.backups_dir() / "humble-20260101-000000.db").write_bytes(b"x")
+
+    assert backup.delete_backup("humble-20260101-000000.db") is True
+    assert backup.list_backups() == []
+
+
+def test_delete_backup_rejects_unknown_filename(db):
+    backup.backups_dir().mkdir(parents=True, exist_ok=True)
+    (backup.backups_dir() / "humble-20260101-000000.db").write_bytes(b"x")
+
+    assert backup.delete_backup("../../etc/passwd") is False
+    assert backup.delete_backup("humble-20260102-000000.db") is False
+    assert len(backup.list_backups()) == 1
+
+
 def test_list_backups_returns_newest_first(db):
     backup.backups_dir().mkdir(parents=True, exist_ok=True)
     (backup.backups_dir() / "humble-20260101-000000.db").write_bytes(b"x")

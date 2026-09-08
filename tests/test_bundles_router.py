@@ -271,7 +271,11 @@ def test_bundle_detail_shows_never_redeemed_badge(authed_client, make_bundle, db
     assert 'target="_blank"' in resp.text
 
 
-def test_bundle_detail_omits_redeem_link_for_owned_or_unknown_keys(authed_client, make_bundle, db):
+def test_bundle_detail_key_name_links_to_humble_order_page_regardless_of_ownership(authed_client, make_bundle, db):
+    """Every key row links to Humble's own order page for this bundle, not just
+    never-redeemed ones — a general "go manage this key on Humble" convenience,
+    separate from the ownership-specific "Never redeemed" badge/link.
+    """
     import json
 
     from app.models.bundle_entitlement import BundleEntitlement
@@ -286,7 +290,8 @@ def test_bundle_detail_omits_redeem_link_for_owned_or_unknown_keys(authed_client
     db.commit()
 
     resp = authed_client.get("/bundles/GK1")
-    assert "downloads?key=" not in resp.text
+    assert 'href="https://www.humblebundle.com/downloads?key=GK1"' in resp.text
+    assert ">Owned Game - Steam</a>" in resp.text
 
 
 def test_bundle_detail_shows_na_for_non_steam_keys(authed_client, make_bundle, db):

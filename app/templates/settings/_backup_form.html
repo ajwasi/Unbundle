@@ -29,7 +29,14 @@
       <td>{{ b.name }}</td>
       <td>{{ b.size_bytes | human_size }}</td>
       <td>{{ b.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</td>
-      <td><a href="/settings/backups/{{ b.name }}/download">Download</a></td>
+      <td>
+        <a href="/settings/backups/{{ b.name }}/download">Download</a>
+        <form hx-post="/settings/backups/{{ b.name }}/delete" hx-target="#backup-card-body" hx-swap="innerHTML"
+              hx-confirm="Delete this backup? This cannot be undone." style="display: inline;">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+          <button type="submit" class="secondary">Delete</button>
+        </form>
+      </td>
     </tr>
     {% else %}
     <tr><td colspan="4" class="muted">No backups yet.</td></tr>

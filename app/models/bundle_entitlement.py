@@ -16,9 +16,13 @@ class BundleEntitlement(Base):
     Confirmed against the real 550-bundle dev library (2026-09-07): `gog_id`
     is essentially never populated by Humble's own API — only 2 of 1,277
     entitlements are even key_type "gog", and neither carries a gog_id — vs.
-    905 of 1,277 having a usable steam_app_id. The column and matching logic
-    exist for consistency and for whatever bundles eventually do carry one,
-    but don't expect this to surface much today.
+    905 of 1,277 having a usable steam_app_id. `gog_id`/the ID-matching path
+    still exist for whatever bundles eventually do carry one, but
+    `sync/gog_sync.py` falls back to matching `key_name` against the synced
+    GOG library's title (case-insensitive, exact only) whenever `gog_id` is
+    absent — confirmed both real GOG-type entries above matched their real
+    GOG catalog title exactly, so `gog_owned` is meaningfully populated today
+    even though `gog_id` itself basically never is.
 
     Uniqueness is (gamekey, machine_name, keyindex), NOT key_name — confirmed
     against a real 550-bundle library (2026-09-06) that the same game can be

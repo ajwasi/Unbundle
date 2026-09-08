@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -113,11 +114,58 @@ def test_match_entitlements_marks_owned_false_when_absent_from_library(db):
     assert ent.gog_owned is False
 
 
-def test_match_entitlements_leaves_rows_without_gog_id_as_unknown(db):
-    # This is the realistic default: confirmed against the real dev library
-    # that essentially no GOG-type entitlement carries a gog_id at all.
-    ent = _seed_bundle_and_entitlement(db, gog_id=None)
+def test_match_entitlements_falls_back_to_name_match_when_no_gog_id(db):
+    # The realistic case: confirmed against the real dev library that GOG-type
+    # entitlements essentially never carry a gog_id, but Humble's key_name for
+    # them has matched the real GOG catalog title exactly in every case seen.
+    ent = _seed_bundle_and_entitlement(
+        db, gog_id=None, key_name="Liberated", raw_json=json.dumps({"key_type": "gog"})
+    )
+    db.add(GogGame(product_id=1780442795, title="Liberated", image_url=""))
+    db.commit()
+
+    updated = gog_sync.match_entitlements_to_gog(db)
+
+    assert updated == 1
+    db.refresh(ent)
+    assert ent.gog_owned is True
+
+
+def test_match_entitlements_name_match_is_case_insensitive(db):
+    ent = _seed_bundle_and_entitlement(
+        db, gog_id=None, key_name="liberated", raw_json=json.dumps({"key_type": "gog"})
+    )
+    db.add(GogGame(product_id=1780442795, title="Liberated", image_url=""))
+    db.commit()
+
     gog_sync.match_entitlements_to_gog(db)
+
+    db.refresh(ent)
+    assert ent.gog_owned is True
+
+
+def test_match_entitlements_name_match_false_when_title_not_in_library(db):
+    ent = _seed_bundle_and_entitlement(
+        db, gog_id=None, key_name="Some Unowned Game", raw_json=json.dumps({"key_type": "gog"})
+    )
+    gog_sync.match_entitlements_to_gog(db)
+    db.refresh(ent)
+    assert ent.gog_owned is False
+
+
+def test_match_entitlements_does_not_name_match_non_gog_key_types(db):
+    # key_name is generic (every entitlement has one) — without the key_type
+    # check, an origin/uplay/generic key sharing a title with a GOG game would
+    # get a false-positive match.
+    ent = _seed_bundle_and_entitlement(
+        db, gog_id=None, key_name="Liberated", raw_json=json.dumps({"key_type": "origin"})
+    )
+    db.add(GogGame(product_id=1780442795, title="Liberated", image_url=""))
+    db.commit()
+
+    updated = gog_sync.match_entitlements_to_gog(db)
+
+    assert updated == 0
     db.refresh(ent)
     assert ent.gog_owned is None
 
