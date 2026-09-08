@@ -338,10 +338,15 @@ def download_backup(filename: str):
     # Checked against the real directory listing rather than sanitized-and-joined
     # — no path-traversal surface at all since the value must already be one of
     # the files actually present, never a caller-controlled path.
-    valid_names = {p.name for p in backup.backups_dir().glob("humble-*.db")}
-    if filename not in valid_names:
+    if filename not in backup.valid_backup_names():
         raise HTTPException(status_code=404, detail="Backup not found")
     return FileResponse(backup.backups_dir() / filename, filename=filename, media_type="application/octet-stream")
+
+
+@router.post("/backups/{filename}/delete", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def delete_backup_route(request: Request, filename: str, db: Session = Depends(get_db)):
+    error = None if backup.delete_backup(filename) else "Backup not found"
+    return templates.TemplateResponse(request, "settings/_backup_form.html", _backup_context(db, error))
 
 
 @router.post("/backups/restore", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])

@@ -229,6 +229,25 @@ def test_download_backup_rejects_unknown_filename(authed_client):
     assert resp.status_code == 404
 
 
+def test_delete_backup_removes_it_and_it_stops_being_downloadable(authed_client, db):
+    from app import backup
+
+    dest = backup.create_backup(db)
+    resp = authed_client.post(f"/settings/backups/{dest.name}/delete")
+    assert resp.status_code == 200
+    assert dest.name not in resp.text
+    assert backup.list_backups() == []
+
+    resp = authed_client.get(f"/settings/backups/{dest.name}/download")
+    assert resp.status_code == 404
+
+
+def test_delete_backup_rejects_unknown_filename(authed_client):
+    resp = authed_client.post("/settings/backups/does-not-exist.db/delete")
+    assert resp.status_code == 200
+    assert "not found" in resp.text.lower()
+
+
 def test_restore_backup_route_replaces_live_data(authed_client, db, make_bundle):
     import sqlite3
     from unittest.mock import patch

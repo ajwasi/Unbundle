@@ -25,6 +25,11 @@
       <option value="{{ c }}" {{ "selected" if c == category else "" }}>{{ c }}</option>
       {% endfor %}
     </select>
+    <select name="redeemed">
+      <option value="">Redeemed: All</option>
+      <option value="unredeemed" {{ "selected" if redeemed == "unredeemed" else "" }}>Has unredeemed</option>
+      <option value="redeemed" {{ "selected" if redeemed == "redeemed" else "" }}>Fully redeemed</option>
+    </select>
     <input type="number" name="min_items" placeholder="Min items" min="0"
            value="{{ min_items if min_items is not none else '' }}" style="width: 8rem;">
     <select name="tag_id">

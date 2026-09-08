@@ -45,6 +45,21 @@ def test_gog_page_shows_never_redeemed_section(authed_client, db):
     assert 'href="https://www.humblebundle.com/downloads?key=GK1"' in resp.text
 
 
+def test_gog_page_shows_name_matched_unredeemed_rows_too(authed_client, db):
+    """gog_owned can be set via name-matching alone (see sync/gog_sync.py),
+    with no gog_id ever populated — the page's own query must not require
+    gog_id, or every name-matched row would be silently excluded here.
+    """
+    _connect_gog(db)
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Liberated", gog_id=None, gog_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "Liberated" in resp.text
+    assert "Never Redeemed on GOG (1)" in resp.text
+
+
 def test_refresh_gog_triggers_sync_and_rerenders(authed_client, db):
     _connect_gog(db)
     from app.connectors.gog_connector import GogGameData

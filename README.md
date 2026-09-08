@@ -23,9 +23,11 @@ Docker-based, no external services required beyond the ones you choose to connec
   which Humble-granted Steam keys are unredeemed, with a direct link to redeem them
   on humblebundle.com.
 - **GOG** — same idea for GOG, with an important caveat: GOG's OAuth requires a
-  manual paste-the-redirect-URL flow (no public API/callback registration exists),
-  and very few Humble bundles actually grant GOG keys with a matchable identifier —
-  see the GOG card in Settings for specifics before expecting much here.
+  manual paste-the-redirect-URL flow (no public API/callback registration exists), and
+  very few Humble bundles grant GOG keys at all — matched by title against your synced
+  GOG library (Humble's API essentially never provides a GOG product ID to match on
+  directly, unlike Steam) — see the GOG card in Settings for specifics before expecting
+  much here.
 - **Auth** — a single shared password (`APP_PASSWORD`) by default, or OIDC/SSO
   (Authentik, Keycloak, etc.) configured from Settings, with password login
   optionally turned off once SSO is verified working. An emergency CLI recovery
@@ -203,9 +205,11 @@ HTTP/session involved.
 
 - No session refresh for the Humble cookie, same as humble-cli itself — if calls start
   failing with an auth error, reconnect in Settings.
-- GOG's real-world coverage is low: most bundles that include GOG keys don't expose a
-  matchable identifier in Humble's API, so don't expect the GOG page to find much even
-  once connected.
+- GOG's real-world coverage is low: very few Humble bundles grant a GOG key at all
+  (confirmed against a real 550-bundle library: 2 of 1,277 entitlements), so don't
+  expect the GOG page to find much regardless of connection — matching itself (by
+  title, since Humble essentially never provides a GOG product ID) works fine once a
+  bundle actually has one.
 - Single-process only by design (`app/downloads/worker.py`'s in-process job queue and
   the rate limiters both hold in-memory state) — never run this with multiple uvicorn
   workers or replicas.

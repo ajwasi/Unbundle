@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import asc, desc, func
+from sqlalchemy import asc, desc, exists, func, or_
 from sqlalchemy.orm import Session
 
 from app.connectors.humble_connector import order_page_url, parse_bundle
@@ -39,7 +39,7 @@ _SORT_COLUMNS = {
 }
 
 
-def _apply_filters(query, q: str, category: str, min_items: int | None, tag_id: int | None):
+def _apply_filters(query, q: str, category: str, min_items: int | None, tag_id: int | None, redeemed: str = ""):
     if q:
         query = query.filter(Bundle.name.ilike(f"%{q}%"))
     if category:
@@ -48,6 +48,14 @@ def _apply_filters(query, q: str, category: str, min_items: int | None, tag_id: 
         query = query.filter(Bundle.subproduct_count >= min_items)
     if tag_id is not None:
         query = query.join(BundleTag, BundleTag.gamekey == Bundle.gamekey).filter(BundleTag.tag_id == tag_id)
+    if redeemed in ("unredeemed", "redeemed"):
+        # Same "confirmed Never redeemed on Steam or GOG" signal as the list's
+        # own Unredeemed column and the detail page's per-key badge.
+        has_unredeemed_key = exists().where(
+            BundleEntitlement.gamekey == Bundle.gamekey,
+            or_(BundleEntitlement.steam_owned.is_(False), BundleEntitlement.gog_owned.is_(False)),
+        )
+        query = query.filter(has_unredeemed_key if redeemed == "unredeemed" else ~has_unredeemed_key)
     return query
 
 
@@ -63,6 +71,30 @@ def _bundle_tags(db: Session, gamekeys: list[str] | None = None) -> dict[str, li
     for gamekey, tag_id, name in query.order_by(Tag.name).all():
         by_gamekey.setdefault(gamekey, []).append({"id": tag_id, "name": name})
     return by_gamekey
+
+
+def _bundles_with_unredeemed(db: Session, gamekeys: list[str]) -> set[str]:
+    """gamekeys (of the ones given) that have at least one entitlement confirmed
+    "Never redeemed" on Steam or GOG — the same owned == False signal the
+    per-key ownership badge on the detail page already uses. Deliberately
+    doesn't count "unknown" (owned is None, i.e. not yet checked, or a
+    key_type this app can't check at all) as unredeemed — an honest "haven't
+    verified" is different from a confirmed miss, and conflating them would
+    make every never-connected-Steam/GOG library show every bundle as
+    unredeemed, which isn't what this column means.
+    """
+    if not gamekeys:
+        return set()
+    rows = (
+        db.query(BundleEntitlement.gamekey)
+        .filter(
+            BundleEntitlement.gamekey.in_(gamekeys),
+            or_(BundleEntitlement.steam_owned.is_(False), BundleEntitlement.gog_owned.is_(False)),
+        )
+        .distinct()
+        .all()
+    )
+    return {gamekey for (gamekey,) in rows}
 
 
 def _apply_sort(query, sort: str, direction: str):
@@ -90,6 +122,7 @@ def list_bundles(
     category: str = "",
     min_items: str = "",
     tag_id: str = "",
+    redeemed: str = "",
     sort: str = "name",
     dir: str = "asc",
     db: Session = Depends(get_db),
@@ -99,7 +132,7 @@ def list_bundles(
     # coerce to int and would 422 on.
     min_items_val = int(min_items) if min_items.isdigit() else None
     tag_id_val = int(tag_id) if tag_id.isdigit() else None
-    query = _apply_filters(db.query(Bundle), q, category, min_items_val, tag_id_val)
+    query = _apply_filters(db.query(Bundle), q, category, min_items_val, tag_id_val, redeemed)
     query = _apply_sort(query, sort, dir)
     bundles = query.all()
 
@@ -111,11 +144,13 @@ def list_bundles(
         "category": category,
         "min_items": min_items_val,
         "tag_id": tag_id_val,
+        "redeemed": redeemed,
         "sort": sort,
         "dir": dir,
         "categories": categories,
         "all_tags": db.query(Tag).order_by(Tag.name).all(),
         "tags_by_gamekey": _bundle_tags(db, [b.gamekey for b in bundles]),
+        "unredeemed_gamekeys": _bundles_with_unredeemed(db, [b.gamekey for b in bundles]),
         "total_count": db.query(Bundle).count(),
         "filtered_total_spent": sum(b.amount_spent for b in bundles),
         "category_breakdown": _category_breakdown(db),

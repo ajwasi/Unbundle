@@ -44,7 +44,7 @@
       {% for e in entitlements %}
       <tr>
         <td>
-          {{ e.key_name }}
+          <a href="{{ e.redeem_url }}" target="_blank" rel="noopener" title="View/redeem on Humble Bundle">{{ e.key_name }}</a>
           {% if e.external_redeem_url %}
           <br><a href="{{ e.external_redeem_url }}" target="_blank" rel="noopener">Redeem &rarr;</a>
           {% endif %}
@@ -65,7 +65,6 @@
           <span class="badge badge-ok">{{ e.ownership_platform }}: Yes</span>
           {% else %}
           <span class="badge badge-error">{{ e.ownership_platform }}: Never redeemed</span>
-          <a href="{{ e.redeem_url }}" target="_blank" rel="noopener">Redeem &rarr;</a>
           {% endif %}
         </td>
       </tr>

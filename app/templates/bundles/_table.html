@@ -1,7 +1,7 @@
 {% macro sort_link(col, label) %}
 {% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
 <a href="#"
-   hx-get="/bundles?q={{ q | urlencode }}&category={{ category | urlencode }}&min_items={{ min_items if min_items is not none else '' }}&tag_id={{ tag_id if tag_id is not none else '' }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-get="/bundles?q={{ q | urlencode }}&category={{ category | urlencode }}&min_items={{ min_items if min_items is not none else '' }}&tag_id={{ tag_id if tag_id is not none else '' }}&redeemed={{ redeemed | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
    hx-target="#bundle-table" hx-swap="outerHTML">
   {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
 </a>
@@ -13,7 +13,8 @@
     {%- if q %} matching "{{ q }}"{% endif -%}
     {%- if category %} in category "{{ category }}"{% endif -%}
     {%- if min_items %} with at least {{ min_items }} item(s){% endif -%}
-    &mdash; ${{ "%.2f"|format(filtered_total_spent) }} spent{% if q or category or min_items %} (this view){% endif %}
+    {%- if redeemed == "unredeemed" %} with unredeemed keys{% elif redeemed == "redeemed" %} fully redeemed{% endif -%}
+    &mdash; ${{ "%.2f"|format(filtered_total_spent) }} spent{% if q or category or min_items or redeemed %} (this view){% endif %}
   </p>
   <table>
     <thead>
@@ -22,6 +23,7 @@
         <th>{{ sort_link('items', 'Items') }}</th>
         <th>{{ sort_link('category', 'Category') }}</th>
         <th>Keys</th>
+        <th>Unredeemed</th>
         <th>{{ sort_link('purchased', 'Purchased') }}</th>
         <th>{{ sort_link('price', 'Price') }}</th>
         <th>Tags</th>
@@ -34,6 +36,13 @@
         <td>{{ b.subproduct_count }}</td>
         <td>{{ (b.category or "&mdash;") | safe }}</td>
         <td>{{ b.key_count }}</td>
+        <td>
+          {% if b.gamekey in unredeemed_gamekeys %}
+          <span class="badge badge-error">Never redeemed</span>
+          {% else %}
+          <span class="muted">&mdash;</span>
+          {% endif %}
+        </td>
         <td>{{ (b.purchased_at.strftime("%Y-%m-%d") if b.purchased_at else "&mdash;") | safe }}</td>
         <td>${{ "%.2f"|format(b.amount_spent) }}</td>
         <td>
@@ -45,13 +54,13 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="muted">No bundles match.</td></tr>
+      <tr><td colspan="8" class="muted">No bundles match.</td></tr>
       {% endfor %}
     </tbody>
     {% if bundles %}
     <tfoot>
       <tr style="font-weight: 600; border-top: 2px solid var(--border);">
-        <td colspan="5">TOTAL ({{ bundles|length }} bundle{{ "s" if bundles|length != 1 else "" }} shown)</td>
+        <td colspan="6">TOTAL ({{ bundles|length }} bundle{{ "s" if bundles|length != 1 else "" }} shown)</td>
         <td>${{ "%.2f"|format(filtered_total_spent) }}</td>
         <td></td>
       </tr>
