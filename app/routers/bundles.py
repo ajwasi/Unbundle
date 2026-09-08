@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import asc, desc, func
+from sqlalchemy import asc, desc, func, or_
 from sqlalchemy.orm import Session
 
 from app.connectors.humble_connector import order_page_url, parse_bundle
@@ -65,6 +65,30 @@ def _bundle_tags(db: Session, gamekeys: list[str] | None = None) -> dict[str, li
     return by_gamekey
 
 
+def _bundles_with_unredeemed(db: Session, gamekeys: list[str]) -> set[str]:
+    """gamekeys (of the ones given) that have at least one entitlement confirmed
+    "Never redeemed" on Steam or GOG — the same owned == False signal the
+    per-key ownership badge on the detail page already uses. Deliberately
+    doesn't count "unknown" (owned is None, i.e. not yet checked, or a
+    key_type this app can't check at all) as unredeemed — an honest "haven't
+    verified" is different from a confirmed miss, and conflating them would
+    make every never-connected-Steam/GOG library show every bundle as
+    unredeemed, which isn't what this column means.
+    """
+    if not gamekeys:
+        return set()
+    rows = (
+        db.query(BundleEntitlement.gamekey)
+        .filter(
+            BundleEntitlement.gamekey.in_(gamekeys),
+            or_(BundleEntitlement.steam_owned.is_(False), BundleEntitlement.gog_owned.is_(False)),
+        )
+        .distinct()
+        .all()
+    )
+    return {gamekey for (gamekey,) in rows}
+
+
 def _apply_sort(query, sort: str, direction: str):
     column = _SORT_COLUMNS.get(sort, Bundle.name)
     return query.order_by(desc(column) if direction == "desc" else asc(column))
@@ -116,6 +140,7 @@ def list_bundles(
         "categories": categories,
         "all_tags": db.query(Tag).order_by(Tag.name).all(),
         "tags_by_gamekey": _bundle_tags(db, [b.gamekey for b in bundles]),
+        "unredeemed_gamekeys": _bundles_with_unredeemed(db, [b.gamekey for b in bundles]),
         "total_count": db.query(Bundle).count(),
         "filtered_total_spent": sum(b.amount_spent for b in bundles),
         "category_breakdown": _category_breakdown(db),

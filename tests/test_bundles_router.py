@@ -105,6 +105,41 @@ def test_list_bundles_shows_tag_chips(authed_client, make_bundle, db):
     assert "Favorites" in resp.text
 
 
+def test_list_bundles_shows_never_redeemed_badge_for_confirmed_unredeemed_key(authed_client, make_bundle, db):
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    bundle = make_bundle(gamekey="GK1")
+    db.add(BundleEntitlement(gamekey=bundle.gamekey, machine_name="m", keyindex=0, key_name="Some Game", steam_app_id="220", steam_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/bundles")
+    assert "Never redeemed" in resp.text
+
+
+def test_list_bundles_omits_never_redeemed_badge_when_owned_or_unchecked(authed_client, make_bundle, db):
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    owned = make_bundle(gamekey="OWNED", order=make_order(name="Owned Bundle"))
+    db.add(BundleEntitlement(gamekey=owned.gamekey, machine_name="m", keyindex=0, key_name="Owned Game", steam_app_id="220", steam_owned=True))
+    unchecked = make_bundle(gamekey="UNCHECKED", order=make_order(name="Unchecked Bundle"))
+    db.add(BundleEntitlement(gamekey=unchecked.gamekey, machine_name="m", keyindex=0, key_name="Unchecked Game", steam_app_id=None, steam_owned=None))
+    db.commit()
+
+    resp = authed_client.get("/bundles")
+    assert "Never redeemed" not in resp.text
+
+
+def test_list_bundles_never_redeemed_badge_checks_gog_too(authed_client, make_bundle, db):
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    bundle = make_bundle(gamekey="GK1")
+    db.add(BundleEntitlement(gamekey=bundle.gamekey, machine_name="m", keyindex=0, key_name="Some GOG Game", gog_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/bundles")
+    assert "Never redeemed" in resp.text
+
+
 def test_list_bundles_sort_by_price_desc(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(name="Cheap", amount_spent=1.0))
     make_bundle(gamekey="GK2", order=make_order(name="Pricey", amount_spent=99.0))
