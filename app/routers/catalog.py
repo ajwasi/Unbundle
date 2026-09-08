@@ -16,16 +16,29 @@ purchased_at columns rather than re-parsing those two fields out of raw_json.
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.bundle import Bundle
+from app.models.tag import ItemTag, Tag
+from app.routers.tags import get_or_create_tag
 from app.templates_env import templates
 
 router = APIRouter(prefix="/catalog")
+
+
+def _item_tags(db: Session, machine_names: list[str] | None = None) -> dict[str, list[dict]]:
+    query = db.query(ItemTag.machine_name, Tag.id, Tag.name).join(Tag, Tag.id == ItemTag.tag_id)
+    if machine_names is not None:
+        query = query.filter(ItemTag.machine_name.in_(machine_names))
+    by_machine_name: dict[str, list[dict]] = {}
+    for machine_name, tag_id, name in query.order_by(Tag.name).all():
+        by_machine_name.setdefault(machine_name, []).append({"id": tag_id, "name": name})
+    return by_machine_name
 
 
 def _build_catalog(db: Session) -> dict[str, dict]:
@@ -83,6 +96,7 @@ def catalog_page(
     request: Request,
     q: str = "",
     dupes_only: bool = False,
+    tag_id: int | None = None,
     sort: str = "name",
     dir: str = "asc",
     db: Session = Depends(get_db),
@@ -95,6 +109,11 @@ def catalog_page(
         rows = [r for r in rows if q_lower in r["item_name"].lower()]
     if dupes_only:
         rows = [r for r in rows if r["count"] > 1]
+    if tag_id is not None:
+        tagged_machine_names = {
+            mn for mn, in db.query(ItemTag.machine_name).filter(ItemTag.tag_id == tag_id).all()
+        }
+        rows = [r for r in rows if r["key"] in tagged_machine_names]
 
     reverse = dir == "desc"
     if sort == "count":
@@ -106,12 +125,18 @@ def catalog_page(
     else:
         rows.sort(key=lambda r: r["item_name"].casefold(), reverse=reverse)
 
+    tags_by_machine_name = _item_tags(db, [r["key"] for r in rows])
+    for r in rows:
+        r["tags"] = tags_by_machine_name.get(r["key"], [])
+
     context = {
         "rows": rows,
         "q": q,
         "dupes_only": dupes_only,
+        "tag_id": tag_id,
         "sort": sort,
         "dir": dir,
+        "all_tags": db.query(Tag).order_by(Tag.name).all(),
         "total_items": len(items),
         "total_dupes": sum(1 for e in items.values() if len(e["bundles"]) > 1),
         "grand_total_spent": db.query(func.sum(Bundle.amount_spent)).scalar() or 0.0,
@@ -131,3 +156,24 @@ def item_bundles(request: Request, machine_name: str, db: Session = Depends(get_
         "catalog/_bundles_modal_content.html",
         {"item_name": entry["item_name"], "bundles": bundles, "avg_item_value": _avg_item_value(bundles)},
     )
+
+
+@router.post("/item/{machine_name}/tags", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def add_item_tag(request: Request, machine_name: str, name: str = Form(...), db: Session = Depends(get_db)):
+    if name.strip():
+        tag = get_or_create_tag(db, name)
+        exists = db.query(ItemTag).filter(ItemTag.machine_name == machine_name, ItemTag.tag_id == tag.id).one_or_none()
+        if exists is None:
+            db.add(ItemTag(machine_name=machine_name, tag_id=tag.id))
+        db.commit()
+
+    tags = _item_tags(db, [machine_name]).get(machine_name, [])
+    return templates.TemplateResponse(request, "catalog/_item_tags.html", {"machine_name": machine_name, "tags": tags})
+
+
+@router.post("/item/{machine_name}/tags/{tag_id}/remove", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def remove_item_tag(request: Request, machine_name: str, tag_id: int, db: Session = Depends(get_db)):
+    db.query(ItemTag).filter(ItemTag.machine_name == machine_name, ItemTag.tag_id == tag_id).delete()
+    db.commit()
+    tags = _item_tags(db, [machine_name]).get(machine_name, [])
+    return templates.TemplateResponse(request, "catalog/_item_tags.html", {"machine_name": machine_name, "tags": tags})

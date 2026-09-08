@@ -7,15 +7,26 @@
   &mdash; ${{ "%.2f"|format(grand_total_spent) }} total spent across all bundles.
 </p>
 
+<datalist id="all-tag-names">
+  {% for t in all_tags %}<option value="{{ t.name }}">{% endfor %}
+</datalist>
+
 <div class="toolbar">
   <input type="search" id="catalog-q" name="q" placeholder="Search items..." value="{{ q }}"
          hx-get="/catalog" hx-trigger="keyup changed delay:300ms" hx-target="#catalog-table" hx-swap="outerHTML"
-         hx-include="#dupes-only" style="flex: 1;">
+         hx-include="#dupes-only,#catalog-tag" style="flex: 1;">
   <label style="display: flex; gap: 0.4rem; align-items: center; font-weight: normal;">
     <input type="checkbox" id="dupes-only" name="dupes_only" value="true" {{ "checked" if dupes_only else "" }}
-           hx-get="/catalog" hx-trigger="change" hx-target="#catalog-table" hx-swap="outerHTML" hx-include="#catalog-q">
+           hx-get="/catalog" hx-trigger="change" hx-target="#catalog-table" hx-swap="outerHTML" hx-include="#catalog-q,#catalog-tag">
     Show only duplicates
   </label>
+  <select id="catalog-tag" name="tag_id"
+          hx-get="/catalog" hx-trigger="change" hx-target="#catalog-table" hx-swap="outerHTML" hx-include="#catalog-q,#dupes-only">
+    <option value="">All tags</option>
+    {% for t in all_tags %}
+    <option value="{{ t.id }}" {{ "selected" if tag_id == t.id else "" }}>{{ t.name }}</option>
+    {% endfor %}
+  </select>
 </div>
 
 {% include "catalog/_table.html" %}

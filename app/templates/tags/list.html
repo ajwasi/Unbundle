@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Tags — Humble Tracker{% endblock %}
+{% block content %}
+<h1>Tags</h1>
+<p class="muted">
+  Tag bundles and catalog items to organize your library — tags are then available as a
+  filter on the <a href="/bundles">Bundles</a>, <a href="/catalog">Catalog</a>, and
+  <a href="/finance">Finance</a> pages. Add a tag to something from its own page (or
+  create one directly here first).
+</p>
+
+<div class="card">
+  <form hx-post="/tags" hx-target="#tags-table" hx-swap="outerHTML" style="display: flex; gap: 0.5rem; max-width: 420px;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <input type="text" name="name" placeholder="New tag name..." required style="flex: 1;">
+    <button type="submit">Create</button>
+  </form>
+</div>
+
+{% include "tags/_table.html" %}
+{% endblock %}

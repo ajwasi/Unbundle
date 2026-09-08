@@ -11,7 +11,7 @@ from app.db import SessionLocal
 from app.deps import AuthMiddleware
 from app.downloads import worker
 from app.oidc import is_auth_configured
-from app.routers import auth, bundles, catalog, finance, gog, home, metrics, steam, settings as settings_router
+from app.routers import auth, bundles, catalog, finance, gog, home, metrics, steam, tags, settings as settings_router
 from app.sync import refresh
 from app.telemetry import instrument_app
 
@@ -74,4 +74,5 @@ app.include_router(catalog.router)
 app.include_router(finance.router)
 app.include_router(steam.router)
 app.include_router(gog.router)
+app.include_router(tags.router)
 app.include_router(metrics.router)

@@ -15,7 +15,9 @@ from app.models.bundle_entitlement import BundleEntitlement
 from app.models.download import STATUS_COMPLETED as FILE_COMPLETED, STATUS_FAILED as FILE_FAILED, Download
 from app.models.download_job import STATUS_FAILED as JOB_FAILED, STATUS_COMPLETED as JOB_COMPLETED
 from app.models.sync_run import STATUS_FAILED, STATUS_SUCCESS
+from app.models.tag import BundleTag, Tag
 from app.ratelimit import RateLimiter, rate_limit
+from app.routers.tags import get_or_create_tag
 from app.sync import refresh
 from app.templates_env import templates
 
@@ -35,14 +37,30 @@ _SORT_COLUMNS = {
 }
 
 
-def _apply_filters(query, q: str, category: str, min_items: int | None):
+def _apply_filters(query, q: str, category: str, min_items: int | None, tag_id: int | None):
     if q:
         query = query.filter(Bundle.name.ilike(f"%{q}%"))
     if category:
         query = query.filter(Bundle.category == category)
     if min_items is not None:
         query = query.filter(Bundle.subproduct_count >= min_items)
+    if tag_id is not None:
+        query = query.join(BundleTag, BundleTag.gamekey == Bundle.gamekey).filter(BundleTag.tag_id == tag_id)
     return query
+
+
+def _bundle_tags(db: Session, gamekeys: list[str] | None = None) -> dict[str, list[dict]]:
+    """gamekey -> its tags, for every gamekey in one query rather than one
+    query per row — used by both the list page (many bundles at once) and the
+    detail page (a single-gamekey list).
+    """
+    query = db.query(BundleTag.gamekey, Tag.id, Tag.name).join(Tag, Tag.id == BundleTag.tag_id)
+    if gamekeys is not None:
+        query = query.filter(BundleTag.gamekey.in_(gamekeys))
+    by_gamekey: dict[str, list[dict]] = {}
+    for gamekey, tag_id, name in query.order_by(Tag.name).all():
+        by_gamekey.setdefault(gamekey, []).append({"id": tag_id, "name": name})
+    return by_gamekey
 
 
 def _apply_sort(query, sort: str, direction: str):
@@ -69,11 +87,12 @@ def list_bundles(
     q: str = "",
     category: str = "",
     min_items: int | None = None,
+    tag_id: int | None = None,
     sort: str = "name",
     dir: str = "asc",
     db: Session = Depends(get_db),
 ):
-    query = _apply_filters(db.query(Bundle), q, category, min_items)
+    query = _apply_filters(db.query(Bundle), q, category, min_items, tag_id)
     query = _apply_sort(query, sort, dir)
     bundles = query.all()
 
@@ -84,9 +103,12 @@ def list_bundles(
         "q": q,
         "category": category,
         "min_items": min_items,
+        "tag_id": tag_id,
         "sort": sort,
         "dir": dir,
         "categories": categories,
+        "all_tags": db.query(Tag).order_by(Tag.name).all(),
+        "tags_by_gamekey": _bundle_tags(db, [b.gamekey for b in bundles]),
         "total_count": db.query(Bundle).count(),
         "filtered_total_spent": sum(b.amount_spent for b in bundles),
         "category_breakdown": _category_breakdown(db),
@@ -284,8 +306,35 @@ def bundle_detail(request: Request, gamekey: str, db: Session = Depends(get_db))
     )
     context = _build_item_context(gamekey, bundle, db)
     context["entitlements"] = _entitlement_rows(gamekey, entitlements)
+    context["tags"] = _bundle_tags(db, [gamekey]).get(gamekey, [])
+    context["all_tags"] = db.query(Tag).order_by(Tag.name).all()
 
     return templates.TemplateResponse(request, "bundles/detail.html", context)
+
+
+@router.post("/{gamekey}/tags", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def add_bundle_tag(request: Request, gamekey: str, name: str = Form(...), db: Session = Depends(get_db)):
+    bundle = db.get(Bundle, gamekey)
+    if bundle is None:
+        return templates.TemplateResponse(request, "bundles/not_found.html", {"gamekey": gamekey}, status_code=404)
+
+    if name.strip():
+        tag = get_or_create_tag(db, name)
+        exists = db.query(BundleTag).filter(BundleTag.gamekey == gamekey, BundleTag.tag_id == tag.id).one_or_none()
+        if exists is None:
+            db.add(BundleTag(gamekey=gamekey, tag_id=tag.id))
+        db.commit()
+
+    tags = _bundle_tags(db, [gamekey]).get(gamekey, [])
+    return templates.TemplateResponse(request, "bundles/_tags.html", {"gamekey": gamekey, "tags": tags})
+
+
+@router.post("/{gamekey}/tags/{tag_id}/remove", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def remove_bundle_tag(request: Request, gamekey: str, tag_id: int, db: Session = Depends(get_db)):
+    db.query(BundleTag).filter(BundleTag.gamekey == gamekey, BundleTag.tag_id == tag_id).delete()
+    db.commit()
+    tags = _bundle_tags(db, [gamekey]).get(gamekey, [])
+    return templates.TemplateResponse(request, "bundles/_tags.html", {"gamekey": gamekey, "tags": tags})
 
 
 @router.post("/{gamekey}/download", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])

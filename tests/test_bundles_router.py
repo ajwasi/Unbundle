@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, patch
 
+from app.models.tag import BundleTag, Tag
 from tests.factories import make_order, make_subproduct
 
 
@@ -48,6 +49,32 @@ def test_list_bundles_min_items_filter(authed_client, make_bundle):
     assert "Small Bundle" not in resp.text
 
 
+def test_list_bundles_tag_filter(authed_client, make_bundle, db):
+    tagged = make_bundle(gamekey="GK1", order=make_order(name="Tagged Bundle"))
+    make_bundle(gamekey="GK2", order=make_order(name="Untagged Bundle"))
+    tag = Tag(name="Favorites")
+    db.add(tag)
+    db.commit()
+    db.add(BundleTag(tag_id=tag.id, gamekey=tagged.gamekey))
+    db.commit()
+
+    resp = authed_client.get(f"/bundles?tag_id={tag.id}")
+    assert "Tagged Bundle" in resp.text
+    assert "Untagged Bundle" not in resp.text
+
+
+def test_list_bundles_shows_tag_chips(authed_client, make_bundle, db):
+    bundle = make_bundle(gamekey="GK1")
+    tag = Tag(name="Favorites")
+    db.add(tag)
+    db.commit()
+    db.add(BundleTag(tag_id=tag.id, gamekey=bundle.gamekey))
+    db.commit()
+
+    resp = authed_client.get("/bundles")
+    assert "Favorites" in resp.text
+
+
 def test_list_bundles_sort_by_price_desc(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(name="Cheap", amount_spent=1.0))
     make_bundle(gamekey="GK2", order=make_order(name="Pricey", amount_spent=99.0))
@@ -64,6 +91,65 @@ def test_list_bundles_htmx_request_returns_partial_only(authed_client, make_bund
 def test_bundle_detail_404_for_unknown_gamekey(authed_client):
     resp = authed_client.get("/bundles/NOPE")
     assert resp.status_code == 404
+
+
+def test_bundle_detail_shows_its_tags(authed_client, make_bundle, db):
+    bundle = make_bundle(gamekey="GK1")
+    tag = Tag(name="Favorites")
+    db.add(tag)
+    db.commit()
+    db.add(BundleTag(tag_id=tag.id, gamekey=bundle.gamekey))
+    db.commit()
+
+    resp = authed_client.get(f"/bundles/{bundle.gamekey}")
+    assert "Favorites" in resp.text
+
+
+def test_add_bundle_tag_creates_tag_and_attaches_it(authed_client, make_bundle, db):
+    bundle = make_bundle(gamekey="GK1")
+    resp = authed_client.post(f"/bundles/{bundle.gamekey}/tags", data={"name": "New Tag"})
+    assert resp.status_code == 200
+    assert "New Tag" in resp.text
+    tag = db.query(Tag).filter(Tag.name == "New Tag").one()
+    assert db.query(BundleTag).filter(BundleTag.gamekey == bundle.gamekey, BundleTag.tag_id == tag.id).one_or_none() is not None
+
+
+def test_add_bundle_tag_reuses_existing_tag_by_name(authed_client, make_bundle, db):
+    bundle = make_bundle(gamekey="GK1")
+    db.add(Tag(name="Existing"))
+    db.commit()
+
+    authed_client.post(f"/bundles/{bundle.gamekey}/tags", data={"name": "Existing"})
+    assert db.query(Tag).filter(Tag.name == "Existing").count() == 1
+
+
+def test_add_bundle_tag_twice_does_not_duplicate_the_association(authed_client, make_bundle, db):
+    bundle = make_bundle(gamekey="GK1")
+    authed_client.post(f"/bundles/{bundle.gamekey}/tags", data={"name": "Dup"})
+    authed_client.post(f"/bundles/{bundle.gamekey}/tags", data={"name": "Dup"})
+    tag = db.query(Tag).filter(Tag.name == "Dup").one()
+    assert db.query(BundleTag).filter(BundleTag.gamekey == bundle.gamekey, BundleTag.tag_id == tag.id).count() == 1
+
+
+def test_add_bundle_tag_404_for_unknown_gamekey(authed_client):
+    resp = authed_client.post("/bundles/NOPE/tags", data={"name": "Whatever"})
+    assert resp.status_code == 404
+
+
+def test_remove_bundle_tag(authed_client, make_bundle, db):
+    bundle = make_bundle(gamekey="GK1")
+    tag = Tag(name="Removable")
+    db.add(tag)
+    db.commit()
+    db.add(BundleTag(tag_id=tag.id, gamekey=bundle.gamekey))
+    db.commit()
+
+    resp = authed_client.post(f"/bundles/{bundle.gamekey}/tags/{tag.id}/remove")
+    assert resp.status_code == 200
+    assert "Removable" not in resp.text
+    assert db.query(BundleTag).filter(BundleTag.gamekey == bundle.gamekey, BundleTag.tag_id == tag.id).one_or_none() is None
+    # The tag itself survives — removing it from one bundle isn't the same as deleting it.
+    assert db.query(Tag).filter(Tag.id == tag.id).one_or_none() is not None
 
 
 def test_bundle_detail_shows_item_and_price_summary(authed_client, make_bundle):

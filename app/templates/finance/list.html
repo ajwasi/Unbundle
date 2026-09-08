@@ -25,6 +25,12 @@
       <option value="{{ c }}" {{ "selected" if c == category else "" }}>{{ c }}</option>
       {% endfor %}
     </select>
+    <select name="tag_id">
+      <option value="">All tags</option>
+      {% for t in all_tags %}
+      <option value="{{ t.id }}" {{ "selected" if tag_id == t.id else "" }}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
   </form>
 </div>
 
