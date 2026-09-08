@@ -18,6 +18,8 @@ import time
 
 from fastapi import HTTPException, Request
 
+from app.telemetry import rate_limit_rejections_total
+
 _all_limiters: list["RateLimiter"] = []
 
 
@@ -51,6 +53,7 @@ def rate_limit(limiter: RateLimiter, key_prefix: str):
     async def _dependency(request: Request) -> None:
         client_host = request.client.host if request.client else "unknown"
         if not limiter.allow(f"{key_prefix}:{client_host}", time.monotonic()):
+            rate_limit_rejections_total.add(1, {"limiter": key_prefix})
             raise HTTPException(
                 status_code=429,
                 detail="Too many requests — please wait a moment before trying again.",

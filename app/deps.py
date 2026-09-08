@@ -11,6 +11,11 @@ __all__ = ["get_db", "AuthMiddleware"]
 
 _PUBLIC_PATH_PREFIXES = ("/login", "/auth/oidc")
 _STATIC_PREFIX = "/static"
+# Prometheus can't do an interactive login (and won't carry a CSRF cookie back on its
+# next scrape either — it'd just get re-issued one on every single scrape forever), so
+# this skips the whole middleware the same way /static does. Its own optional
+# METRICS_TOKEN bearer check (see routers/metrics.py) is the only auth this route gets.
+_METRICS_PATH = "/metrics"
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -32,7 +37,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path.startswith(_STATIC_PREFIX):
+        if request.url.path.startswith(_STATIC_PREFIX) or request.url.path == _METRICS_PATH:
             return await call_next(request)
 
         # Ensured here (rather than lazily wherever a form happens to render) so

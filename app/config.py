@@ -15,6 +15,12 @@ class Settings(BaseSettings):
 
     app_secret_key: str = DEFAULT_SECRET_KEY
     app_password: str = ""
+    # Optional. Prometheus can't do an interactive login, so /metrics is exempt from the
+    # session-cookie gate (see deps.py) regardless — this only adds a bearer-token check
+    # on top when you want the scrape endpoint itself restricted (e.g. exposed beyond a
+    # trusted LAN). Empty means /metrics is unauthenticated, same "insecure but explicit"
+    # default this app already uses for APP_PASSWORD.
+    metrics_token: str = ""
 
     database_url: str = "sqlite:///./data/humble.db"
     data_dir: Path = Path("./data")
