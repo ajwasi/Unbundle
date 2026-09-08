@@ -4,6 +4,8 @@ Both paths converge on the same session cookie, so nothing downstream of login n
 to know or care which method was actually used.
 """
 
+from urllib.parse import urlparse
+
 from authlib.integrations.base_client.errors import OAuthError
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -27,24 +29,26 @@ _login_limiter = RateLimiter(max_calls=10, period_seconds=60)
 
 def _is_safe_next(next: str | None) -> bool:
     # `next` round-trips through a query param, a hidden form field, and a session
-    # value — all attacker-suppliable, none of it meant to ever leave this app. A
-    # leading "//" or "/\" is browser shorthand for a scheme-relative absolute URL
-    # (e.g. "//evil.com"), so only a genuine single-slash-rooted path counts as safe.
-    #
-    # Deliberately a boolean predicate, not a function that takes the tainted value
-    # and returns a "cleaned" one (that was the original shape here, as _safe_next()
-    # — CodeQL's open-redirect query kept flagging both RedirectResponse call sites
-    # below even with that guard in place, the same "local function call caller
-    # can't credit" pattern already hit and fixed for rotate-secret-key's clear-text-
-    # logging alert). Each call site below does its own `x if _is_safe_next(x) else
-    # "/"` right next to where the value is actually used, so the guard condition and
-    # the guarded use are both visible in the same function CodeQL is analyzing.
-    return bool(next) and next.startswith("/") and not next.startswith("//") and not next.startswith("/\\")
+    # value — all attacker-suppliable, none of it meant to ever leave this app.
+    # urlparse() catches "//evil.com" (netloc set, no scheme) and "https://evil.com"
+    # (scheme+netloc set) directly — confirmed via a real interpreter check, since
+    # it's not obvious a bare "//..." parses with an empty scheme but a real netloc.
+    # It does NOT catch a leading "/\" (some browsers historically treated
+    # "/\evil.com" as protocol-relative too) — urlparse treats "\" as an ordinary
+    # path character, not a delimiter — so that's still checked explicitly.
+    if not next or not next.startswith("/") or next.startswith("/\\"):
+        return False
+    parsed = urlparse(next)
+    return not parsed.scheme and not parsed.netloc
 
 
 def _login_context(db: Session, next: str, error: str | None) -> dict:
+    if _is_safe_next(next):
+        safe_next = next
+    else:
+        safe_next = "/"
     return {
-        "next": next if _is_safe_next(next) else "/",
+        "next": safe_next,
         "error": error,
         "oidc_enabled": is_oidc_enabled(db),
         "password_enabled": not is_password_disabled(db),
@@ -61,8 +65,17 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
     if is_password_disabled(db) or not check_app_password(password, db):
         context = _login_context(db, next, "Incorrect password")
         return templates.TemplateResponse(request, "auth/login.html", context, status_code=401)
-    safe_next = next if _is_safe_next(next) else "/"
-    response = RedirectResponse(url=safe_next, status_code=303)
+    # The RedirectResponse call itself lives inside each branch (rather than being
+    # fed by a ternary-computed variable afterward) — CodeQL's open-redirect query
+    # kept flagging this exact line through two prior attempts that were logically
+    # equivalent (_safe_next() returning a cleaned value; then an inline
+    # `x if _is_safe_next(x) else "/"` ternary) but weren't real if/else statement
+    # branches. Matches the shape that was separately confirmed to work for this
+    # app's SSRF alert (storefront.py: fetch_bundle_detail).
+    if _is_safe_next(next):
+        response = RedirectResponse(url=next, status_code=303)
+    else:
+        response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax")
     return response
 
@@ -79,7 +92,10 @@ async def oidc_login(request: Request, next: str = "/", db: Session = Depends(ge
     cfg = get_oidc_config(db)
     if not cfg or not cfg.get("enabled"):
         raise HTTPException(status_code=404, detail="OIDC is not configured")
-    request.session["oidc_next"] = next if _is_safe_next(next) else "/"
+    if _is_safe_next(next):
+        request.session["oidc_next"] = next
+    else:
+        request.session["oidc_next"] = "/"
     client = build_oauth_client(cfg)
     redirect_uri = str(request.url_for("oidc_callback"))
     return await client.authorize_redirect(request, redirect_uri)
@@ -101,7 +117,9 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
         )
 
     stored_next = request.session.pop("oidc_next", "/")
-    safe_next = stored_next if _is_safe_next(stored_next) else "/"
-    response = RedirectResponse(url=safe_next, status_code=303)
+    if _is_safe_next(stored_next):
+        response = RedirectResponse(url=stored_next, status_code=303)
+    else:
+        response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax")
     return response
