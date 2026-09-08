@@ -1,7 +1,25 @@
+import re
 from unittest.mock import AsyncMock, patch
 
 from app.models.tag import BundleTag, Tag
 from tests.factories import make_order, make_subproduct
+
+
+def _has_form_nested_inside_p(html: str) -> bool:
+    """Real browsers force-close an open <p> the instant a <form> start tag
+    appears (and silently take whatever was nested inside the <p> down with
+    it) — the server's raw markup can look perfectly nested as a string while
+    still parsing into a broken DOM. This mirrors that HTML5 rule so tests
+    catch it without needing a real browser.
+    """
+    p_depth = 0
+    for closing, name in re.findall(r"<(/?)(\w+)", html):
+        name = name.lower()
+        if name == "p":
+            p_depth = max(p_depth - 1, 0) if closing else p_depth + 1
+        elif name == "form" and not closing and p_depth > 0:
+            return True
+    return False
 
 
 def test_list_bundles_requires_auth(client):
@@ -63,6 +81,18 @@ def test_list_bundles_tag_filter(authed_client, make_bundle, db):
     assert "Untagged Bundle" not in resp.text
 
 
+def test_list_bundles_search_tolerates_blank_select_and_number_fields(authed_client, make_bundle):
+    """The search box's htmx trigger submits every field in the form together,
+    including tag_id/min_items as empty strings when left at their "All"/blank
+    state — that used to 422 (int | None can't parse ""), which made the
+    search box look like it silently did nothing.
+    """
+    make_bundle(gamekey="GK1", order=make_order(name="Findable Bundle"))
+    resp = authed_client.get("/bundles?sort=name&dir=asc&q=Findable&category=&min_items=&tag_id=")
+    assert resp.status_code == 200
+    assert "Findable Bundle" in resp.text
+
+
 def test_list_bundles_shows_tag_chips(authed_client, make_bundle, db):
     bundle = make_bundle(gamekey="GK1")
     tag = Tag(name="Favorites")
@@ -103,6 +133,25 @@ def test_bundle_detail_shows_its_tags(authed_client, make_bundle, db):
 
     resp = authed_client.get(f"/bundles/{bundle.gamekey}")
     assert "Favorites" in resp.text
+
+
+def test_bundle_detail_tag_forms_are_not_nested_inside_a_p_tag(authed_client, make_bundle, db):
+    bundle = make_bundle(gamekey="GK1")
+    tag = Tag(name="Favorites")
+    db.add(tag)
+    db.commit()
+    db.add(BundleTag(tag_id=tag.id, gamekey=bundle.gamekey))
+    db.commit()
+
+    resp = authed_client.get(f"/bundles/{bundle.gamekey}")
+    assert not _has_form_nested_inside_p(resp.text)
+
+
+def test_bundle_detail_tag_form_posts_to_its_own_gamekey(authed_client, make_bundle):
+    bundle = make_bundle(gamekey="GK1")
+    resp = authed_client.get(f"/bundles/{bundle.gamekey}")
+    assert f'hx-post="/bundles/{bundle.gamekey}/tags"' in resp.text
+    assert f'id="bundle-tags-{bundle.gamekey}"' in resp.text
 
 
 def test_add_bundle_tag_creates_tag_and_attaches_it(authed_client, make_bundle, db):

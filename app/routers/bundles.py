@@ -86,13 +86,18 @@ def list_bundles(
     request: Request,
     q: str = "",
     category: str = "",
-    min_items: int | None = None,
-    tag_id: int | None = None,
+    min_items: str = "",
+    tag_id: str = "",
     sort: str = "name",
     dir: str = "asc",
     db: Session = Depends(get_db),
 ):
-    query = _apply_filters(db.query(Bundle), q, category, min_items, tag_id)
+    # str params, not int | None: the "All tags"/blank-input state of a
+    # <select>/<input> submits as an empty string, which FastAPI can't
+    # coerce to int and would 422 on.
+    min_items_val = int(min_items) if min_items.isdigit() else None
+    tag_id_val = int(tag_id) if tag_id.isdigit() else None
+    query = _apply_filters(db.query(Bundle), q, category, min_items_val, tag_id_val)
     query = _apply_sort(query, sort, dir)
     bundles = query.all()
 
@@ -102,8 +107,8 @@ def list_bundles(
         "bundles": bundles,
         "q": q,
         "category": category,
-        "min_items": min_items,
-        "tag_id": tag_id,
+        "min_items": min_items_val,
+        "tag_id": tag_id_val,
         "sort": sort,
         "dir": dir,
         "categories": categories,
@@ -252,6 +257,7 @@ def _build_item_context(gamekey: str, bundle: Bundle, db: Session) -> dict:
     footer = _compute_footer(item_groups, [key for key, _ in all_formats])
     avg_item_price = bundle.amount_spent / len(item_groups) if item_groups else None
     return {
+        "gamekey": gamekey,
         "bundle": bundle,
         "item_groups": item_groups,
         "all_formats": all_formats,

@@ -7,10 +7,10 @@
 <datalist id="all-tag-names">
   {% for t in all_tags %}<option value="{{ t.name }}">{% endfor %}
 </datalist>
-<p>
+<div class="tags-row">
   <strong class="muted">Tags:</strong>
   {% include "bundles/_tags.html" %}
-</p>
+</div>
 
 <div class="card">
   <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem;">

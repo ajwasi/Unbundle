@@ -37,6 +37,13 @@ def test_finance_tag_filter(authed_client, make_bundle, db):
     assert "$5.50" not in resp.text
 
 
+def test_finance_tolerates_blank_tag_select(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(amount_spent=10.0, created="2024-01-01T00:00:00"))
+    resp = authed_client.get("/finance?year=&month=&category=&tag_id=")
+    assert resp.status_code == 200
+    assert "$10.00" in resp.text
+
+
 def test_finance_month_filter_matches_across_all_years(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(amount_spent=10.0, created="2022-12-01T00:00:00"))
     make_bundle(gamekey="GK2", order=make_order(amount_spent=20.0, created="2023-12-01T00:00:00"))

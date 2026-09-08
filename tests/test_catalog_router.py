@@ -105,6 +105,13 @@ def test_catalog_page_tag_filter(authed_client, make_bundle, db):
     assert "Untagged Item" not in resp.text
 
 
+def test_catalog_page_search_tolerates_blank_tag_select(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Findable Item", machine_name="findable")]))
+    resp = authed_client.get("/catalog?q=Findable&tag_id=")
+    assert resp.status_code == 200
+    assert "Findable Item" in resp.text
+
+
 def test_catalog_page_shows_item_tag_chips(authed_client, make_bundle, db):
     make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Item A", machine_name="a")]))
     tag = Tag(name="Favorites")

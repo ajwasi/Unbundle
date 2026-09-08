@@ -96,11 +96,14 @@ def catalog_page(
     request: Request,
     q: str = "",
     dupes_only: bool = False,
-    tag_id: int | None = None,
+    tag_id: str = "",
     sort: str = "name",
     dir: str = "asc",
     db: Session = Depends(get_db),
 ):
+    # str, not int | None: the "All tags" <select> submits an empty string,
+    # which FastAPI can't coerce to int and would 422 on.
+    tag_id_val = int(tag_id) if tag_id.isdigit() else None
     items = _build_catalog(db)
     rows = _rows_from_catalog(items)
 
@@ -109,9 +112,9 @@ def catalog_page(
         rows = [r for r in rows if q_lower in r["item_name"].lower()]
     if dupes_only:
         rows = [r for r in rows if r["count"] > 1]
-    if tag_id is not None:
+    if tag_id_val is not None:
         tagged_machine_names = {
-            mn for mn, in db.query(ItemTag.machine_name).filter(ItemTag.tag_id == tag_id).all()
+            mn for mn, in db.query(ItemTag.machine_name).filter(ItemTag.tag_id == tag_id_val).all()
         }
         rows = [r for r in rows if r["key"] in tagged_machine_names]
 
@@ -133,7 +136,7 @@ def catalog_page(
         "rows": rows,
         "q": q,
         "dupes_only": dupes_only,
-        "tag_id": tag_id,
+        "tag_id": tag_id_val,
         "sort": sort,
         "dir": dir,
         "all_tags": db.query(Tag).order_by(Tag.name).all(),

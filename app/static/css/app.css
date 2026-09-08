@@ -171,6 +171,8 @@ th a { text-decoration: none; color: var(--text); }
 .htmx-indicator { opacity: 0; transition: opacity 150ms ease-in; }
 .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
 
+.tags-row { margin: 1em 0; }
+
 .tag-chip {
   display: inline-flex;
   align-items: center;
@@ -197,6 +199,7 @@ th a { text-decoration: none; color: var(--text); }
 }
 
 .tag-add-form {
+  position: relative;
   display: inline-flex;
   gap: 0.3rem;
   margin: 0.1rem 0;
@@ -212,6 +215,30 @@ th a { text-decoration: none; color: var(--text); }
   padding: 0.15rem 0.5rem;
   font-size: 0.78rem;
 }
+
+.tag-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  margin-top: 0.2rem;
+  min-width: 10rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.tag-suggestions div {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tag-suggestions div:hover { background: var(--bg); }
 
 .muted { color: var(--muted); }
 .log-line { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; }
