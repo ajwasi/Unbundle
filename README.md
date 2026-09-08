@@ -85,6 +85,41 @@ top of every page:
   fully unofficial and community-reverse-engineered (`app/connectors/gog_connector.py`).
   Both could change without notice.
 
+## Observability
+
+`GET /metrics` exposes an OpenTelemetry-instrumented Prometheus scrape endpoint —
+reachable without logging in (Prometheus can't do an interactive login), with an
+optional `METRICS_TOKEN` bearer check if you want that one route restricted too. It
+carries three kinds of data:
+
+- HTTP request count/duration/response size per route, via automatic FastAPI
+  instrumentation (`http_server_*`).
+- App-specific gauges, computed fresh from the database on every scrape (no
+  persisted duplicate state to drift out of sync): `humble_tracker_bundles_count`,
+  `humble_tracker_downloads_files`/`humble_tracker_downloads_jobs` (by status),
+  `humble_tracker_entitlements_unredeemed` (by platform — the app's core "did I
+  actually redeem this key" purpose, now graphable over time),
+  `humble_tracker_connector_status` (1/0 per source), and
+  `humble_tracker_sync_last_success_timestamp`.
+- `humble_tracker_rate_limit_rejections_total` (by which limiter) and Python's own
+  process/GC metrics, both via `prometheus_client`'s standard collectors.
+
+Example Prometheus `scrape_configs` entry:
+
+```yaml
+scrape_configs:
+  - job_name: humble-tracker
+    static_configs:
+      - targets: ["<host>:8010"]
+    # Only needed if METRICS_TOKEN is set:
+    # authorization:
+    #   credentials: <the same value as METRICS_TOKEN>
+```
+
+From there, add Prometheus as a Grafana data source and build panels/alerts against
+the metric names above — e.g. an alert on `humble_tracker_connector_status{source="humble"} == 0`
+catches a broken Humble session before you'd otherwise notice.
+
 ## Local development
 
 ```bash
@@ -120,8 +155,10 @@ filesystem, never by parsing humble-cli's stdout) and `bundle` ↔ `bundle_entit
 (third-party keys — Steam/GOG — matched against `steam_game`/`gog_game` rows synced
 separately). `app/security.py` / `app/csrf.py` / `app/ratelimit.py` — session cookie,
 Fernet-at-rest credential encryption, CSRF, and rate limiting, each a small standalone
-module rather than folded into one another. `app/cli.py` — emergency recovery, run
-directly against the database with no HTTP/session involved.
+module rather than folded into one another. `app/telemetry.py` — OpenTelemetry meter
+setup and the custom gauges/counters behind `/metrics` (see Observability above).
+`app/cli.py` — emergency recovery, run directly against the database with no
+HTTP/session involved.
 
 ## Known limitations
 
