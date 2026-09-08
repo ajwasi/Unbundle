@@ -104,7 +104,15 @@ carries three kinds of data:
 - `humble_tracker_rate_limit_rejections_total` (by which limiter) and Python's own
   process/GC metrics, both via `prometheus_client`'s standard collectors.
 
-Example Prometheus `scrape_configs` entry:
+**Try it turnkey**: `docker compose --profile observability up` starts Prometheus (already
+scraping the app — `examples/observability/prometheus.yml`) and Grafana (already pointed at
+that Prometheus as a data source — `examples/observability/grafana-datasource.yml`) alongside
+the app itself, all on the same Compose network. Neither starts with a plain `docker compose
+up`. Prometheus: http://localhost:9090, Grafana: http://localhost:3000 (default login
+`admin`/`admin`, changed on first login). If `METRICS_TOKEN` is set in `.env`, uncomment the
+`authorization` block in `examples/observability/prometheus.yml` first.
+
+Scraping from a Prometheus that lives *outside* this Compose network instead:
 
 ```yaml
 scrape_configs:
@@ -116,9 +124,9 @@ scrape_configs:
     #   credentials: <the same value as METRICS_TOKEN>
 ```
 
-From there, add Prometheus as a Grafana data source and build panels/alerts against
-the metric names above — e.g. an alert on `humble_tracker_connector_status{source="humble"} == 0`
-catches a broken Humble session before you'd otherwise notice.
+From there, build panels/alerts against the metric names above — e.g. an alert on
+`humble_tracker_connector_status{source="humble"} == 0` catches a broken Humble session
+before you'd otherwise notice.
 
 ## Local development
 
@@ -136,9 +144,10 @@ credentials or network access needed.
 **Do not point `HUMBLE_CLI_KEY_PATH` (or the `humble_cli_key_path` setting) at your real
 home directory during local development** — it defaults to `~/.humble-cli-key`, the exact
 path the real `humble-cli` binary itself hardcodes, and this app writes to it whenever a
-session key is saved. In Docker this correctly resolves to the container's own
-`/home/appuser`; outside Docker, override it to a scratch path so it never overwrites a
-real credential file already on the machine.
+session key is saved. In Docker this correctly resolves to `/root/.humble-cli-key` (the
+container runs as root, with `HOME=/root` set explicitly in the Dockerfile); outside
+Docker, override it to a scratch path so it never overwrites a real credential file
+already on the machine.
 
 ## Architecture
 

@@ -8,3 +8,30 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+
+  # Both behind the "observability" profile — `docker compose up` alone never
+  # starts these; `docker compose --profile observability up` does. See the
+  # README's Observability section.
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    profiles: ["observability"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./examples/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.1
+    profiles: ["observability"]
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./examples/observability/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:
