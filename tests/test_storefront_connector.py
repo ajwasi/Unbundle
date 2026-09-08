@@ -197,6 +197,31 @@ async def test_fetch_bundle_detail_rejects_non_https_scheme():
 
 
 @pytest.mark.asyncio
+async def test_fetch_bundle_detail_preserves_query_and_fragment():
+    bundle_data = {"basic_data": {}, "tier_item_data": {}, "tier_order": [], "tier_display_data": {}, "tier_pricing_data": {}}
+    resp = httpx.Response(200, text=_detail_html(bundle_data), request=httpx.Request("GET", "https://x"))
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)) as mock_get:
+        await storefront.fetch_bundle_detail("https://www.humblebundle.com/books/x?ref=1#top")
+    mock_get.assert_awaited_once_with("https://www.humblebundle.com/books/x?ref=1#top")
+
+
+@pytest.mark.asyncio
+async def test_fetch_bundle_detail_requests_a_url_rebuilt_from_base_url_not_reused_verbatim():
+    # The actual fix, not just the validation: client.get() must never receive the
+    # original product_url string, even a validated one — only a URL rebuilt from
+    # BASE_URL (a trusted literal) plus the path/query/fragment pulled out of it.
+    # A same-URL-either-way input can't tell these apart, so this uses a host with
+    # different case: urlparse().hostname lowercases for comparison (so this still
+    # passes validation), but naively reusing product_url verbatim would send the
+    # mixed-case string to client.get() instead of BASE_URL's canonical lowercase one.
+    bundle_data = {"basic_data": {}, "tier_item_data": {}, "tier_order": [], "tier_display_data": {}, "tier_pricing_data": {}}
+    resp = httpx.Response(200, text=_detail_html(bundle_data), request=httpx.Request("GET", "https://x"))
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)) as mock_get:
+        await storefront.fetch_bundle_detail("https://WWW.HUMBLEBUNDLE.COM/books/x")
+    mock_get.assert_awaited_once_with("https://www.humblebundle.com/books/x")
+
+
+@pytest.mark.asyncio
 async def test_fetch_bundle_detail_parses_name_and_msrp():
     bundle_data = {
         "basic_data": {"human_name": "My Bundle", "msrp|money": {"amount": 100.0}},
