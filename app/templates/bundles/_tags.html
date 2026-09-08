@@ -1,0 +1,17 @@
+<span id="bundle-tags-{{ gamekey }}">
+  {% for t in tags %}
+  <span class="tag-chip">
+    {{ t.name }}
+    <form hx-post="/bundles/{{ gamekey }}/tags/{{ t.id }}/remove" hx-target="#bundle-tags-{{ gamekey }}" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      <button type="submit" title="Remove tag">&times;</button>
+    </form>
+  </span>
+  {% endfor %}
+  <form class="tag-add-form" hx-post="/bundles/{{ gamekey }}/tags" hx-target="#bundle-tags-{{ gamekey }}" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <input type="text" name="name" placeholder="Add tag..." required autocomplete="off">
+    <button type="submit">+</button>
+    <div class="tag-suggestions" hidden></div>
+  </form>
+</span>

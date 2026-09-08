@@ -1,3 +1,4 @@
+from app.models.tag import BundleTag, Tag
 from tests.factories import make_order
 
 
@@ -20,6 +21,27 @@ def test_finance_year_filter(authed_client, make_bundle):
     resp = authed_client.get("/finance?year=2024")
     assert "$20.00" in resp.text
     assert "$10.00" not in resp.text
+
+
+def test_finance_tag_filter(authed_client, make_bundle, db):
+    tagged = make_bundle(gamekey="GK1", order=make_order(amount_spent=10.0, created="2024-01-01T00:00:00"))
+    make_bundle(gamekey="GK2", order=make_order(amount_spent=5.5, created="2024-02-01T00:00:00"))
+    tag = Tag(name="Favorites")
+    db.add(tag)
+    db.commit()
+    db.add(BundleTag(tag_id=tag.id, gamekey=tagged.gamekey))
+    db.commit()
+
+    resp = authed_client.get(f"/finance?tag_id={tag.id}")
+    assert "$10.00" in resp.text
+    assert "$5.50" not in resp.text
+
+
+def test_finance_tolerates_blank_tag_select(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(amount_spent=10.0, created="2024-01-01T00:00:00"))
+    resp = authed_client.get("/finance?year=&month=&category=&tag_id=")
+    assert resp.status_code == 200
+    assert "$10.00" in resp.text
 
 
 def test_finance_month_filter_matches_across_all_years(authed_client, make_bundle):

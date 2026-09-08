@@ -1,3 +1,4 @@
+from app.models.tag import ItemTag, Tag
 from app.routers.catalog import _avg_item_value, _build_catalog, _rows_from_catalog
 from tests.factories import make_order, make_subproduct
 
@@ -88,6 +89,69 @@ def test_catalog_page_search(authed_client, make_bundle):
     resp = authed_client.get("/catalog?q=Findme")
     assert "Findme Book" in resp.text
     assert "Other Book" not in resp.text
+
+
+def test_catalog_page_tag_filter(authed_client, make_bundle, db):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Tagged Item", machine_name="tagged")]))
+    make_bundle(gamekey="GK2", order=make_order(subproducts=[make_subproduct("Untagged Item", machine_name="untagged")]))
+    tag = Tag(name="Favorites")
+    db.add(tag)
+    db.commit()
+    db.add(ItemTag(tag_id=tag.id, machine_name="tagged"))
+    db.commit()
+
+    resp = authed_client.get(f"/catalog?tag_id={tag.id}")
+    assert "Tagged Item" in resp.text
+    assert "Untagged Item" not in resp.text
+
+
+def test_catalog_page_search_tolerates_blank_tag_select(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Findable Item", machine_name="findable")]))
+    resp = authed_client.get("/catalog?q=Findable&tag_id=")
+    assert resp.status_code == 200
+    assert "Findable Item" in resp.text
+
+
+def test_catalog_page_shows_item_tag_chips(authed_client, make_bundle, db):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Item A", machine_name="a")]))
+    tag = Tag(name="Favorites")
+    db.add(tag)
+    db.commit()
+    db.add(ItemTag(tag_id=tag.id, machine_name="a"))
+    db.commit()
+
+    resp = authed_client.get("/catalog")
+    assert "Favorites" in resp.text
+
+
+def test_add_item_tag_creates_tag_and_attaches_it(authed_client, make_bundle, db):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Item A", machine_name="a")]))
+    resp = authed_client.post("/catalog/item/a/tags", data={"name": "New Tag"})
+    assert resp.status_code == 200
+    assert "New Tag" in resp.text
+    tag = db.query(Tag).filter(Tag.name == "New Tag").one()
+    assert db.query(ItemTag).filter(ItemTag.machine_name == "a", ItemTag.tag_id == tag.id).one_or_none() is not None
+
+
+def test_add_item_tag_twice_does_not_duplicate_the_association(authed_client, db):
+    authed_client.post("/catalog/item/a/tags", data={"name": "Dup"})
+    authed_client.post("/catalog/item/a/tags", data={"name": "Dup"})
+    tag = db.query(Tag).filter(Tag.name == "Dup").one()
+    assert db.query(ItemTag).filter(ItemTag.machine_name == "a", ItemTag.tag_id == tag.id).count() == 1
+
+
+def test_remove_item_tag(authed_client, db):
+    tag = Tag(name="Removable")
+    db.add(tag)
+    db.commit()
+    db.add(ItemTag(tag_id=tag.id, machine_name="a"))
+    db.commit()
+
+    resp = authed_client.post(f"/catalog/item/a/tags/{tag.id}/remove")
+    assert resp.status_code == 200
+    assert "Removable" not in resp.text
+    assert db.query(ItemTag).filter(ItemTag.machine_name == "a", ItemTag.tag_id == tag.id).one_or_none() is None
+    assert db.query(Tag).filter(Tag.id == tag.id).one_or_none() is not None
 
 
 def test_item_bundles_modal_shows_per_bundle_and_average(authed_client, make_bundle):

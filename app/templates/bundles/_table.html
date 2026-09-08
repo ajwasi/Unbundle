@@ -1,7 +1,7 @@
 {% macro sort_link(col, label) %}
 {% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
 <a href="#"
-   hx-get="/bundles?q={{ q | urlencode }}&category={{ category | urlencode }}&min_items={{ min_items if min_items is not none else '' }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-get="/bundles?q={{ q | urlencode }}&category={{ category | urlencode }}&min_items={{ min_items if min_items is not none else '' }}&tag_id={{ tag_id if tag_id is not none else '' }}&sort={{ col }}&dir={{ next_dir }}"
    hx-target="#bundle-table" hx-swap="outerHTML">
   {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
 </a>
@@ -24,6 +24,7 @@
         <th>Keys</th>
         <th>{{ sort_link('purchased', 'Purchased') }}</th>
         <th>{{ sort_link('price', 'Price') }}</th>
+        <th>Tags</th>
       </tr>
     </thead>
     <tbody>
@@ -35,9 +36,16 @@
         <td>{{ b.key_count }}</td>
         <td>{{ (b.purchased_at.strftime("%Y-%m-%d") if b.purchased_at else "&mdash;") | safe }}</td>
         <td>${{ "%.2f"|format(b.amount_spent) }}</td>
+        <td>
+          {% for t in tags_by_gamekey.get(b.gamekey, []) %}
+          <span class="tag-chip">{{ t.name }}</span>
+          {% else %}
+          <span class="muted">&mdash;</span>
+          {% endfor %}
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="muted">No bundles match.</td></tr>
+      <tr><td colspan="7" class="muted">No bundles match.</td></tr>
       {% endfor %}
     </tbody>
     {% if bundles %}
@@ -45,6 +53,7 @@
       <tr style="font-weight: 600; border-top: 2px solid var(--border);">
         <td colspan="5">TOTAL ({{ bundles|length }} bundle{{ "s" if bundles|length != 1 else "" }} shown)</td>
         <td>${{ "%.2f"|format(filtered_total_spent) }}</td>
+        <td></td>
       </tr>
     </tfoot>
     {% endif %}

@@ -27,13 +27,19 @@
     </select>
     <input type="number" name="min_items" placeholder="Min items" min="0"
            value="{{ min_items if min_items is not none else '' }}" style="width: 8rem;">
+    <select name="tag_id">
+      <option value="">All tags</option>
+      {% for t in all_tags %}
+      <option value="{{ t.id }}" {{ "selected" if tag_id == t.id else "" }}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
   </form>
   <form hx-post="/bundles/refresh" hx-target="#refresh-status" hx-swap="outerHTML" style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit">Refresh from Humble</button>
   </form>
 </div>
-<p><div id="refresh-status"></div></p>
+<div id="refresh-status"></div>
 
 {% include "bundles/_table.html" %}
 {% endblock %}

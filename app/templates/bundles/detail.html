@@ -4,6 +4,14 @@
 <p><a href="/bundles">&larr; Back to library</a></p>
 <h1>{{ bundle.name }}</h1>
 
+<datalist id="all-tag-names">
+  {% for t in all_tags %}<option value="{{ t.name }}">{% endfor %}
+</datalist>
+<div class="tags-row">
+  <strong class="muted">Tags:</strong>
+  {% include "bundles/_tags.html" %}
+</div>
+
 <div class="card">
   <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem;">
     <h2 style="margin: 0;">Downloadable items ({{ item_groups|length }})</h2>

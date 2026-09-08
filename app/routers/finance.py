@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db
 from app.models.bundle import Bundle
+from app.models.tag import BundleTag, Tag
 from app.templates_env import templates
 
 router = APIRouter(prefix="/finance")
@@ -32,13 +33,15 @@ _MONTH_NAMES = [
 ]
 
 
-def _apply_filters(query, year: str, month: str, category: str):
+def _apply_filters(query, year: str, month: str, category: str, tag_id: int | None):
     if year:
         query = query.filter(func.strftime("%Y", Bundle.purchased_at) == year)
     if month:
         query = query.filter(func.strftime("%m", Bundle.purchased_at) == month)
     if category:
         query = query.filter(Bundle.category == category)
+    if tag_id is not None:
+        query = query.join(BundleTag, BundleTag.gamekey == Bundle.gamekey).filter(BundleTag.tag_id == tag_id)
     return query
 
 
@@ -48,16 +51,20 @@ def finance_page(
     year: str = "",
     month: str = "",
     category: str = "",
+    tag_id: str = "",
     db: Session = Depends(get_db),
 ):
-    base = _apply_filters(db.query(Bundle), year, month, category)
+    # str, not int | None: the "All tags" <select> submits an empty string,
+    # which FastAPI can't coerce to int and would 422 on.
+    tag_id_val = int(tag_id) if tag_id.isdigit() else None
+    base = _apply_filters(db.query(Bundle), year, month, category, tag_id_val)
     rows = base.order_by(Bundle.purchased_at.desc()).all()
     filtered_total = sum(b.amount_spent for b in rows)
 
     granularity = "month" if year else "year"
     period_expr = func.strftime("%Y-%m" if granularity == "month" else "%Y", Bundle.purchased_at)
     period_rows = (
-        _apply_filters(db.query(period_expr, func.sum(Bundle.amount_spent), func.count(Bundle.gamekey)), year, month, category)
+        _apply_filters(db.query(period_expr, func.sum(Bundle.amount_spent), func.count(Bundle.gamekey)), year, month, category, tag_id_val)
         .group_by(period_expr)
         .order_by(period_expr)
         .all()
@@ -66,7 +73,7 @@ def finance_page(
     chart_values = [round(total or 0.0, 2) for _, total, _ in period_rows]
 
     category_rows = (
-        _apply_filters(db.query(Bundle.category, func.sum(Bundle.amount_spent)), year, month, category)
+        _apply_filters(db.query(Bundle.category, func.sum(Bundle.amount_spent)), year, month, category, tag_id_val)
         .group_by(Bundle.category)
         .order_by(Bundle.category)
         .all()
@@ -85,8 +92,10 @@ def finance_page(
         "month": month,
         "month_name": _MONTH_NAMES[int(month) - 1] if month else "",
         "category": category,
+        "tag_id": tag_id_val,
         "all_years": all_years,
         "all_categories": all_categories,
+        "all_tags": db.query(Tag).order_by(Tag.name).all(),
         "months": list(enumerate(_MONTH_NAMES, start=1)),
         "filtered_total": filtered_total,
         "filtered_count": len(rows),

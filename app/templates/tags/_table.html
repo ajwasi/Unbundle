@@ -1,0 +1,36 @@
+<div id="tags-table" class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Bundles</th>
+        <th>Items</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tags %}
+      <tr>
+        <td>
+          <form hx-post="/tags/{{ t.id }}/rename" hx-target="#tags-table" hx-swap="outerHTML" style="display: flex; gap: 0.4rem; max-width: 260px;">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="text" name="name" value="{{ t.name }}" required style="flex: 1;">
+            <button type="submit" class="secondary" style="padding: 0.2rem 0.6rem;">Save</button>
+          </form>
+        </td>
+        <td>{{ t.bundle_count }}</td>
+        <td>{{ t.item_count }}</td>
+        <td>
+          <form hx-post="/tags/{{ t.id }}/delete" hx-target="#tags-table" hx-swap="outerHTML"
+                hx-confirm="Delete tag '{{ t.name }}'? This removes it from {{ t.bundle_count }} bundle(s) and {{ t.item_count }} item(s).">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+            <button type="submit" class="secondary">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No tags yet — create one above, or add one directly from a bundle or catalog item.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

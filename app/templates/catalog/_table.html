@@ -1,7 +1,7 @@
 {% macro sort_link(col, label) %}
 {% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
 <a href="#"
-   hx-get="/catalog?q={{ q | urlencode }}&dupes_only={{ 'true' if dupes_only else 'false' }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-get="/catalog?q={{ q | urlencode }}&dupes_only={{ 'true' if dupes_only else 'false' }}&tag_id={{ tag_id if tag_id is not none else '' }}&sort={{ col }}&dir={{ next_dir }}"
    hx-target="#catalog-table" hx-swap="outerHTML">
   {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
 </a>
@@ -15,6 +15,7 @@
         <th>{{ sort_link('name', 'Item') }}</th>
         <th>{{ sort_link('purchased', 'First Purchased') }}</th>
         <th>{{ sort_link('count', 'Copies Owned') }}</th>
+        <th>Tags</th>
       </tr>
     </thead>
     <tbody>
@@ -33,9 +34,10 @@
           <span class="muted">1</span>
           {% endif %}
         </td>
+        <td>{% with machine_name = r.key, tags = r.tags %}{% include "catalog/_item_tags.html" %}{% endwith %}</td>
       </tr>
       {% else %}
-      <tr><td colspan="3" class="muted">No items match.</td></tr>
+      <tr><td colspan="4" class="muted">No items match.</td></tr>
       {% endfor %}
     </tbody>
   </table>
