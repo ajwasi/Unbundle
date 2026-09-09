@@ -22,7 +22,7 @@
     <select name="category">
       <option value="">All types</option>
       {% for c in all_categories %}
-      <option value="{{ c }}" {{ "selected" if c == category else "" }}>{{ c }}</option>
+      <option value="{{ c }}" {{ "selected" if c == category else "" }}>{{ c | format_category }}</option>
       {% endfor %}
     </select>
     <select name="tag_id">

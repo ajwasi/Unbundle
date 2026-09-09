@@ -11,7 +11,7 @@
   <p class="muted">
     Showing {{ bundles|length }} of {{ total_count }} bundle(s)
     {%- if q %} matching "{{ q }}"{% endif -%}
-    {%- if category %} in category "{{ category }}"{% endif -%}
+    {%- if category %} in category "{{ category | format_category }}"{% endif -%}
     {%- if min_items %} with at least {{ min_items }} item(s){% endif -%}
     {%- if redeemed == "unredeemed" %} with unredeemed keys{% elif redeemed == "redeemed" %} fully redeemed{% endif -%}
     &mdash; ${{ "%.2f"|format(filtered_total_spent) }} spent{% if q or category or min_items or redeemed %} (this view){% endif %}
@@ -34,7 +34,7 @@
       <tr>
         <td><a href="/bundles/{{ b.gamekey }}">{{ b.name }}</a></td>
         <td>{{ b.subproduct_count }}</td>
-        <td>{{ (b.category or "&mdash;") | safe }}</td>
+        <td>{{ (b.category | format_category or "&mdash;") | safe }}</td>
         <td>{{ b.key_count }}</td>
         <td>
           {% if b.gamekey in unredeemed_gamekeys %}

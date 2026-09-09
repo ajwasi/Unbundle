@@ -10,6 +10,7 @@
   --warning: #b8862e;
   --error: #b0402f;
   --radius: 8px;
+  --shadow: 0 1px 2px rgba(28, 26, 23, 0.06), 0 2px 8px rgba(28, 26, 23, 0.06);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,6 +25,10 @@
     --success: #7cbf8c;
     --warning: #e0b258;
     --error: #e08268;
+    /* A light-mode shadow all but disappears against a dark background —
+       needs real contrast (deeper black, higher opacity) to read as elevation
+       instead of a light one just scaled up. */
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 10px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -41,6 +46,12 @@ body {
 }
 
 a { color: var(--accent); }
+
+/* Letter-spacing only, deliberately no size/margin changes — headings already
+   size and space fine (verified visually), the plain system-font default just
+   reads a bit generic at these weights. This is the cheap fix that doesn't
+   risk shifting layout on any of the many pages headings appear on. */
+h1, h2, h3 { letter-spacing: -0.02em; }
 
 .app-shell {
   display: flex;
@@ -109,6 +120,7 @@ main {
   border-radius: var(--radius);
   padding: 1.25rem;
   margin-bottom: 1.25rem;
+  box-shadow: var(--shadow);
 }
 
 .toolbar {
@@ -252,11 +264,14 @@ th a { text-decoration: none; color: var(--text); }
 }
 
 .bundle-tile {
+  position: relative;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow);
 }
 
 .bundle-tile img {
@@ -267,12 +282,20 @@ th a { text-decoration: none; color: var(--text); }
 }
 
 .countdown-timer {
-  padding: 0.3rem 0.6rem;
-  text-align: center;
-  font-size: 0.8rem;
+  /* Overlaid on the tile image rather than a full-width strip above it — a
+     fixed dark/white treatment regardless of light/dark theme, since this
+     sits on top of an arbitrary, unpredictable cover image, not the page
+     background var(--accent) tinting depended on for contrast. */
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
   font-weight: 600;
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  color: var(--accent);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
 }
 
 .bundle-tile-body {

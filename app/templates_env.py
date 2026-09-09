@@ -24,3 +24,30 @@ def human_size(num_bytes: int) -> str:
 
 
 templates.env.filters["human_size"] = human_size
+
+# Humble's own category values are single concatenated words ("subscriptioncontent"),
+# not underscore-separated like the credential-status values elsewhere in this app
+# (those already render fine via a plain `| replace('_', ' ')`) — no algorithmic way
+# to insert word boundaries into a concatenated string, so this is a real mapping.
+# Also used directly from app/routers/finance.py for the spending-by-category chart's
+# labels, not just as a Jinja filter, so it lives here rather than duplicated.
+_CATEGORY_LABELS = {
+    "bundle": "Bundle",
+    "storefront": "Storefront",
+    "subscriptioncontent": "Subscription Content",
+    "subscriptionplan": "Subscription Plan",
+    "widget": "Widget",
+    # Not a real category — routers/bundles.py's _category_breakdown() already
+    # substitutes this exact sentinel for an uncategorized bundle before the
+    # template ever sees it, so it needs its own passthrough here too.
+    "(none)": "(none)",
+}
+
+
+def format_category(value: str) -> str:
+    if not value:
+        return value
+    return _CATEGORY_LABELS.get(value, value.replace("_", " ").title())
+
+
+templates.env.filters["format_category"] = format_category

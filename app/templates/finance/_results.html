@@ -1,5 +1,5 @@
 <p class="muted">
-  {{ filtered_count }} purchase(s){% if year %} in {{ year }}{% endif %}{% if month_name %} ({{ month_name }}){% endif %}{% if category %} of type "{{ category }}"{% endif %}
+  {{ filtered_count }} purchase(s){% if year %} in {{ year }}{% endif %}{% if month_name %} ({{ month_name }}){% endif %}{% if category %} of type "{{ category | format_category }}"{% endif %}
   &mdash; ${{ "%.2f"|format(filtered_total) }} total.
 </p>
 
@@ -31,7 +31,7 @@
       {% for b in rows %}
       <tr>
         <td><a href="/bundles/{{ b.gamekey }}">{{ b.name }}</a></td>
-        <td>{{ (b.category or "&mdash;") | safe }}</td>
+        <td>{{ (b.category | format_category or "&mdash;") | safe }}</td>
         <td>{{ (b.purchased_at.strftime("%Y-%m-%d") if b.purchased_at else "&mdash;") | safe }}</td>
         <td>${{ "%.2f"|format(b.amount_spent) }}</td>
       </tr>
@@ -52,6 +52,23 @@
 
 <script>
 (function() {
+  // Read the theme's actual current colors rather than hardcoding hex — those
+  // repeated the light-mode values of --accent/--success/--warning/--error by
+  // coincidence, so this looked consistent but silently stopped following the
+  // page's own dark-mode palette. getComputedStyle on the root document
+  // element is exactly what :root's custom properties resolve against,
+  // dark-mode media query included.
+  var styles = getComputedStyle(document.documentElement);
+  var cssVar = function(name) { return styles.getPropertyValue(name).trim(); };
+  var textColor = cssVar('--text');
+  var mutedColor = cssVar('--muted');
+  var gridColor = cssVar('--border');
+  // Exactly 5 real category values exist in this app's data (bundle/storefront/
+  // subscriptioncontent/subscriptionplan/widget — confirmed against the live
+  // library), so 5 theme colors covers every real case with no synthesized
+  // extras needed.
+  var categoryPalette = [cssVar('--accent'), cssVar('--success'), cssVar('--warning'), cssVar('--error'), cssVar('--muted')];
+
   var timeCanvas = document.getElementById('time-chart');
   if (timeCanvas) {
     var existingTime = Chart.getChart(timeCanvas);
@@ -60,12 +77,15 @@
       type: 'bar',
       data: {
         labels: {{ chart_labels | tojson }},
-        datasets: [{ label: 'Spent ($)', data: {{ chart_values | tojson }}, backgroundColor: '#2f6da1' }]
+        datasets: [{ label: 'Spent ($)', data: {{ chart_values | tojson }}, backgroundColor: cssVar('--accent') }]
       },
       options: {
         responsive: true,
         plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return '$' + v; } } } }
+        scales: {
+          y: { beginAtZero: true, ticks: { color: mutedColor, callback: function(v) { return '$' + v; } }, grid: { color: gridColor } },
+          x: { ticks: { color: mutedColor }, grid: { color: gridColor } }
+        }
       }
     });
   }
@@ -80,10 +100,10 @@
         labels: {{ category_labels | tojson }},
         datasets: [{
           data: {{ category_values | tojson }},
-          backgroundColor: ['#2f6da1', '#3f7a4d', '#b8862e', '#b0402f', '#7a5ea1', '#5ea3d9']
+          backgroundColor: categoryPalette
         }]
       },
-      options: { responsive: true }
+      options: { responsive: true, plugins: { legend: { labels: { color: textColor } } } }
     });
   }
 })();
