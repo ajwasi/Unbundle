@@ -1,0 +1,50 @@
+{% if error %}
+<p style="color: var(--error);">{{ error }}</p>
+{% elif result %}
+{% if committed is defined %}
+<p class="badge badge-ok" style="display: inline-block;">Marked {{ committed }} item(s) as downloaded.</p>
+{% endif %}
+<p class="muted">
+  {{ result.matched|length }} match(es), {{ result.ambiguous|length }} ambiguous, {{ result.unmatched_count }} file(s) not in your library.
+</p>
+
+{% if result.matched %}
+<table>
+  <thead><tr><th>File</th><th>Bundle</th><th>Item</th><th>Format</th><th>Found at</th></tr></thead>
+  <tbody>
+    {% for m in result.matched %}
+    <tr>
+      <td>{{ m.original_filename }}{% if m.size_mismatch %} <span class="badge badge-pending" title="Humble's reported size for this item doesn't match the file found — sizes are known to be occasionally unreliable, this may still be correct.">size differs</span>{% endif %}</td>
+      <td><a href="/bundles/{{ m.gamekey }}">{{ m.bundle_name }}</a></td>
+      <td>{{ m.item_name }}</td>
+      <td>{{ m.file_format }}</td>
+      <td style="font-family: monospace; font-size: 0.85em;">{{ m.found_path }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% if committed is not defined %}
+<form hx-post="/downloads/scan/commit" hx-target="#scan-result" hx-swap="innerHTML" style="margin-top: 0.75rem;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <input type="hidden" name="folder" value="{{ folder }}">
+  <button type="submit">Commit {{ result.matched|length }} match(es)</button>
+</form>
+{% endif %}
+{% endif %}
+
+{% if result.ambiguous %}
+<p class="muted" style="margin-top: 0.75rem;"><strong>Ambiguous (never auto-committed)</strong> — the same filename matches more than one library item:</p>
+<table>
+  <thead><tr><th>File</th><th>Found at</th><th>Candidates</th></tr></thead>
+  <tbody>
+    {% for a in result.ambiguous %}
+    <tr>
+      <td>{{ a.filename }}</td>
+      <td style="font-family: monospace; font-size: 0.85em;">{{ a.found_path }}</td>
+      <td>{% for c in a.candidates %}{{ c.bundle_name }} &mdash; {{ c.item_name }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endif %}

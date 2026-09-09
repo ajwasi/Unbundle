@@ -1,0 +1,42 @@
+<div id="download-history">
+  <p class="muted">
+    {{ rows|length }} download(s){% if q %} matching "{{ q }}"{% endif %}{% if status %} with status "{{ status }}"{% endif %}{% if file_format %} in format "{{ file_format }}"{% endif %}
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Bundle</th>
+        <th>Item</th>
+        <th>Format</th>
+        <th>Status</th>
+        <th>Size</th>
+        <th>Location</th>
+        <th>Completed</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% set d = row.download %}
+      <tr>
+        <td><a href="/bundles/{{ d.gamekey }}">{{ row.bundle_name }}</a></td>
+        <td>{{ d.item_name }}</td>
+        <td>{{ d.file_format }}</td>
+        <td>
+          {% if d.status == "completed" %}
+          <span class="badge badge-ok">Completed</span>
+          {% elif d.status == "failed" %}
+          <span class="badge badge-error" title="{{ d.error_message }}">Failed</span>
+          {% else %}
+          <span class="badge badge-pending">{{ d.status | title }}</span>
+          {% endif %}
+        </td>
+        <td>{{ d.expected_size_bytes | human_size }}</td>
+        <td class="muted" style="font-family: monospace; font-size: 0.85em;">{{ d.current_location_path or "&mdash;" | safe }}</td>
+        <td>{{ (d.completed_at.strftime("%Y-%m-%d %H:%M") if d.completed_at else "&mdash;") | safe }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="muted">No downloads match.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

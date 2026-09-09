@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.connectors.humble_connector import parse_bundle
 from app.db import SessionLocal
-from app.downloads import paths, runner
+from app.downloads import paths, relocate, runner
 from app.models.bundle import Bundle
 from app.models.download import STATUS_COMPLETED as FILE_COMPLETED, STATUS_FAILED as FILE_FAILED, Download
 from app.models.download_job import (
@@ -168,7 +168,21 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
                         row.progress_bytes = actual_size
                         row.original_download_path = row.original_download_path or str(rel_path)
                         row.current_location_type = row.current_location_type or "local"
-                        row.current_location_path = row.current_location_path or str(abs_path)
+                        # Only attempt relocation the first time this row completes — on a
+                        # re-verify of an already-completed row, current_location_path is
+                        # already set (and the file already moved away from check_path),
+                        # so re-running this would just fail to find it at the old spot.
+                        if not row.current_location_path:
+                            final_path = abs_path
+                            dest_dir = relocate.resolve_destination(
+                                db, gamekey, item.machine_name, item.file_format
+                            )
+                            if dest_dir is not None:
+                                try:
+                                    final_path = relocate.relocate(check_path, dest_dir)
+                                except OSError as exc:
+                                    row.error_message = f"Downloaded but failed to relocate: {exc}"
+                            row.current_location_path = str(final_path)
                         row.completed_at = datetime.utcnow()
                     else:
                         any_failed = True

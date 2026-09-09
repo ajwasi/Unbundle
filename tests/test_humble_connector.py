@@ -55,6 +55,15 @@ def test_parse_bundle_extracts_download_variants():
     assert epub.source_url == "https://dl.humble.com/book.epub?x=1"
 
 
+def test_parse_bundle_download_items_carry_the_subproducts_machine_name():
+    # catalog.py already keys ItemTag on this same subproduct field — downloads
+    # need it too so a completed download can resolve its own item-level
+    # routing tag (app/downloads/relocate.py).
+    order = make_order(subproducts=[make_subproduct(human_name="Cool Book", machine_name="coolbook123")])
+    normalized = parse_bundle("GK9", order)
+    assert normalized.downloads[0].machine_name == "coolbook123"
+
+
 def test_parse_bundle_skips_variants_with_no_url():
     order = make_order(
         subproducts=[

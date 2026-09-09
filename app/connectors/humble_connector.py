@@ -139,6 +139,7 @@ def parse_bundle(gamekey: str, order: dict) -> NormalizedBundle:
     downloads: list[NormalizedDownloadItem] = []
     for subproduct_index, subproduct in enumerate(subproducts, start=1):
         item_name = subproduct.get("human_name", "Unknown item")
+        machine_name = subproduct.get("machine_name") or ""
         for download in subproduct.get("downloads", []) or []:
             for variant in download.get("download_struct", []) or []:
                 url = (variant.get("url") or {}).get("web", "")
@@ -152,6 +153,7 @@ def parse_bundle(gamekey: str, order: dict) -> NormalizedBundle:
                         original_filename=url.rsplit("/", 1)[-1].split("?", 1)[0],
                         source_url=url,
                         expected_size_bytes=int(variant.get("file_size") or 0),
+                        machine_name=machine_name,
                     )
                 )
 
