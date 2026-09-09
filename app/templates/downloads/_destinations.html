@@ -1,0 +1,39 @@
+<table>
+  <thead><tr><th>Name</th><th>Formats</th><th>Tag</th><th>Path</th><th></th></tr></thead>
+  <tbody>
+    {% for dest in destinations %}
+    <tr>
+      <td>{{ dest.name }}</td>
+      <td>{{ dest.formats or "Any" }}</td>
+      <td>
+        {% if dest.tag_name %}<span class="tag-chip">{{ dest.tag_name }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}
+      </td>
+      <td style="font-family: monospace; font-size: 0.85em;">{{ dest.path }}</td>
+      <td>
+        <form hx-post="/downloads/destinations/{{ dest.id }}/delete" hx-target="#download-destinations" hx-swap="innerHTML"
+              hx-confirm="Delete this destination rule? Files already moved there are not affected." style="display: inline;">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+          <button type="submit" class="secondary">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">No destination rules yet — downloads stay in the app's own download folder.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<form hx-post="/downloads/destinations" hx-target="#download-destinations" hx-swap="innerHTML"
+      style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 0.75rem;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <input type="text" name="name" placeholder="Name (e.g. Comics)" required style="flex: 1; min-width: 10rem;">
+  <input type="text" name="formats" placeholder="Formats, comma-separated (blank = any)" style="flex: 1; min-width: 12rem;">
+  <select name="tag_id">
+    <option value="">(any tag)</option>
+    {% for t in all_tags %}
+    <option value="{{ t.id }}">{{ t.name }}</option>
+    {% endfor %}
+  </select>
+  <input type="text" name="path" placeholder="/mnt/library/comics" required style="flex: 2; min-width: 14rem;">
+  <button type="submit">Add destination</button>
+</form>

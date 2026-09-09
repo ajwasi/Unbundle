@@ -35,7 +35,7 @@ from app.deps import get_db  # noqa: E402
 # Import every model module so its table registers on Base.metadata before
 # create_all runs below — a model that's never imported anywhere in the process
 # would otherwise silently get no table at all.
-from app.models import backup_settings, bundle, bundle_entitlement, credential, download, download_job, steam_game, sync_run, tag  # noqa: E402,F401
+from app.models import backup_settings, bundle, bundle_entitlement, credential, download, download_destination, download_job, steam_game, sync_run, tag  # noqa: E402,F401
 from tests.factories import make_order  # noqa: E402
 
 

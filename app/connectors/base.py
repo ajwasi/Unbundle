@@ -28,6 +28,10 @@ class NormalizedDownloadItem:
     original_filename: str
     source_url: str
     expected_size_bytes: int
+    # Subproduct's own stable slug (same field catalog.py already keys ItemTag on) —
+    # lets a completed download resolve its item-level routing tag. Defaulted so
+    # existing call sites/tests that construct this dataclass positionally don't break.
+    machine_name: str = ""
 
 
 @dataclass

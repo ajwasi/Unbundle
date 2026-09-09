@@ -11,6 +11,13 @@ Docker-based, no external services required beyond the ones you choose to connec
 - **Bundles** — every purchased bundle, downloadable subproducts kept structurally
   separate from third-party (Steam/GOG) keys, search/sort/filter, avg and total price
   per bundle, per-item and bulk download with live progress polling.
+- **Downloads** — one page for every download across every bundle: what's currently
+  running, full history with filters, and destination routing rules so completed files
+  move automatically to a folder based on their format and (optionally) a tag — e.g.
+  PDFs land in one place by default, but PDFs tagged "Comic" land somewhere else. A
+  folder-scan tool marks files that already exist on disk (from before this feature, or
+  downloaded outside the app) as tracked without re-downloading or moving them. See
+  Downloads below.
 - **Catalog** — every distinct item across your whole library flattened into one
   searchable table, with duplicate-purchase detection (the same item unlocked by more
   than one bundle).
@@ -125,6 +132,37 @@ doesn't do on its own:
 docker exec <container> python -c \
   "import sqlite3; sqlite3.connect('/data/humble.db').backup(sqlite3.connect('/data/humble.db.bak'))"
 ```
+
+## Downloads
+
+The **Downloads** page (sidebar) covers everything about files after they're
+requested: what's downloading right now, full history across every bundle, and where
+completed files actually end up.
+
+humble-cli has no per-item output-directory flag — every file always lands at
+`./data/downloads/<bundle>/<item>/<filename>` first. Type/tag-based routing is
+therefore a move-after-the-fact: a **Destination** rule (name, comma-separated
+formats, an optional tag, and a target path) says where a completed file should be
+relocated to once it's verified on disk. Precedence, most specific first:
+
+1. A rule with both a tag and a format match — for a format that's ambiguous on its
+   own (PDF is a common one: comics vs. regular books), tag the comic bundle/item and
+   give it its own rule.
+2. A rule with a format match and no tag.
+3. A rule with no tag and no formats — the default location for anything not covered
+   by a more specific rule.
+4. No matching rule — the file stays right where humble-cli put it.
+
+The target path is whatever the container can see, including an already-mounted
+network drive (mount it into the container via `docker-compose.yml` and point a
+destination's path at the mount, e.g. `/mnt/library/comics`) — this app doesn't manage
+the mount itself, just moves files onto it.
+
+**Scan a folder** reconciles files that predate this feature (or were placed there
+some other way): point it at a folder and it matches filenames against every item in
+your library, previews what it found (flagging anything ambiguous — the same filename
+matching more than one item — for manual review rather than guessing), and only marks
+files as downloaded once you commit. It never moves or re-downloads anything.
 
 ## Reverse proxy / HTTPS
 
@@ -248,3 +286,6 @@ HTTP/session involved.
 - Single-process only by design (`app/downloads/worker.py`'s in-process job queue and
   the rate limiters both hold in-memory state) — never run this with multiple uvicorn
   workers or replicas.
+- The folder-scan reconciliation tool (Downloads page) matches by filename alone, not
+  content — a renamed file won't be found, and a coincidental filename collision across
+  two different library items is reported as ambiguous rather than guessed at.

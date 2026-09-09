@@ -1,0 +1,7 @@
+{% if running %}
+<span id="download-active" hx-get="/downloads/active" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
+  A download is in progress&hellip; see the bundle's own page for per-item detail.
+</span>
+{% else %}
+<span id="download-active" class="muted">No download running.</span>
+{% endif %}

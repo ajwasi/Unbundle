@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Downloads — Humble Tracker{% endblock %}
+{% block content %}
+<h1>Downloads</h1>
+
+<div class="card">
+  <h2 style="margin-top: 0;">Active</h2>
+  {% include "downloads/_active.html" %}
+</div>
+
+<div class="card" style="margin-top: 1rem;">
+  <h2 style="margin-top: 0;">History</h2>
+  <div class="toolbar">
+    <form hx-get="/downloads/history" hx-target="#download-history" hx-swap="outerHTML"
+          hx-trigger="keyup changed delay:300ms from:input, change from:select"
+          style="display: flex; gap: 0.75rem; flex: 1; margin: 0;">
+      <input type="search" name="q" placeholder="Search bundle name..." value="{{ q }}" style="flex: 1;">
+      <select name="status">
+        <option value="">All statuses</option>
+        {% for s in ["queued", "running", "verifying", "completed", "failed", "canceled"] %}
+        <option value="{{ s }}" {{ "selected" if s == status else "" }}>{{ s | title }}</option>
+        {% endfor %}
+      </select>
+      <select name="file_format">
+        <option value="">All formats</option>
+        {% for f in all_formats %}
+        <option value="{{ f }}" {{ "selected" if f == file_format else "" }}>{{ f }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  {% include "downloads/_history.html" %}
+</div>
+
+<div class="card" style="margin-top: 1rem;">
+  <h2 style="margin-top: 0;">Destinations</h2>
+  <p class="muted">
+    Where a completed download moves to, based on its format and (optionally) one of its
+    tags. A rule with no tag and no formats acts as the default location for anything not
+    matched by a more specific rule. Files with no matching rule stay in the app's own
+    download folder.
+  </p>
+  <div id="download-destinations">
+    {% include "downloads/_destinations.html" %}
+  </div>
+</div>
+
+<div class="card" style="margin-top: 1rem;">
+  <h2 style="margin-top: 0;">Scan a folder</h2>
+  <p class="muted">
+    Mark files that already exist on disk as downloaded, without re-downloading or moving
+    them — useful for files that predate this feature. Matches by filename against every
+    item in your library. Nothing is changed until you commit.
+  </p>
+  <form hx-post="/downloads/scan" hx-target="#scan-result" hx-swap="innerHTML" style="display: flex; gap: 0.75rem;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <input type="text" name="folder" placeholder="/path/to/folder" required style="flex: 1;">
+    <button type="submit" class="secondary">Preview</button>
+  </form>
+  <div id="scan-result" style="margin-top: 0.75rem;"></div>
+</div>
+{% endblock %}
