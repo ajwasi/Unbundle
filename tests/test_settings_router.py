@@ -170,6 +170,19 @@ def test_settings_page_shows_backup_card(authed_client):
     assert "backup-card" in resp.text
 
 
+def test_settings_page_links_to_the_api_docs(authed_client):
+    resp = authed_client.get("/settings")
+    assert 'href="/docs"' in resp.text
+    assert 'href="/redoc"' in resp.text
+
+
+def test_docs_and_redoc_require_auth_like_everything_else(client):
+    # FastAPI's auto-generated docs aren't in deps.py's public-path allowlist,
+    # so they get the same session-cookie gate as the rest of the app.
+    assert client.get("/docs", follow_redirects=False).status_code == 303
+    assert client.get("/redoc", follow_redirects=False).status_code == 303
+
+
 def test_save_backup_config_persists_valid_settings(authed_client, db):
     from app import backup
 
