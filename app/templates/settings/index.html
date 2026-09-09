@@ -73,4 +73,17 @@
     {% include "settings/_backup_form.html" %}
   </div>
 </div>
+
+<div class="card" id="api-card">
+  <h2>API</h2>
+  <p class="muted">
+    FastAPI generates interactive API documentation for every route this app exposes.
+    It's the same login-protected session as the rest of the app — open one of these in
+    a browser tab where you're already logged in.
+  </p>
+  <div class="toolbar" style="margin-top: 0;">
+    <a href="/docs" target="_blank" rel="noopener">Swagger UI (/docs)</a>
+    <a href="/redoc" target="_blank" rel="noopener">ReDoc (/redoc)</a>
+  </div>
+</div>
 {% endblock %}
