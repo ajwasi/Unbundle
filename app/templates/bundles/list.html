@@ -7,7 +7,7 @@
   <strong>${{ "%.2f"|format(grand_total_spent) }} total spent</strong> across {{ total_count }} bundle(s)
   <div class="toolbar" style="margin-top: 0.5rem; margin-bottom: 0;">
     {% for row in category_breakdown %}
-    <span class="muted">{{ row.category }}: ${{ "%.2f"|format(row.total) }} ({{ row.count }})</span>
+    <span class="muted">{{ row.category | format_category }}: ${{ "%.2f"|format(row.total) }} ({{ row.count }})</span>
     {% endfor %}
   </div>
 </div>
@@ -22,7 +22,7 @@
     <select name="category">
       <option value="">All categories</option>
       {% for c in categories %}
-      <option value="{{ c }}" {{ "selected" if c == category else "" }}>{{ c }}</option>
+      <option value="{{ c }}" {{ "selected" if c == category else "" }}>{{ c | format_category }}</option>
       {% endfor %}
     </select>
     <select name="redeemed">

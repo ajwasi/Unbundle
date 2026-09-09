@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.deps import get_db
 from app.models.bundle import Bundle
 from app.models.tag import BundleTag, Tag
-from app.templates_env import templates
+from app.templates_env import format_category, templates
 
 router = APIRouter(prefix="/finance")
 
@@ -78,7 +78,7 @@ def finance_page(
         .order_by(Bundle.category)
         .all()
     )
-    category_labels = [c or "(none)" for c, _ in category_rows]
+    category_labels = [format_category(c) if c else "(none)" for c, _ in category_rows]
     category_values = [round(total or 0.0, 2) for _, total in category_rows]
 
     all_years = [

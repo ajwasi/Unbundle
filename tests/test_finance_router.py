@@ -85,4 +85,4 @@ def test_finance_all_years_and_categories_lists_populate(authed_client, make_bun
     make_bundle(gamekey="GK1", order=make_order(created="2021-01-01T00:00:00", category="widget"))
     resp = authed_client.get("/finance")
     assert "2021" in resp.text
-    assert "widget" in resp.text
+    assert "Widget" in resp.text
