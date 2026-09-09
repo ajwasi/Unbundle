@@ -94,16 +94,49 @@
   if (catCanvas) {
     var existingCat = Chart.getChart(catCanvas);
     if (existingCat) existingCat.destroy();
+    var categoryValues = {{ category_values | tojson }};
+    // A Humble account's spending is almost always dominated by one category
+    // (real accounts: "Bundle" alone is often 90%+) — a doughnut slice for
+    // everything else shrinks to an imperceptible sliver, so the legend and
+    // tooltip carry the actual proportion in text instead of relying on the
+    // visual size of the slice to communicate it.
+    var categoryTotal = categoryValues.reduce(function (a, b) { return a + b; }, 0);
+    function categoryPct(value) {
+      return categoryTotal > 0 ? Math.round((value / categoryTotal) * 100) : 0;
+    }
     new Chart(catCanvas, {
       type: 'doughnut',
       data: {
         labels: {{ category_labels | tojson }},
         datasets: [{
-          data: {{ category_values | tojson }},
+          data: categoryValues,
           backgroundColor: categoryPalette
         }]
       },
-      options: { responsive: true, plugins: { legend: { labels: { color: textColor } } } }
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            labels: {
+              color: textColor,
+              generateLabels: function (chart) {
+                var base = Chart.overrides.doughnut.plugins.legend.labels.generateLabels(chart);
+                base.forEach(function (item, i) {
+                  item.text = item.text + ' (' + categoryPct(categoryValues[i]) + '%)';
+                });
+                return base;
+              }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                return ctx.label + ': $' + ctx.parsed.toFixed(2) + ' (' + categoryPct(ctx.parsed) + '%)';
+              }
+            }
+          }
+        }
+      }
     });
   }
 })();

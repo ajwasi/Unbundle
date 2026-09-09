@@ -15,6 +15,22 @@ services:
       # Not an app Settings field (uvicorn reads this env var directly), so it's
       # set here rather than in .env.example.
       - FORWARDED_ALLOW_IPS=*
+      # Opt-in (default off) — see the "demo" profile below and README's "Try it
+      # without connecting accounts" section. Only takes effect combined with
+      # `--profile demo`; harmless if set without it (mock-api just won't exist).
+      - DEMO_MODE=${DEMO_MODE:-false}
+    restart: unless-stopped
+
+  # A fake Humble/Steam/GOG backend serving a curated, privacy-scrubbed subset of
+  # real library data (see mock_api/, scripts/generate_mock_data.py) — lets the
+  # app be explored fully populated without connecting any real account. Reuses
+  # the same built image as `app`, just runs a different process. Never exposed
+  # to the host (no "ports") — only `app` can reach it, over the compose network,
+  # and only once DEMO_MODE=true actually points the connectors at it.
+  mock-api:
+    build: .
+    profiles: ["demo"]
+    command: ["python", "-m", "mock_api.main"]
     restart: unless-stopped
 
   # Both behind the "observability" profile — `docker compose up` alone never

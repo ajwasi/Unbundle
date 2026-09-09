@@ -20,11 +20,18 @@ import re
 
 import httpx
 
+from app.config import settings
 from app.connectors.base import CredentialStatus
 
 BASE_URL = "https://api.steampowered.com"
 _STEAM_ID_RE = re.compile(r"^\d{17}$")
 _VANITY_URL_RE = re.compile(r"steamcommunity\.com/id/([^/]+)", re.IGNORECASE)
+
+
+def _base_url() -> str:
+    # settings.demo_mode redirects every call in this file to the mock API
+    # server (mock_api/) instead of the real Steam Web API — see app/config.py.
+    return f"{settings.mock_api_base_url}/steam" if settings.demo_mode else BASE_URL
 
 
 class SteamGameData:
@@ -60,7 +67,7 @@ async def resolve_steamid(api_key: str, steamid_or_url: str) -> str:
 
     vanity = _extract_vanity_name(candidate)
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(f"{BASE_URL}/ISteamUser/ResolveVanityURL/v0001/", params={"key": api_key, "vanityurl": vanity})
+        resp = await client.get(f"{_base_url()}/ISteamUser/ResolveVanityURL/v0001/", params={"key": api_key, "vanityurl": vanity})
     if resp.status_code != 200:
         raise ValueError(f"Steam rejected the profile lookup (HTTP {resp.status_code}).")
     data = (resp.json().get("response")) or {}
@@ -72,7 +79,7 @@ async def resolve_steamid(api_key: str, steamid_or_url: str) -> str:
 async def check_credentials(api_key: str, steamid64: str) -> CredentialStatus:
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(f"{BASE_URL}/ISteamUser/GetPlayerSummaries/v0002/", params={"key": api_key, "steamids": steamid64})
+            resp = await client.get(f"{_base_url()}/ISteamUser/GetPlayerSummaries/v0002/", params={"key": api_key, "steamids": steamid64})
     except httpx.HTTPError as exc:
         return CredentialStatus(ok=False, message=f"Could not reach Steam: {exc}")
 
@@ -100,7 +107,7 @@ async def fetch_owned_games(api_key: str, steamid64: str) -> list[SteamGameData]
     # same reason — this request also carries `api_key` in the query string.
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
-            f"{BASE_URL}/IPlayerService/GetOwnedGames/v0001/",
+            f"{_base_url()}/IPlayerService/GetOwnedGames/v0001/",
             params={"key": api_key, "steamid": steamid64, "include_appinfo": "true", "include_played_free_games": "true", "format": "json"},
         )
     if resp.status_code != 200:

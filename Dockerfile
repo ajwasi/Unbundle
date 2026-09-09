@@ -66,6 +66,10 @@ COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
 COPY alembic.ini ./
 COPY app/ ./app/
+# Only used by the "demo" compose profile's mock-api service (see
+# docker-compose.yml) — always present in the image regardless, same as the
+# rest of the app's code, so no separate build path is needed for it.
+COPY mock_api/ ./mock_api/
 COPY --from=version /app/VERSION ./VERSION
 
 RUN mkdir -p /data

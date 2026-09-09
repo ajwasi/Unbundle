@@ -13,7 +13,7 @@ from app.db import SessionLocal
 from app.deps import AuthMiddleware
 from app.downloads import worker
 from app.oidc import is_auth_configured
-from app.routers import auth, bundles, catalog, downloads, finance, gog, home, metrics, steam, tags, settings as settings_router
+from app.routers import auth, bundles, catalog, docs, downloads, finance, gog, home, metrics, steam, tags, settings as settings_router
 from app.sync import refresh
 from app.telemetry import instrument_app
 
@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
         update_check_task.cancel()
 
 
-app = FastAPI(title="Humble Tracker", lifespan=lifespan)
+app = FastAPI(title="Humble Tracker", lifespan=lifespan, docs_url=None, redoc_url=None)
 instrument_app(app)  # wraps ASGI middleware for http.server.* metrics — before add_middleware below
 app.add_middleware(AuthMiddleware)
 # Short-lived signed-cookie session used only to hold the OIDC handshake's state/nonce
@@ -94,3 +94,4 @@ app.include_router(steam.router)
 app.include_router(gog.router)
 app.include_router(tags.router)
 app.include_router(metrics.router)
+app.include_router(docs.router)

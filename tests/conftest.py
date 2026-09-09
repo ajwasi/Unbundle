@@ -198,3 +198,32 @@ def make_bundle(db):
         return b
 
     return _make
+
+
+@pytest.fixture(scope="session")
+def mock_api_server():
+    """The real mock_api FastAPI app on a real background HTTP server (see
+    tests/mock_server.py) — started once for the whole test session since it's
+    fully stateless (every route is a pure function of the query params plus
+    the static curated dataset, nothing here ever mutates).
+    """
+    from tests.mock_server import MockApiServer
+
+    server = MockApiServer()
+    server.start()
+    yield server
+    server.stop()
+
+
+@pytest.fixture
+def demo_mode(mock_api_server, monkeypatch):
+    """Points the real Humble/Steam/GOG connectors at the running mock server
+    for the duration of one test — monkeypatch (function-scoped, auto-reverts)
+    rather than mutating the shared settings singleton directly, so this can
+    never bleed into a test that didn't ask for it.
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "demo_mode", True)
+    monkeypatch.setattr(settings, "mock_api_base_url", mock_api_server.base_url)
+    yield mock_api_server

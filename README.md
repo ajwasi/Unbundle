@@ -65,6 +65,22 @@ see [Finding your session key](https://github.com/smbl64/humble-cli/blob/master/
 browser cookie, and there's no automated refresh; if it's ever rejected, paste a fresh one.
 Steam and GOG are both optional and connected the same way, from their own Settings cards.
 
+### Try it without connecting accounts
+
+```bash
+docker compose --profile demo up --build
+```
+
+with `DEMO_MODE=true` set on the `app` service (`.env` or inline). This starts an extra
+`mock-api` service — a fake Humble/Steam/GOG backend seeded with a curated,
+privacy-scrubbed subset of a real library (`mock_api/`,
+`scripts/generate_mock_data.py`) — and points the app's connectors at it instead of the
+real APIs. Log in, then use the exact same buttons as normal: "Refresh from Humble" on
+Bundles, "Save & test" on Steam with any placeholder key, and GOG's Settings card shows
+a "Connect with demo data" button in place of the real login link (GOG's real flow needs
+an actual external browser login, which can't be faked). Nothing here touches a real
+account; `mock-api` isn't reachable from outside the compose network.
+
 ## Security notes
 
 This app defaults to safe behavior but will tell you loudly if you haven't finished

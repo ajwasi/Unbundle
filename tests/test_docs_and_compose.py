@@ -95,6 +95,17 @@ def test_compose_observability_services_mount_the_example_config_files():
     assert any("examples/observability/grafana-datasource.yml" in v for v in services["grafana"]["volumes"])
 
 
+def test_compose_mock_api_service_is_behind_a_profile_not_started_by_default():
+    services = _load_yaml("docker-compose.yml")["services"]
+    assert "demo" in services["mock-api"]["profiles"]
+    assert "ports" not in services["mock-api"]  # never exposed to the host
+
+
+def test_compose_mock_api_service_reuses_the_apps_own_image():
+    services = _load_yaml("docker-compose.yml")["services"]
+    assert services["mock-api"]["build"] == services["app"]["build"]
+
+
 # --- the observability example configs, cross-checked against each other ---
 
 

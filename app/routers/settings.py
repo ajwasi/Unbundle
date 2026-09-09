@@ -88,6 +88,7 @@ def _gog_context(db: Session) -> dict:
         "gog_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "gog_error": cred.last_error if cred else None,
         "gog_login_url": gog_connector.LOGIN_URL,
+        "demo_mode": settings.demo_mode,
     }
 
 

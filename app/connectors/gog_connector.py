@@ -40,6 +40,8 @@ import re
 
 import httpx
 
+from app.config import settings
+
 AUTH_URL = "https://auth.gog.com/auth"
 TOKEN_URL = "https://auth.gog.com/token"
 API_BASE = "https://embed.gog.com"
@@ -50,9 +52,21 @@ CLIENT_SECRET = "9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d
 # intercepted by an embedded browser inside the Galaxy client before it loads.
 REDIRECT_URI = "https://embed.gog.com/on_login_success?origin=client"
 
+# AUTH_URL/LOGIN_URL are never fetched by this app's own httpx client — they're
+# a link shown to the user for a real external browser login, which can't be
+# mocked (see routers/settings.py's demo-mode shortcut for how demo mode
+# handles GOG instead). Only the two direct API calls below get redirected.
 LOGIN_URL = f"{AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&layout=client2"
 
 _CODE_RE = re.compile(r"[?&]code=([^&\s]+)")
+
+
+def _token_url() -> str:
+    return f"{settings.mock_api_base_url}/gog/token" if settings.demo_mode else TOKEN_URL
+
+
+def _api_base() -> str:
+    return f"{settings.mock_api_base_url}/gog" if settings.demo_mode else API_BASE
 
 
 class GogGameData:
@@ -98,7 +112,7 @@ async def exchange_code(code: str) -> dict:
     slow user or a reused/stale one."""
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(
-            TOKEN_URL,
+            _token_url(),
             params={
                 "client_id": CLIENT_ID,
                 "client_secret": CLIENT_SECRET,
@@ -121,7 +135,7 @@ async def refresh_access_token(refresh_token: str) -> dict:
     comes back, not just reuse the original indefinitely."""
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(
-            TOKEN_URL,
+            _token_url(),
             params={
                 "client_id": CLIENT_ID,
                 "client_secret": CLIENT_SECRET,
@@ -143,7 +157,7 @@ async def fetch_owned_games(access_token: str) -> list[GogGameData]:
     page, total_pages = 1, 1
     async with httpx.AsyncClient(timeout=30) as client:
         while page <= total_pages:
-            resp = await client.get(f"{API_BASE}/account/getFilteredProducts", params={"page": page}, headers=headers)
+            resp = await client.get(f"{_api_base()}/account/getFilteredProducts", params={"page": page}, headers=headers)
             if resp.status_code != 200:
                 raise GogAuthError(f"GOG rejected the games request (HTTP {resp.status_code}).")
             data = resp.json()

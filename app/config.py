@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # running this code.
     humble_cli_key_path: Path = Path.home() / ".humble-cli-key"
 
+    # When true, the Humble/Steam/GOG connectors talk to mock_api_base_url instead
+    # of the real APIs — a fake but realistic backend (see mock_api/), so the app
+    # can be explored fully populated without connecting any real account. Off by
+    # default; see README's "Try it without connecting accounts" section.
+    demo_mode: bool = False
+    mock_api_base_url: str = "http://mock-api:8090"
+
     def ensure_dirs(self) -> None:
         for d in (self.data_dir, self.downloads_dir, self.data_dir / "backups"):
             d.mkdir(parents=True, exist_ok=True)
