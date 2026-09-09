@@ -4,9 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Humble Tracker{% endblock %}</title>
+  <script>
+    // Inline and blocking, before the stylesheet, so an explicit saved theme
+    // wins over the OS preference from the very first paint — no flash of the
+    // wrong theme while a deferred script loads. See app.css's
+    // :root[data-theme] blocks and static/js/theme-toggle.js.
+    (function () {
+      var saved = localStorage.getItem("theme");
+      if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+    })();
+  </script>
   <link rel="stylesheet" href="/static/css/app.css">
   <script src="/static/js/htmx.min.js"></script>
   <script src="/static/js/tag-suggest.js"></script>
+  <script src="/static/js/theme-toggle.js" defer></script>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -18,7 +29,10 @@
   {% endif %}
   <div class="app-shell">
     <nav class="sidebar">
-      <div class="brand">🎁 Humble Tracker</div>
+      <div class="brand">
+        <span>🎁 Humble Tracker</span>
+        <button type="button" id="theme-toggle" aria-label="Toggle dark mode"></button>
+      </div>
       <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Home</a>
       <a href="/bundles" class="{{ 'active' if request.url.path.startswith('/bundles') else '' }}">Bundles</a>
       <a href="/catalog" class="{{ 'active' if request.url.path.startswith('/catalog') else '' }}">Catalog</a>

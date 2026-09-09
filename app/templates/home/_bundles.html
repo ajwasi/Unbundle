@@ -12,7 +12,7 @@
         {% if b.end_date %}
         <div class="countdown-timer" data-countdown-end="{{ b.end_date.isoformat() }}Z">calculating&hellip;</div>
         {% endif %}
-        {% if b.image_url %}<img src="{{ b.image_url }}" alt="" loading="lazy">{% endif %}
+        {% if b.image_url %}<img src="{{ b.image_url }}" alt="" loading="lazy" onerror="humbleTrackerImgFallback(this)">{% endif %}
         <div class="bundle-tile-body">
           <strong>{{ b.name }}</strong>
           <p class="muted">{{ b.blurb | safe }}</p>
@@ -30,6 +30,15 @@
 </div>
 
 <script>
+  // Global (not inside the IIFE below) because inline onerror="..." handlers
+  // run in the global scope, not whatever module/closure defined this file's
+  // other logic.
+  window.humbleTrackerImgFallback = function (img) {
+    var placeholder = document.createElement("div");
+    placeholder.className = "bundle-tile-img-fallback";
+    img.replaceWith(placeholder);
+  };
+
   (function () {
     // Humble's own end_date carries no timezone marker — treated as UTC (the
     // "Z" suffix above), unverified against Humble's own site but the most

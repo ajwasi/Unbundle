@@ -3,9 +3,20 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
+from app.config import settings
 from app.connectors.base import ConnectorAuthError
-from app.connectors.humble_connector import HumbleConnector, order_page_url, parse_bundle
+from app.connectors.humble_connector import BASE_URL, HumbleConnector, _base_url, order_page_url, parse_bundle
 from tests.factories import make_order, make_subproduct, make_tpk
+
+
+def test_base_url_is_real_by_default():
+    assert _base_url() == BASE_URL
+
+
+def test_base_url_redirects_to_the_mock_server_in_demo_mode(monkeypatch):
+    monkeypatch.setattr(settings, "demo_mode", True)
+    monkeypatch.setattr(settings, "mock_api_base_url", "http://127.0.0.1:9999")
+    assert _base_url() == "http://127.0.0.1:9999/humble/api/v1"
 
 
 def test_order_page_url_builds_the_real_downloads_key_pattern():

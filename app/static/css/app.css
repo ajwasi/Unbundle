@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f7f5f2;
   --surface: #ffffff;
   --text: #1c1a17;
@@ -13,10 +14,20 @@
   --shadow: 0 1px 2px rgba(28, 26, 23, 0.06), 0 2px 8px rgba(28, 26, 23, 0.06);
 }
 
+/* `:not([data-theme="light"])` lets the explicit light override below win even
+   when the OS itself prefers dark — same reasoning in reverse as the explicit
+   dark block further down. Duplicated property list rather than shared is
+   intentional: CSS has no mixin, and every real theme toggle setup ends up
+   with this exact shape (OS-driven block + explicit-override block). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #17150f;
-    --surface: #211e17;
+    /* A touch lighter than the original #211e17 — content-sparse cards (an
+       empty table, a tile with no cover image) were losing their visible
+       boundary against --bg once the already-subtle dark-mode shadow was the
+       only other cue. */
+    --surface: #29251c;
     --text: #f1ede4;
     --muted: #a89f8e;
     --border: #3a352a;
@@ -30,6 +41,24 @@
        instead of a light one just scaled up. */
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 10px rgba(0, 0, 0, 0.3);
   }
+}
+
+/* Explicit override via the sidebar's dark-mode toggle (app.js) — wins over
+   prefers-color-scheme in both directions, same token values as the media
+   query above. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #17150f;
+  --surface: #29251c;
+  --text: #f1ede4;
+  --muted: #a89f8e;
+  --border: #3a352a;
+  --accent: #5ea3d9;
+  --accent-contrast: #1c1a17;
+  --success: #7cbf8c;
+  --warning: #e0b258;
+  --error: #e08268;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 * { box-sizing: border-box; }
@@ -84,6 +113,20 @@ nav.sidebar .brand {
   padding: 0 1.25rem 1.1rem;
   margin-bottom: 0.6rem;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: normal;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  border-radius: 999px;
 }
 
 nav.sidebar a {
@@ -138,6 +181,14 @@ input, select, button {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
+}
+
+/* color-scheme (above) already gets checkboxes/radios/file-input-buttons/
+   scrollbars rendered in a dark-appropriate style instead of staying
+   light-appearance on a dark page — this just makes the checkmark itself
+   match the app's accent color instead of the browser's generic default blue. */
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--accent);
 }
 
 button {
@@ -279,6 +330,25 @@ th a { text-decoration: none; color: var(--text); }
   aspect-ratio: 16 / 9;
   object-fit: cover;
   display: block;
+}
+
+/* Swapped in via the <img>'s onerror handler (home/_bundles.html) when a cover
+   image fails to load — same footprint as the real image so the rest of the
+   tile's layout doesn't shift, instead of a blank rectangle where the broken
+   image would have been. */
+.bundle-tile-img-fallback {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--border), var(--surface));
+}
+
+.bundle-tile-img-fallback::after {
+  content: "🎁";
+  font-size: 2rem;
+  opacity: 0.4;
 }
 
 .countdown-timer {

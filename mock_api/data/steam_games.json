@@ -1,0 +1,23 @@
+{
+  "steamid64": "76500000000000001",
+  "games": [
+    {
+      "appid": 202530,
+      "name": "Sonic the Hedgehog 4 - Episode I",
+      "playtime_forever": 0,
+      "img_icon_url": ""
+    },
+    {
+      "appid": 203650,
+      "name": "Sonic the Hedgehog 4 - Episode II",
+      "playtime_forever": 0,
+      "img_icon_url": ""
+    },
+    {
+      "appid": 61510,
+      "name": "Age of Wonders II: The Wizard's Throne",
+      "playtime_forever": 0,
+      "img_icon_url": ""
+    }
+  ]
+}

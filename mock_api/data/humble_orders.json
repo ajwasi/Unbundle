@@ -1,0 +1,4717 @@
+{
+  "rEUw6fUwyWG3DfZH": {
+    "product": {
+      "human_name": "Humble You Can Pet the Dog Bundle",
+      "category": "bundle"
+    },
+    "created": "2020-09-27T20:08:29.877856",
+    "amount_spent": 12.0,
+    "subproducts": [
+      {
+        "human_name": "BulbBoy OST",
+        "machine_name": "bulbboy_soundtrack",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MP3",
+                "file_size": 57195066,
+                "url": {
+                  "web": "https://cdn.example.com/demo/bulbboy_soundtrack-mp3.zip"
+                }
+              },
+              {
+                "name": "FLAC",
+                "file_size": 167337894,
+                "url": {
+                  "web": "https://cdn.example.com/demo/bulbboy_soundtrack-flac.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Bulb Boy",
+        "machine_name": "bulbboy",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 379533807,
+                "url": {
+                  "web": "https://cdn.example.com/demo/BulbBoy_OSX_1_03.zip"
+                }
+              }
+            ]
+          },
+          {
+            "download_struct": [
+              {
+                "name": "64-bit",
+                "file_size": 366163226,
+                "url": {
+                  "web": "https://cdn.example.com/demo/BulbBoy_x64_1_03.zip"
+                }
+              },
+              {
+                "name": "32-bit",
+                "file_size": 364437335,
+                "url": {
+                  "web": "https://cdn.example.com/demo/BulbBoy_x86_1_03.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Dog Sled Saga Soundtrack",
+        "machine_name": "dogsledsaga_soundtrack",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 119003207,
+                "url": {
+                  "web": "https://cdn.example.com/demo/dogsledsaga_soundtrack_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 38760391,
+                "url": {
+                  "web": "https://cdn.example.com/demo/dogsledsaga_soundtrack_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": [
+        {
+          "human_name": "Scribblenauts Unlimited",
+          "machine_name": "scribblenauts_unlimited_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 218680,
+          "redeemed_key_val": "A59HL-NQ5MM-PHGNW"
+        },
+        {
+          "human_name": "Beyond Eyes",
+          "machine_name": "beyondeyes_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 356050,
+          "redeemed_key_val": "GV7BE-KICU2-L4Q7P"
+        },
+        {
+          "human_name": "Dog Sled Saga",
+          "machine_name": "dogsledsaga_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "GUE89-H5EWS-GQQHJ"
+        },
+        {
+          "human_name": "Bulb Boy",
+          "machine_name": "bulbboy_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 390290,
+          "redeemed_key_val": "74GJZ-7P0WE-EKO4X"
+        },
+        {
+          "human_name": "Shenmue I & II",
+          "machine_name": "shenmue1and2_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 758330,
+          "redeemed_key_val": "FWQIO-HX7LM-7NSWN"
+        },
+        {
+          "human_name": "Where the Water Tastes Like Wine",
+          "machine_name": "wherethewatertasteslikewine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 6307,
+          "redeemed_key_val": "51KPU-7YNAB-9D7AU"
+        },
+        {
+          "human_name": "Death's Gambit",
+          "machine_name": "deathsgambit_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 356650,
+          "redeemed_key_val": "4HLZE-MYIU9-M8OPG"
+        },
+        {
+          "human_name": "Blair Witch (Good Boy Pack added)",
+          "machine_name": "blairwitch_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 541470,
+          "redeemed_key_val": "AIPIM-8VF4C-LD03N",
+          "expiration_date": "2027-06-25T06:59:59",
+          "expiry_date": "2027-06-25T06:59:59"
+        }
+      ]
+    }
+  },
+  "pHsSaHAsyKY7AHPD": {
+    "product": {
+      "human_name": "Warhammer 40,000: Space Marine",
+      "category": "storefront"
+    },
+    "created": "2018-08-30T20:07:43.018380",
+    "amount_spent": 0.0,
+    "subproducts": [
+      {
+        "human_name": "Summer Sale Cross Promo",
+        "machine_name": "freegame_2018_warhammer40kspacemarine_summersale_crosspromo",
+        "downloads": []
+      },
+      {
+        "human_name": "Forager Cross Promo",
+        "machine_name": "forager_freegame_crosspromo",
+        "downloads": []
+      },
+      {
+        "human_name": "The Occupation",
+        "machine_name": "theoccupation_freegame_crosspromo",
+        "downloads": []
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": [
+        {
+          "human_name": "Warhammer 40,000: Space Marine",
+          "machine_name": "warhammer40kspacemarine_freegame_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 55150,
+          "redeemed_key_val": "0CDX1-QOWGA-VAU40",
+          "expiration_date": "2018-09-15T17:00:00",
+          "expiry_date": "2018-09-15T17:00:00"
+        }
+      ]
+    }
+  },
+  "yhqnTxdTmSUqShW7": {
+    "product": {
+      "human_name": "June 2018 Humble Monthly",
+      "category": "subscriptioncontent"
+    },
+    "created": "2018-05-17T03:17:54.543630",
+    "amount_spent": 0.0,
+    "subproducts": [
+      {
+        "human_name": "Subserial Network",
+        "machine_name": "subserialnetwork",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 234898586,
+                "url": {
+                  "web": "https://cdn.example.com/demo/Subserial_Network_-_v1.01_Windows.zip"
+                }
+              }
+            ]
+          },
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 288836106,
+                "url": {
+                  "web": "https://cdn.example.com/demo/Subserial_Network_-_v1.01_macOS.zip"
+                }
+              }
+            ]
+          },
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 247954970,
+                "url": {
+                  "web": "https://cdn.example.com/demo/subserial-network-linux_new.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Cook, Serve, Delicious! 2!! DRM Free Build",
+        "machine_name": "cookservedelicious2drmfreebuild_RIVZy",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 969069124,
+                "url": {
+                  "web": "https://cdn.example.com/demo/CSD2_Linux_v2_60m1_1.zip"
+                }
+              }
+            ]
+          },
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 970590186,
+                "url": {
+                  "web": "https://cdn.example.com/demo/CSD2_Win_v2_60m1_1_HFX1.zip"
+                }
+              }
+            ]
+          },
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 978007390,
+                "url": {
+                  "web": "https://cdn.example.com/demo/CSD2_Mac_v2_60m1_1.app.zip"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": [
+        {
+          "human_name": "Destiny 2",
+          "machine_name": "destiny2_us_monthly_blizzardkeys",
+          "keyindex": 0,
+          "key_type": "blizzard",
+          "redeemed_key_val": "W4JFY-3VEEL-ERABY",
+          "custom_instructions_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "Destiny 2 Planet of Peace Exclusive Emblem",
+          "machine_name": "destiny2_exclusiveemblem_june_2018_monthly_bungie",
+          "keyindex": 0,
+          "key_type": "generic",
+          "redeemed_key_val": "OP686-UG7J8-OBWHV",
+          "custom_instructions_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "Cook, Serve, Delicious! 2!!",
+          "machine_name": "cookservedelicious2_monthly_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 386620,
+          "redeemed_key_val": "2XOT9-4404F-NJVLV"
+        },
+        {
+          "human_name": "Ken Follett's The Pillars of the Earth",
+          "machine_name": "thepillarsoftheearth_monthly_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 234270,
+          "redeemed_key_val": "AURO7-X7FDI-LKPV4"
+        },
+        {
+          "human_name": "Styx: Shards of Darkness",
+          "machine_name": "styx_shardsofdarkness_monthly_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 355790,
+          "redeemed_key_val": "3Z5EZ-YC6BC-TGIN0"
+        },
+        {
+          "human_name": "Bear With Me - Collector's Edition",
+          "machine_name": "bearwithme_collectorsedition_monthly_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 783050,
+          "redeemed_key_val": "B8LMG-PUZBS-JMLXJ"
+        },
+        {
+          "human_name": "Acceleration of SUGURI 2",
+          "machine_name": "accelerationofsuguri2_monthly_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 390710,
+          "redeemed_key_val": "CNPIK-1SUNW-JB30S"
+        },
+        {
+          "human_name": "Yooka-Laylee",
+          "machine_name": "yookalaylee_row_monthly_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 360830,
+          "redeemed_key_val": "AFZPJ-YRED2-YLP5Q"
+        }
+      ]
+    }
+  },
+  "HuRHC7hnHwhK5n2Y": {
+    "product": {
+      "human_name": "Month-to-Month Classic Plan",
+      "category": "subscriptionplan"
+    },
+    "created": "2018-05-17T03:17:52.344640",
+    "amount_spent": 0.0,
+    "subproducts": [],
+    "tpkd_dict": {
+      "all_tpks": []
+    }
+  },
+  "ezNfACM4F7xzCnwE": {
+    "product": {
+      "human_name": "Carmageddon: Reincarnation (VIP Giftee tier)",
+      "category": "widget"
+    },
+    "created": "2014-03-13T14:20:05.465380",
+    "amount_spent": 0.0,
+    "subproducts": [
+      {
+        "human_name": "Carmageddon Wallpapers",
+        "machine_name": "carmageddon_wallpapers",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 8031619,
+                "url": {
+                  "web": "https://cdn.example.com/demo/Carmageddon_wallpapers.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Carmageddon: Reincarnation (Beta)",
+        "machine_name": "carmageddon_reincarnation_beta",
+        "downloads": []
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": [
+        {
+          "human_name": "Carmageddon: Reincarnation (Pre-Order Only)",
+          "machine_name": "carmageddon_reincarnation_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "2AES7-P15PQ-ZE2FO"
+        },
+        {
+          "human_name": "Carmageddon: Reincarnation -  Red Eagle Car Model",
+          "machine_name": "carmageddon_reincarnation_redeaglecarmodel_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "BBMJF-NTD3L-MR3PO"
+        },
+        {
+          "human_name": "Carmageddon: Max Damage DRM-free",
+          "machine_name": "carmageddon_reincarnation_kstier7_gog_bpPSp",
+          "keyindex": 0,
+          "key_type": "generic",
+          "redeemed_key_val": "26LLS-2CWZ3-8RJQM"
+        }
+      ]
+    }
+  },
+  "8avFvGDh6eAF7uRp": {
+    "product": {
+      "human_name": "Humble Sonic Bundle 2019",
+      "category": "bundle"
+    },
+    "created": "2019-11-27T05:55:25.496986",
+    "amount_spent": 10.0,
+    "subproducts": [],
+    "tpkd_dict": {
+      "all_tpks": [
+        {
+          "human_name": "Sonic 3 & Knuckles",
+          "machine_name": "sonic_3_and_knuckles_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 71162,
+          "redeemed_key_val": "EYNRI-U7AQ4-80EN7"
+        },
+        {
+          "human_name": "Sonic the Hedgehog 4 - Episode I",
+          "machine_name": "sonicthehedgehog4_episode1_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 202530
+        },
+        {
+          "human_name": "Sonic Adventure DX",
+          "machine_name": "sonic_adventure_dx_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 71250,
+          "redeemed_key_val": "US16M-LUP0P-06VJV"
+        },
+        {
+          "human_name": "Sonic CD",
+          "machine_name": "sonic_cd_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 200940,
+          "redeemed_key_val": "LIC0X-T90E8-CCPJF"
+        },
+        {
+          "human_name": "SONIC ADVENTURE 2",
+          "machine_name": "sonic_adventure_2_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 213610,
+          "redeemed_key_val": "ME2GH-I81E9-TNBYO"
+        },
+        {
+          "human_name": "SONIC ADVENTURE 2: BATTLE",
+          "machine_name": "sonic_adventure_2_battle_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 217900,
+          "redeemed_key_val": "VSKC5-2A5FO-GF6EL"
+        },
+        {
+          "human_name": "Sonic and SEGA All Stars Racing",
+          "machine_name": "sonicandsega_allstarsracing_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 34190,
+          "redeemed_key_val": "YEIEB-CLUI3-0NVCM"
+        },
+        {
+          "human_name": "Sonic Lost World",
+          "machine_name": "sonic_lostworld_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 329440,
+          "redeemed_key_val": "WQK18-IRQDZ-B1863"
+        },
+        {
+          "human_name": "Sonic Generations Collection",
+          "machine_name": "sonicgenerations_collection_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 71340,
+          "redeemed_key_val": "KX5QV-U6P5F-BAKDX"
+        },
+        {
+          "human_name": "Sonic the Hedgehog 4 - Episode II",
+          "machine_name": "sonicthehedgehog4_episode2_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 203650
+        },
+        {
+          "human_name": "Sonic Mania",
+          "machine_name": "sonic_mania_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 584400,
+          "redeemed_key_val": "GY03Y-38UHT-I0GCQ"
+        },
+        {
+          "human_name": "Sonic Mania Encore DLC",
+          "machine_name": "sonic_mania_encore_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 845640
+        },
+        {
+          "human_name": "Sonic Forces",
+          "machine_name": "sonic_forces_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 637100,
+          "redeemed_key_val": "WSTFM-CF3QQ-O91UE"
+        }
+      ]
+    }
+  },
+  "4EETGuDqM32UKe24": {
+    "product": {
+      "human_name": "Humble Paradox Bundle 2019",
+      "category": "bundle"
+    },
+    "created": "2019-02-13T00:54:45.509358",
+    "amount_spent": 12.0,
+    "subproducts": [],
+    "tpkd_dict": {
+      "all_tpks": [
+        {
+          "human_name": "Age of Wonders II: The Wizard's Throne",
+          "machine_name": "ageofwondersiithewizardsthrone_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 61510,
+          "redeemed_key_val": "GSZWZ-I91MT-AOBJP"
+        },
+        {
+          "human_name": "Darkest Hour: A Hearts of Iron Game",
+          "machine_name": "darkesthour_aheartsofirongame_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 73170,
+          "redeemed_key_val": "H4KUY-DZOT6-NFIXR"
+        },
+        {
+          "human_name": "Magicka 2",
+          "machine_name": "magicka2_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 238370,
+          "redeemed_key_val": "4U6ZU-VU4OZ-C63MD"
+        },
+        {
+          "human_name": "Crusader Kings II",
+          "machine_name": "crusaderkings2_row_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 203770,
+          "redeemed_key_val": "8820J-Y8RLZ-P56BK"
+        },
+        {
+          "human_name": "Age of Wonders III",
+          "machine_name": "ageofwonders3_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 226840,
+          "redeemed_key_val": "GH086-AVOLN-DXZ3R"
+        },
+        {
+          "human_name": "Crusader Kings II: The Old Gods DLC",
+          "machine_name": "crusaderkings2_oldgodsdlc_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 210908,
+          "redeemed_key_val": "VFSWU-Z1SZB-O0AW0"
+        },
+        {
+          "human_name": "Europa Universalis IV",
+          "machine_name": "europauniversalis4_row_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 236850,
+          "redeemed_key_val": "793HD-DCMON-NWCJF"
+        },
+        {
+          "human_name": "World of Warships Humble Pack 2019",
+          "machine_name": "worldofwarships_freepromo_2019_btatier_wargaming",
+          "keyindex": 0,
+          "key_type": "generic",
+          "custom_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>",
+          "expiration_date": "2019-05-16T18:00:00",
+          "expiry_date": "2019-05-16T18:00:00"
+        },
+        {
+          "human_name": "Steel Division: Normandy 44",
+          "machine_name": "steeldivision_normandy44_row_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 572410,
+          "redeemed_key_val": "3EBDM-LDFVD-7V3LB"
+        },
+        {
+          "human_name": "Age of Wonders III - Deluxe Edition DLC",
+          "machine_name": "ageofwonders3_deluxeeditiondlc_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 275560,
+          "redeemed_key_val": "I0YU5-ERQSO-SOGFE"
+        },
+        {
+          "human_name": "Magicka 2 Deluxe Edition DLC Upgrade",
+          "machine_name": "magicka2_deluxeupgrade_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "0BHLW-QQF0J-KUP74"
+        },
+        {
+          "human_name": "Europa Universalis IV: El Dorado",
+          "machine_name": "europauniversalis4_eldorado_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 338160,
+          "redeemed_key_val": "R35US-KTUN5-UTKTC"
+        }
+      ]
+    }
+  },
+  "myTnxYs3M4WfEAZY": {
+    "product": {
+      "human_name": "Stand with Ukraine Bundle",
+      "category": "bundle"
+    },
+    "created": "2022-03-19T02:59:40.038675",
+    "amount_spent": 50.0,
+    "subproducts": [
+      {
+        "human_name": "Warhammer Fantasy Roleplay 2nd Edition Core Rulebook",
+        "machine_name": "wfrp_2ndeditioncorerulebook",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 53727646,
+                "url": {
+                  "web": "https://cdn.example.com/demo/wfrp_2ndeditioncorerulebook.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Apprentices Study",
+        "machine_name": "apprenticesstudy",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "ZIP",
+                "file_size": 75504172,
+                "url": {
+                  "web": "https://cdn.example.com/demo/apprenticesstudy.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Ashampoo Photo Optimizer 7",
+        "machine_name": "ashampoophotooptimizer7_installer",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 2594576,
+                "url": {
+                  "web": "https://cdn.example.com/demo/ashampoophotooptimizer7_installer_windows.exe"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Sitting Male Townsfolk",
+        "machine_name": "sittingmaletownfolk",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 99072017,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sittingmaletownfolk.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Sitting Female Townsfolk",
+        "machine_name": "sittingfemaletownsfolk",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 117596145,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sittingfemaletownsfolk.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Red Sonja: Petitioning the Queen",
+        "machine_name": "redsonja_issue0_humbleexclusive",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 35173721,
+                "url": {
+                  "web": "https://cdn.example.com/demo/redsonja_issue0_humbleexclusive.cbz"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 15098369,
+                "url": {
+                  "web": "https://cdn.example.com/demo/redsonja_issue0_humbleexclusive.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 79920629,
+                "url": {
+                  "web": "https://cdn.example.com/demo/redsonja_issue0_humbleexclusive.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Automate the Boring Stuff with Python: Practical Programming for Total Beginners",
+        "machine_name": "automatetheboringstuffwithpython2ndedition",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 53343555,
+                "url": {
+                  "web": "https://cdn.example.com/demo/automatetheboringstuffwithpython2ndedition.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 25113170,
+                "url": {
+                  "web": "https://cdn.example.com/demo/automatetheboringstuffwithpython2ndedition.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 14269683,
+                "url": {
+                  "web": "https://cdn.example.com/demo/automatetheboringstuffwithpython2ndedition.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "PDF-Suite Standard",
+        "machine_name": "pdfsuite",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 22459952,
+                "url": {
+                  "web": "https://cdn.example.com/demo/PDFSuite2021Installer.exe"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Incal Vol. 3",
+        "machine_name": "theincal_vol3",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 26013139,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol3.cbz"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 81235519,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol3.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 82468345,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol3.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Incal Vol. 2",
+        "machine_name": "theincal_vol2",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 21857426,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol2.cbz"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 65084051,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol2.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 65989610,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol2.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Incal Vol. 1",
+        "machine_name": "theincal_vol1",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 23904504,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol1.cbz"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 69633639,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol1.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 70809563,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol1.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Incal Vol. 6",
+        "machine_name": "theincal_vol6",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 23167881,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol6.cbz"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 69895989,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol6.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 70496444,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol6.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Incal Vol. 5",
+        "machine_name": "theincal_vol5",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 23164584,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol5.cbz"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 67833475,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol5.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 68509039,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol5.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Incal Vol. 4",
+        "machine_name": "theincal_vol4",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 27295170,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol4.cbz"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 83995778,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol4.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 85332374,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theincal_vol4.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Synth Fuel 2 Drones & FX",
+        "machine_name": "synthfuel2dronesandfx",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "ZIP",
+                "file_size": 947013257,
+                "url": {
+                  "web": "https://cdn.example.com/demo/synthfuel2dronesandfx.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Stand with Ukraine Bundle",
+        "machine_name": "expirationmessage_ukrainecharitybundle_bundle",
+        "downloads": []
+      },
+      {
+        "human_name": "Music Maker EDM Edition",
+        "machine_name": "musicmaker_edmedition",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 6056624,
+                "url": {
+                  "web": "https://cdn.example.com/demo/musicmaker.exe"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Small Viking Huts",
+        "machine_name": "smallvikinghuts",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 42748402,
+                "url": {
+                  "web": "https://cdn.example.com/demo/smallvikinghuts.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Fantasy Facade Pack 1",
+        "machine_name": "fantasyfacadepack1",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Zip",
+                "file_size": 126620825,
+                "url": {
+                  "web": "https://cdn.example.com/demo/fantasyfacadepack1.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Boys Vol. 1: The Name of the Game",
+        "machine_name": "theboys_vol1_thenameofthegame",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 93375399,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theboys_vol1_thenameofthegame.cbz"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 434976234,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theboys_vol1_thenameofthegame.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Judge Death: My Name is Death",
+        "machine_name": "judgedeath_mynameisdeath",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 226783916,
+                "url": {
+                  "web": "https://cdn.example.com/demo/judgedeath_mynameisdeath.cbz"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 116564319,
+                "url": {
+                  "web": "https://cdn.example.com/demo/judgedeath_mynameisdeath.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 31785703,
+                "url": {
+                  "web": "https://cdn.example.com/demo/judgedeath_mynameisdeath.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Thatch Hut",
+        "machine_name": "thatchhut",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Zip",
+                "file_size": 6394457,
+                "url": {
+                  "web": "https://cdn.example.com/demo/thatchhut.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Blight",
+        "machine_name": "theblight",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 184499046,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theblight.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Shanty Fences",
+        "machine_name": "shantyfences",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Zip",
+                "file_size": 24172660,
+                "url": {
+                  "web": "https://cdn.example.com/demo/shantyfences.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Dock Accessories",
+        "machine_name": "dockaccessories",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "ZIP",
+                "file_size": 65831798,
+                "url": {
+                  "web": "https://cdn.example.com/demo/dockaccessories.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Army of Darkness One-Shot Humble Bundle Exclusive",
+        "machine_name": "humbleexclusive_armyofdarknessoneshot",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "CBZ",
+                "file_size": 11906736,
+                "url": {
+                  "web": "https://cdn.example.com/demo/humbleexclusive_armyofdarknessoneshot.cbz"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 14612111,
+                "url": {
+                  "web": "https://cdn.example.com/demo/humbleexclusive_armyofdarknessoneshot.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 80475980,
+                "url": {
+                  "web": "https://cdn.example.com/demo/humbleexclusive_armyofdarknessoneshot.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Tavern Bar - Chairs & Tables",
+        "machine_name": "tavernbar_chairsandtables",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "ZIP",
+                "file_size": 7818147,
+                "url": {
+                  "web": "https://cdn.example.com/demo/tavernbar_chairsandtables.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Soviet Daughter: A Graphic Revolution",
+        "machine_name": "sovietdaughter",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 47025859,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sovietdaughter.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 136107990,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sovietdaughter.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 163576293,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sovietdaughter.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Yaks",
+        "machine_name": "yaks",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "Download",
+                "file_size": 13554409,
+                "url": {
+                  "web": "https://cdn.example.com/demo/yaks.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "MAKHNO",
+        "machine_name": "makhno",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 168584628,
+                "url": {
+                  "web": "https://cdn.example.com/demo/makhno.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 173018043,
+                "url": {
+                  "web": "https://cdn.example.com/demo/makhno.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": [
+        {
+          "human_name": "This War of Mine",
+          "machine_name": "thiswarofmine_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 282070,
+          "redeemed_key_val": "VRDEZ-REVHF-EPH78"
+        },
+        {
+          "human_name": "Back 4 Blood",
+          "machine_name": "back4blood_na_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 924970,
+          "redeemed_key_val": "S78DF-PFGT0-O2HHZ"
+        },
+        {
+          "human_name": "Satisfactory",
+          "machine_name": "satisfactory_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 526870,
+          "redeemed_key_val": "XNOSI-R3J43-IBEIS"
+        },
+        {
+          "human_name": "Metro Exodus",
+          "machine_name": "metro_exodus_row_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 412020,
+          "redeemed_key_val": "B50BX-LQV5P-N59IF"
+        },
+        {
+          "human_name": "Quantum Break",
+          "machine_name": "quantumbreak_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 474960,
+          "redeemed_key_val": "N4D6Z-K328H-4NIWH"
+        },
+        {
+          "human_name": "Sunset Overdrive",
+          "machine_name": "sunsetoverdrive_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 847370,
+          "redeemed_key_val": "RT03B-PLH3I-Q0WVS"
+        },
+        {
+          "human_name": "Fable Anniversary",
+          "machine_name": "fableanniversary_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 288470,
+          "redeemed_key_val": "3R4SP-VGRP3-PSO7A"
+        },
+        {
+          "human_name": "Spyro Reignited Trilogy",
+          "machine_name": "spyroreignitedtrilogy_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 996580,
+          "redeemed_key_val": "FB2OC-H3WR0-QE0VZ"
+        },
+        {
+          "human_name": "Slay the Spire",
+          "machine_name": "slaythespire_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 646570,
+          "redeemed_key_val": "JAI3J-Y2P6J-NHD0A"
+        },
+        {
+          "human_name": "The Long Dark",
+          "machine_name": "thelongdark_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 305620,
+          "redeemed_key_val": "WZD8Q-U3JBY-N2DWP"
+        },
+        {
+          "human_name": "Max Payne 3",
+          "machine_name": "maxpayne3_standwithukraine_bundle_rgl",
+          "keyindex": 0,
+          "key_type": "rockstar_social",
+          "custom_instructions_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "PGA Tour 2K21",
+          "machine_name": "pgatour2k21_standwithukraine_row_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1016120,
+          "redeemed_key_val": "XT4X9-WXCR3-7PW2U"
+        },
+        {
+          "human_name": "Kerbal Space Program",
+          "machine_name": "kerbalspaceprogram_standwithukraine_row_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 220200,
+          "redeemed_key_val": "Q4ZTO-A20W8-B29TR"
+        },
+        {
+          "human_name": "Starbound",
+          "machine_name": "starbound_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 211820
+        },
+        {
+          "human_name": "Car Mechanic Simulator 2018",
+          "machine_name": "carmechanicsimulator2018_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 645630,
+          "redeemed_key_val": "R3LUI-MXANC-BHRAF"
+        },
+        {
+          "human_name": "Monaco",
+          "machine_name": "monaco_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 113020,
+          "redeemed_key_val": "3P042-F78U3-U27AN"
+        },
+        {
+          "human_name": "Supraland",
+          "machine_name": "supraland_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 813630,
+          "redeemed_key_val": "LZVZI-CJNR2-JTQIA"
+        },
+        {
+          "human_name": "Ring of Pain",
+          "machine_name": "ringofpain_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 998740,
+          "redeemed_key_val": "I6Z63-L2T97-5CW56"
+        },
+        {
+          "human_name": "Crying Suns",
+          "machine_name": "cryingsuns_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 873940,
+          "redeemed_key_val": "B4MTT-LU764-0E53U"
+        },
+        {
+          "human_name": "Popup Dungeon",
+          "machine_name": "popupdungeon_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 349730,
+          "redeemed_key_val": "AKZNL-H3O1K-KMM0F"
+        },
+        {
+          "human_name": "Wizard of Legend",
+          "machine_name": "wizardoflegend_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 445980,
+          "redeemed_key_val": "ESEI1-YWKFA-E21FF"
+        },
+        {
+          "human_name": "Wandersong",
+          "machine_name": "wandersong_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 530320,
+          "redeemed_key_val": "GQOJ5-1H449-8KQ2T"
+        },
+        {
+          "human_name": "Expeditions: Viking",
+          "machine_name": "expeditions_viking_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 445190,
+          "redeemed_key_val": "E08PI-H6STM-Z7L2V"
+        },
+        {
+          "human_name": "Vagante",
+          "machine_name": "vagante_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 323220,
+          "redeemed_key_val": "X7M1T-I9PAB-XZQNP"
+        },
+        {
+          "human_name": "Brothers: A Tale of Two Sons",
+          "machine_name": "brothers_ataleoftwosons_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 225080,
+          "redeemed_key_val": "7M27E-ZJJFP-DDOMK"
+        },
+        {
+          "human_name": "Skullgirls 2nd Encore",
+          "machine_name": "skullgirls_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 245170,
+          "redeemed_key_val": "5ICB2-FUZ2A-G0Y4N"
+        },
+        {
+          "human_name": "Endless Space 2",
+          "machine_name": "endlessspace2_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 392110,
+          "redeemed_key_val": "9C9E4-U7V2A-LSFOR"
+        },
+        {
+          "human_name": "Wargroove",
+          "machine_name": "wargroove_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 607050,
+          "redeemed_key_val": "SU4LN-WSCS4-RUWSX"
+        },
+        {
+          "human_name": "Ryse: Son of Rome",
+          "machine_name": "ryse_sonofrome_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "06E2C-GZXIF-20UQK"
+        },
+        {
+          "human_name": "Inmost",
+          "machine_name": "inmost_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 938560,
+          "redeemed_key_val": "EUDJM-IKKQN-TYVIG"
+        },
+        {
+          "human_name": "Pathway",
+          "machine_name": "pathway_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 546430,
+          "redeemed_key_val": "PXPJM-8RZ6A-GAS4B"
+        },
+        {
+          "human_name": "Rustler",
+          "machine_name": "rustler_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 844260,
+          "redeemed_key_val": "FRNCK-WYFGW-7J5K7"
+        },
+        {
+          "human_name": "Drawful 2",
+          "machine_name": "drawful2_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 442070,
+          "redeemed_key_val": "FRDWH-21ZCA-MI6LT"
+        },
+        {
+          "human_name": "112 Operator",
+          "machine_name": "112operator_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 793460,
+          "redeemed_key_val": "V3ENO-UVNWD-CDFKG"
+        },
+        {
+          "human_name": "911 Operator",
+          "machine_name": "911operator_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 503560,
+          "redeemed_key_val": "XRTPC-H9CR7-UFZWE"
+        },
+        {
+          "human_name": "Radio Commander",
+          "machine_name": "radiocommander_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 871530,
+          "redeemed_key_val": "7KCL9-Z1CBM-Z0V10"
+        },
+        {
+          "human_name": "Amnesia: Rebirth",
+          "machine_name": "amnesia_rebirth_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 999220,
+          "redeemed_key_val": "E03U6-D6FDS-0U257"
+        },
+        {
+          "human_name": "Amnesia: The Dark Descent + Amnesia: A Machine for Pigs",
+          "machine_name": "amnesia_collection_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 239200,
+          "redeemed_key_val": "NP7RJ-2EXRR-VE404"
+        },
+        {
+          "human_name": "SUPERHOT",
+          "machine_name": "superhot_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 322500,
+          "redeemed_key_val": "T49F6-18MRO-OO2PW"
+        },
+        {
+          "human_name": "Kingdom Two Crowns",
+          "machine_name": "kingdom_twocrowns_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 701160,
+          "redeemed_key_val": "Q1JJW-NLJ3N-BWQ27"
+        },
+        {
+          "human_name": "West of Dead",
+          "machine_name": "westofdead_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1016790,
+          "redeemed_key_val": "YKTXM-IX3QJ-RJZ4D"
+        },
+        {
+          "human_name": "Tooth and Tail",
+          "machine_name": "toothandtail_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 286000,
+          "redeemed_key_val": "2J1AP-D6Z7T-599V6"
+        },
+        {
+          "human_name": "SYSTEM SHOCK: ENHANCED EDITION",
+          "machine_name": "systemshock_enhancededition_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 410710,
+          "redeemed_key_val": "05FAT-VOWLF-J1TVE"
+        },
+        {
+          "human_name": "Dear Esther: Landmark Edition",
+          "machine_name": "dearesther_landmarkedition_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 520720,
+          "redeemed_key_val": "6EGI7-RYE2I-RRVTF"
+        },
+        {
+          "human_name": "Driftland: The Magic Revival",
+          "machine_name": "driftland_themagicrevival_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 718650,
+          "redeemed_key_val": "G5MS4-CLX6H-C7JB1"
+        },
+        {
+          "human_name": "WARSAW",
+          "machine_name": "warsaw_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 629090,
+          "redeemed_key_val": "T5ESR-255B8-3J9H1"
+        },
+        {
+          "human_name": "Toejam & Earl: Back in the Groove",
+          "machine_name": "toejamearl_backinthegroove_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 516110,
+          "redeemed_key_val": "0YZTW-8H5F1-JPXY3"
+        },
+        {
+          "human_name": "Book of Demons",
+          "machine_name": "bookofdemons_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 449960,
+          "redeemed_key_val": "50MZ6-BX51R-SLJ9X"
+        },
+        {
+          "human_name": "Pikuniku",
+          "machine_name": "pikuniku_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 572890,
+          "redeemed_key_val": "9CLGM-9YQMW-BB089"
+        },
+        {
+          "human_name": "Iron Danger",
+          "machine_name": "irondanger_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 899310,
+          "redeemed_key_val": "TFTZJ-PVLZI-1AB10"
+        },
+        {
+          "human_name": "Fury Unleashed",
+          "machine_name": "furyunleashed_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 465200,
+          "redeemed_key_val": "KNZ5E-J0105-SVEBX"
+        },
+        {
+          "human_name": "X-Morph: Defense + European Assault, Survival of the Fittest, and Last Bastion DLC",
+          "machine_name": "xmorph_defense_complete_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 408410,
+          "redeemed_key_val": "MM3EW-6TC16-T81TG"
+        },
+        {
+          "human_name": "Motorcycle Mechanic Simulator 2021",
+          "machine_name": "motorcyclemechanicsimulator2021_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1078760,
+          "redeemed_key_val": "J3UPW-ZAEUK-TDRP9"
+        },
+        {
+          "human_name": "Out of Reach: Treasure Royale",
+          "machine_name": "outofreach_treasureroyale_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 867400,
+          "redeemed_key_val": "CS8HH-QAEQP-WFMP5"
+        },
+        {
+          "human_name": "DV: Rings of Saturn",
+          "machine_name": "dv_ringsofsaturn_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 846030,
+          "redeemed_key_val": "EJC2L-R77FE-CMKEN"
+        },
+        {
+          "human_name": "Slinger VR",
+          "machine_name": "slingervr_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 609850,
+          "redeemed_key_val": "0KPN3-ZHR28-V0EP6"
+        },
+        {
+          "human_name": "Pixplode",
+          "machine_name": "pixplode_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 631770,
+          "redeemed_key_val": "NKJNX-GGG91-APJAJ"
+        },
+        {
+          "human_name": "Gloria Victis",
+          "machine_name": "gloriavictis_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 327070,
+          "expiration_date": "2022-04-25T18:00:00",
+          "expiry_date": "2022-04-25T18:00:00"
+        },
+        {
+          "human_name": "EarthX",
+          "machine_name": "earthx_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1069030,
+          "redeemed_key_val": "KEO9O-9K8KR-PT6XJ"
+        },
+        {
+          "human_name": "Neverout",
+          "machine_name": "neverout_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "5WWSC-8J3LD-MFYZ3"
+        },
+        {
+          "human_name": "Telefrag VR",
+          "machine_name": "telefragvr_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 916100
+        },
+        {
+          "human_name": "Pawnbarian",
+          "machine_name": "pawnbarian_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1142080,
+          "redeemed_key_val": "U4FOY-1QMS1-VD23D"
+        },
+        {
+          "human_name": "Liberated",
+          "machine_name": "liberated_standwithukraine_bundle_gog",
+          "keyindex": 0,
+          "key_type": "gog",
+          "redeemed_key_val": "IGNQ3-Q4WU8-M299M"
+        },
+        {
+          "human_name": "Wanderlust: Travel Stories",
+          "machine_name": "wanderlust_travelstories_standwithukraine_bundle_gog",
+          "keyindex": 0,
+          "key_type": "gog",
+          "redeemed_key_val": "UOGGD-LKBUW-7NNXK"
+        },
+        {
+          "human_name": "Say No! More",
+          "machine_name": "saynomore_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1191900,
+          "redeemed_key_val": "CEEUL-2AABH-SZUTL"
+        },
+        {
+          "human_name": "NecroWorm",
+          "machine_name": "necroworm_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 622890,
+          "redeemed_key_val": "7W609-ZT0S5-1FW8Z"
+        },
+        {
+          "human_name": "Hexologic",
+          "machine_name": "hexologic_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 785890,
+          "redeemed_key_val": "Y82E4-M2QRD-4FMW8"
+        },
+        {
+          "human_name": "Post Void",
+          "machine_name": "postvoid_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1285670,
+          "redeemed_key_val": "B6CL5-6BHFI-TTV1M"
+        },
+        {
+          "human_name": "Moon Hunters",
+          "machine_name": "moonhunters_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 320040,
+          "redeemed_key_val": "4DHSF-0DROV-DVJAW"
+        },
+        {
+          "human_name": "Lust from Beyond: M Edition",
+          "machine_name": "lustfrombeyond_medition_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1641890,
+          "redeemed_key_val": "S3J5A-UOPZA-PCHR0"
+        },
+        {
+          "human_name": "The Amazing American Circus",
+          "machine_name": "theamazingamericancircus_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1433860,
+          "redeemed_key_val": "9MW8J-OA11E-H6I65"
+        },
+        {
+          "human_name": "Roarr! Jurassic Edition",
+          "machine_name": "roarr_jurassicedition_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 834450,
+          "redeemed_key_val": "Y9JXR-O6PUE-4C6WE"
+        },
+        {
+          "human_name": "Corridor Z",
+          "machine_name": "corridorz_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 636070,
+          "redeemed_key_val": "DUE8Z-YHQXY-EX9WB"
+        },
+        {
+          "human_name": "Draw Slasher",
+          "machine_name": "drawslasher_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 418270,
+          "redeemed_key_val": "072GR-819LF-68Z9I"
+        },
+        {
+          "human_name": "Shing!",
+          "machine_name": "shing_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1103730,
+          "redeemed_key_val": "VBDU5-LCKYF-NLEFG"
+        },
+        {
+          "human_name": "The USB Stick Found in the Grass",
+          "machine_name": "theusbstickfoundinthegrass_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1379550,
+          "redeemed_key_val": "C3FRR-CYGRV-7ZGY3"
+        },
+        {
+          "human_name": "Pathfinder Second Edition Core Rulebook and Starfinder Core Rulebook",
+          "machine_name": "pathfindersecondeditioncorerulebook_starfindercorerulebook_standwithukraine_bundle_paizo",
+          "keyindex": 0,
+          "key_type": "generic",
+          "redeemed_key_val": "EAJVS-859GN-CX9XE",
+          "custom_instructions_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "Go Home Dinosaurs",
+          "machine_name": "gohomedinosaurs_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 216090,
+          "redeemed_key_val": "D8EAH-BNT1F-6GG87"
+        },
+        {
+          "human_name": "Dagon: by H. P. Lovecraft - The Eldritch Box DLC",
+          "machine_name": "dagon-theeldritchboxdlc_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1722010,
+          "redeemed_key_val": "KXTB8-GEQLF-X6B8E"
+        },
+        {
+          "human_name": "We Are Alright",
+          "machine_name": "wearealright_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 794310,
+          "redeemed_key_val": "LTX4R-UMNJS-0F40I"
+        },
+        {
+          "human_name": "Going Under",
+          "machine_name": "goingunder_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1154810,
+          "redeemed_key_val": "25XNO-XTAMK-1RL9N"
+        },
+        {
+          "human_name": "Yoku's Island Express",
+          "machine_name": "yokusislandexpress_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 334940,
+          "redeemed_key_val": "13FAS-BNVSL-H7ZIM"
+        },
+        {
+          "human_name": "Intro to Game Development with Unity",
+          "machine_name": "introtogamedevelopmentwithunity2020edition_standwithukraine_bundle_zenva",
+          "keyindex": 0,
+          "key_type": "generic",
+          "custom_instructions_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "Nex Machina",
+          "machine_name": "nexmachina_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 404540,
+          "redeemed_key_val": "98OCY-UNPOY-0MMIV"
+        },
+        {
+          "human_name": "Soulblight",
+          "machine_name": "soulblight_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 530930,
+          "redeemed_key_val": "U5MCZ-XGQT4-13ZWB"
+        },
+        {
+          "human_name": "Treasure Hunter Simulator",
+          "machine_name": "treasurehuntersimulator_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 748300,
+          "redeemed_key_val": "J0Q54-MRSJ4-6JAGL"
+        },
+        {
+          "human_name": "Orbital Racer",
+          "machine_name": "orbitalracer_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 723100,
+          "redeemed_key_val": "RLKAT-SBXL2-QBSFB"
+        },
+        {
+          "human_name": "Lust for Darkness",
+          "machine_name": "lustfordarkness_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 1809770,
+          "redeemed_key_val": "15WA2-V8A71-62Z8A"
+        },
+        {
+          "human_name": "GameGuru",
+          "machine_name": "gameguru_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 266310,
+          "redeemed_key_val": "O5B5S-L8TZ1-YF2SV"
+        },
+        {
+          "human_name": "Ashampoo Photo Optimizer 7",
+          "machine_name": "ashampoophotooptimizer7_humblehealcovid19_bundle_ashampoo",
+          "keyindex": 0,
+          "key_type": "generic",
+          "custom_instructions_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "Broken Age",
+          "machine_name": "brokenage_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 232790,
+          "redeemed_key_val": "NM7YA-V77BI-5XYSM"
+        },
+        {
+          "human_name": "Complete Unity 3D Developer",
+          "machine_name": "completecunitydeveloper3d_standwithukraine_bundle_udemy",
+          "keyindex": 0,
+          "key_type": "external_key",
+          "redeemed_key_val": "VV10U-7AFXD-WLAIM",
+          "custom_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "Polygon Farm, Polygon City, and Polygon Prototype",
+          "machine_name": "syntystudios_standwithukraine_bundle_syntystudios",
+          "keyindex": 0,
+          "key_type": "external_key",
+          "custom_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>",
+          "expiration_date": "2023-06-08T07:00:00",
+          "expiry_date": "2023-06-08T07:00:00"
+        },
+        {
+          "human_name": "GameMaker Studio 2 Creator 12 Months",
+          "machine_name": "gamemakerstudio2desktop_standwithukraine_bundle_yoyogameskey",
+          "keyindex": 0,
+          "key_type": "generic",
+          "custom_instructions_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "Music Maker EDM Edition",
+          "machine_name": "musicmaker_edmedition_standwithukraine_bundle_magix",
+          "keyindex": 0,
+          "key_type": "generic",
+          "custom_instructions_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "PDF-Suite 1 Year License",
+          "machine_name": "pdfsuite_standwithukraine_bundle_lulusoftware",
+          "keyindex": 0,
+          "key_type": "generic",
+          "custom_instructions_html": "<a href=\"https://example.com/redeem-demo-key\">Click here to redeem</a>"
+        },
+        {
+          "human_name": "RPG Maker VX",
+          "machine_name": "rpgmakervx_standwithukraine_bundle_steam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "WJBTV-OMP9B-1359S"
+        }
+      ]
+    }
+  },
+  "BU7d57mDHhec": {
+    "product": {
+      "human_name": "Humble THQ Bundle",
+      "category": "bundle"
+    },
+    "created": "2012-12-03T14:43:26.514460",
+    "amount_spent": 6.0,
+    "subproducts": [
+      {
+        "human_name": "Darksiders Original Soundtrack - Directors Cut",
+        "machine_name": "darksiders_soundtrack",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MP3",
+                "file_size": 117826900,
+                "url": {
+                  "web": "https://cdn.example.com/demo/darksiders_original_soundtrack_-_directors_cut-mp3.zip"
+                }
+              },
+              {
+                "name": "FLAC",
+                "file_size": 442666516,
+                "url": {
+                  "web": "https://cdn.example.com/demo/darksiders_original_soundtrack_-_directors_cut-flac.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Company of Heroes: All Heroes Rise",
+        "machine_name": "cohallheroesrise_soundtrack",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MP3",
+                "file_size": 66777444,
+                "url": {
+                  "web": "https://cdn.example.com/demo/company_of_heroes-all_heroes_rise-mp3.zip"
+                }
+              },
+              {
+                "name": "FLAC",
+                "file_size": 239553741,
+                "url": {
+                  "web": "https://cdn.example.com/demo/company_of_heroes-all_heroes_rise-flac.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Saints Row: The Third - The Soundtrack",
+        "machine_name": "saintsrow3_soundtrack",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MP3",
+                "file_size": 44594711,
+                "url": {
+                  "web": "https://cdn.example.com/demo/saintsrow3_ost_mp3_1374796048.zip"
+                }
+              },
+              {
+                "name": "FLAC",
+                "file_size": 201578648,
+                "url": {
+                  "web": "https://cdn.example.com/demo/saintsrow3_ost_flac_1374796048.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Company of Heroes: Songs From the Front",
+        "machine_name": "cohsongsfromthefront_soundtrack",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MP3",
+                "file_size": 102610421,
+                "url": {
+                  "web": "https://cdn.example.com/demo/company_of_heroes-songs_from_the_front-mp3.zip"
+                }
+              },
+              {
+                "name": "FLAC",
+                "file_size": 392032814,
+                "url": {
+                  "web": "https://cdn.example.com/demo/company_of_heroes-songs_from_the_front-flac.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Red Faction: Armageddon Original Soundtrack",
+        "machine_name": "redfactionarmageddon_soundtrack",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MP3",
+                "file_size": 79192983,
+                "url": {
+                  "web": "https://cdn.example.com/demo/red_faction_armageddon_-_original_soundtrack-mp3.zip"
+                }
+              },
+              {
+                "name": "FLAC",
+                "file_size": 322129686,
+                "url": {
+                  "web": "https://cdn.example.com/demo/red_faction_armageddon_-_original_soundtrack-flac.zip"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": [
+        {
+          "human_name": "Darksiders, Red Faction: Armageddon, Metro 2033, Company of Heroes, Company of Heroes: Opposing Fronts, and Company of Heroes: Tales of Valor",
+          "machine_name": "thqbundlesteam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "85L18-Z7ZML-M9QKF"
+        },
+        {
+          "human_name": "Saints Row: The Third Steam Key",
+          "machine_name": "thqbundlesteambta",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 55230,
+          "redeemed_key_val": "TRDB9-BE6T4-8TA6A"
+        },
+        {
+          "human_name": "Red Faction: Armageddon Path to War DLC Steam key",
+          "machine_name": "redfactionarmageddonpathtowarsteam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "steam_app_id": 55115,
+          "redeemed_key_val": "77X0R-L9V49-PJEIP"
+        },
+        {
+          "human_name": "Titan Quest Steam Key",
+          "machine_name": "titanqueststeam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "NO30R-TKW0X-D5IY7"
+        },
+        {
+          "human_name": "Warhammer\u00ae 40,000: Dawn of War",
+          "machine_name": "dawnofwarsteam",
+          "keyindex": 0,
+          "key_type": "steam",
+          "redeemed_key_val": "S8ROM-9X5KY-ECEEZ"
+        }
+      ]
+    }
+  },
+  "D3BcVq577qZbNKMv": {
+    "product": {
+      "human_name": "Humble Book Bundle: Essential Knowledge by MIT Press",
+      "category": "bundle"
+    },
+    "created": "2018-08-21T21:06:38.657160",
+    "amount_spent": 15.0,
+    "subproducts": [
+      {
+        "human_name": "MIT Press Essential Knowledge Series",
+        "machine_name": "essentialknowledge_bookbundle_message",
+        "downloads": []
+      },
+      {
+        "human_name": "MOOCs",
+        "machine_name": "moocs",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 1451682,
+                "url": {
+                  "web": "https://cdn.example.com/demo/moocs.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 714881,
+                "url": {
+                  "web": "https://cdn.example.com/demo/moocs.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 1560368,
+                "url": {
+                  "web": "https://cdn.example.com/demo/moocs.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Internet of Things",
+        "machine_name": "theinternetofthings",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 252718,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theinternetofthings.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 1189542,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theinternetofthings.pdf"
+                }
+              },
+              {
+                "name": "MOBI",
+                "file_size": 470165,
+                "url": {
+                  "web": "https://cdn.example.com/demo/theinternetofthings_1535057422.mobi"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Machine Translation",
+        "machine_name": "machinetranslation",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 885380,
+                "url": {
+                  "web": "https://cdn.example.com/demo/machinetranslation.epub"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Technological Singularity",
+        "machine_name": "thetechnologicalsingularity",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 249172,
+                "url": {
+                  "web": "https://cdn.example.com/demo/thetechnologicalsingularity.epub"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Memes in Digital Culture",
+        "machine_name": "memesindigitalculture",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 4939508,
+                "url": {
+                  "web": "https://cdn.example.com/demo/memesindigitalculture.epub"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Crowdsourcing",
+        "machine_name": "crowdsourcing",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 689558,
+                "url": {
+                  "web": "https://cdn.example.com/demo/crowdsourcing.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 222278,
+                "url": {
+                  "web": "https://cdn.example.com/demo/crowdsourcing.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 2219115,
+                "url": {
+                  "web": "https://cdn.example.com/demo/crowdsourcing.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Computing",
+        "machine_name": "computing",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 2688206,
+                "url": {
+                  "web": "https://cdn.example.com/demo/computing.epub"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "The Future",
+        "machine_name": "thefuture",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PRC",
+                "file_size": 876750,
+                "url": {
+                  "web": "https://cdn.example.com/demo/thefuture.prc"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 416658,
+                "url": {
+                  "web": "https://cdn.example.com/demo/thefuture.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 1454354,
+                "url": {
+                  "web": "https://cdn.example.com/demo/thefuture.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Intellectual Property Strategy",
+        "machine_name": "intellectualpropertystrategy",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 819488,
+                "url": {
+                  "web": "https://cdn.example.com/demo/intellectualpropertystrategy.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 248126,
+                "url": {
+                  "web": "https://cdn.example.com/demo/intellectualpropertystrategy.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 897190,
+                "url": {
+                  "web": "https://cdn.example.com/demo/intellectualpropertystrategy.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Robots",
+        "machine_name": "robots",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 771501,
+                "url": {
+                  "web": "https://cdn.example.com/demo/robots.epub"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Information and Society",
+        "machine_name": "informationandsociety",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 1065906,
+                "url": {
+                  "web": "https://cdn.example.com/demo/informationandsociety.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 471274,
+                "url": {
+                  "web": "https://cdn.example.com/demo/informationandsociety.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 2516002,
+                "url": {
+                  "web": "https://cdn.example.com/demo/informationandsociety.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Sustainability",
+        "machine_name": "sustainability",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 928020,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sustainability_1534963044.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 790647,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sustainability_1534963044.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 4473865,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sustainability.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Open Access",
+        "machine_name": "openaccess",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 782709,
+                "url": {
+                  "web": "https://cdn.example.com/demo/openaccess.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 296841,
+                "url": {
+                  "web": "https://cdn.example.com/demo/openaccess.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 1546378,
+                "url": {
+                  "web": "https://cdn.example.com/demo/openaccess.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Self-Tracking",
+        "machine_name": "self-tracking",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 912166,
+                "url": {
+                  "web": "https://cdn.example.com/demo/self-tracking.epub"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Paradox",
+        "machine_name": "paradox",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 1027327,
+                "url": {
+                  "web": "https://cdn.example.com/demo/paradox.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 361620,
+                "url": {
+                  "web": "https://cdn.example.com/demo/paradox.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 1968749,
+                "url": {
+                  "web": "https://cdn.example.com/demo/paradox.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Metadata",
+        "machine_name": "metadata",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 1329895,
+                "url": {
+                  "web": "https://cdn.example.com/demo/metadata.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 1540887,
+                "url": {
+                  "web": "https://cdn.example.com/demo/metadata.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 4504223,
+                "url": {
+                  "web": "https://cdn.example.com/demo/metadata.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Auctions",
+        "machine_name": "auctions",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 918674,
+                "url": {
+                  "web": "https://cdn.example.com/demo/auctions.mobi"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 4725428,
+                "url": {
+                  "web": "https://cdn.example.com/demo/auctions.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Cloud Computing",
+        "machine_name": "cloudcomputing",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 1443350,
+                "url": {
+                  "web": "https://cdn.example.com/demo/cloudcomputing.epub"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": []
+    }
+  },
+  "sXYUP5Fz6DcEmcPx": {
+    "product": {
+      "human_name": "Black Friday Encore: The Ultimate Terry Moore Collection by Abstract Studios",
+      "category": "bundle"
+    },
+    "created": "2022-11-11T23:06:04.647223",
+    "amount_spent": 18.0,
+    "subproducts": [
+      {
+        "human_name": "SIP Kids",
+        "machine_name": "sipkids",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 87038476,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sipkids.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Rachel Rising V4: Winter Graves",
+        "machine_name": "rachelrisingv4_wintergraves",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 323549354,
+                "url": {
+                  "web": "https://cdn.example.com/demo/rachelrisingv4_wintergraves.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Rachel Rising V6: Secrets Kept",
+        "machine_name": "rachelrisingv6_secretskept",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 340583984,
+                "url": {
+                  "web": "https://cdn.example.com/demo/rachelrisingv6_secretskept.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V15: Tomorrow Now",
+        "machine_name": "strangersinparadisev15_tomorrownow",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 544310647,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev15_tomorrownow.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V8: My Other Life",
+        "machine_name": "strangersinparadisev8_myotherlife",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 336701258,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev8_myotherlife.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Rachel Rising V7: Dust to Dust",
+        "machine_name": "rachelrisingv7_dusttodust",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 316075727,
+                "url": {
+                  "web": "https://cdn.example.com/demo/rachelrisingv7_dusttodust.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Five Years V2: Stalemate",
+        "machine_name": "fiveyearsv2_stalemate",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 292239053,
+                "url": {
+                  "web": "https://cdn.example.com/demo/fiveyearsv2_stalemate.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Motor Girl V2: No Man Left Behind",
+        "machine_name": "motorgirlv2_nomanleftbehind",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 370681921,
+                "url": {
+                  "web": "https://cdn.example.com/demo/motorgirlv2_nomanleftbehind.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V11: Brave New World",
+        "machine_name": "strangersinparadisev11_bravenewworld",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 228369119,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev11_bravenewworld.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Five Years V1: Fire in the Sky",
+        "machine_name": "fiveyearsv1_fireinthesky",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 387026534,
+                "url": {
+                  "web": "https://cdn.example.com/demo/fiveyearsv1_fireinthesky.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Terry Moore's 2021 Sketchbook",
+        "machine_name": "terrymoores2021sketchbook",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 350207352,
+                "url": {
+                  "web": "https://cdn.example.com/demo/terrymoores2021sketchbook.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "25th Anniversary Sketchbook",
+        "machine_name": "25thanniversarysketchbook",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 1967546468,
+                "url": {
+                  "web": "https://cdn.example.com/demo/25thanniversarysketchbook.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V17: Tattoo",
+        "machine_name": "strangersinparadisev17_tattoo",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 178587679,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev17_tattoo.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Terry Moore's How to Draw Expanded Version",
+        "machine_name": "terrymooreshowtodrawexpandedversion",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 777527782,
+                "url": {
+                  "web": "https://cdn.example.com/demo/terrymooreshowtodrawexpandedversion.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Echo V4: Collider",
+        "machine_name": "echov4_collider",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 209688409,
+                "url": {
+                  "web": "https://cdn.example.com/demo/echov4_collider.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V3: It's a Good Life",
+        "machine_name": "strangersinparadisev3_itsagoodlife",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 216154903,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev3_itsagoodlife.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise XXV V2: Hide and Seek",
+        "machine_name": "strangersinparadisexxvv2_hideandseek",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 399906184,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisexxvv2_hideandseek.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V4: Love Me Tender",
+        "machine_name": "strangersinparadisev4_lovemetender",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 321894479,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev4_lovemetender.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V14: David's Story",
+        "machine_name": "strangersinparadisev14_davidsstory",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 292010863,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev14_davidsstory.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Echo V2: Atomic Dreams",
+        "machine_name": "echov2_atomicdreams",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 215203122,
+                "url": {
+                  "web": "https://cdn.example.com/demo/echov2_atomicdreams.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Echo V3: Desert Run",
+        "machine_name": "echov3_desertrun",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 223203329,
+                "url": {
+                  "web": "https://cdn.example.com/demo/echov3_desertrun.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise XXV V1: The Chase",
+        "machine_name": "strangersinparadisexxvv1_thechase",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 573965764,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisexxvv1_thechase.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Serial V1: The Glass Tomb",
+        "machine_name": "serialv1_theglasstomb",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 333273932,
+                "url": {
+                  "web": "https://cdn.example.com/demo/serialv1_theglasstomb.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Rachel Rising V3: Cemetery Songs",
+        "machine_name": "rachelrisingv3_cemeterysongs",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 334912404,
+                "url": {
+                  "web": "https://cdn.example.com/demo/rachelrisingv3_cemeterysongs.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V19: Ever After",
+        "machine_name": "strangersinparadisev19_everafter",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 281737620,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev19_everafter.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Echo V5: Black Hole",
+        "machine_name": "echov5_blackhole",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 212551280,
+                "url": {
+                  "web": "https://cdn.example.com/demo/echov5_blackhole.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Echo V6: The Last Day",
+        "machine_name": "echov6_thelastday",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 255452705,
+                "url": {
+                  "web": "https://cdn.example.com/demo/echov6_thelastday.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Serial V2: Cat and Mouse",
+        "machine_name": "serialv2_catandmouse",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 379236764,
+                "url": {
+                  "web": "https://cdn.example.com/demo/serialv2_catandmouse.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V13: Flower To Flame",
+        "machine_name": "strangersinparadisev13_flowertoflame",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 313532907,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev13_flowertoflame.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Rachel Rising V2: Fear No Malus",
+        "machine_name": "rachelrisingv2_fearnomalus",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 355181312,
+                "url": {
+                  "web": "https://cdn.example.com/demo/rachelrisingv2_fearnomalus.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V9: Child of Rage",
+        "machine_name": "strangersinparadisev9_childofrage",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 438846036,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev9_childofrage.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Rachel Rising V5: Night Cometh",
+        "machine_name": "rachelrisingv5_nightcometh",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 349292518,
+                "url": {
+                  "web": "https://cdn.example.com/demo/rachelrisingv5_nightcometh.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Rachel Rising V1: The Shadow of Death",
+        "machine_name": "rachelrisingv1_theshadowofdeath",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 372202114,
+                "url": {
+                  "web": "https://cdn.example.com/demo/rachelrisingv1_theshadowofdeath.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V18: Love and Lies",
+        "machine_name": "strangersinparadisev18_loveandlies",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 187003107,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev18_loveandlies.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V6: High School",
+        "machine_name": "strangersinparadisev6_highschool",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 257502430,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev6_highschool.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Motor Girl V1: Real Life",
+        "machine_name": "motorgirlv1_reallife",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 478360561,
+                "url": {
+                  "web": "https://cdn.example.com/demo/motorgirlv1_reallife.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V12: Heart In Hand",
+        "machine_name": "strangersinparadisev12_heartinhand",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 99423539,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev12_heartinhand.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V2: I Dream of You",
+        "machine_name": "strangersinparadisev2_idreamofyou",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 604834975,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev2_idreamofyou.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V7: Sanctuary",
+        "machine_name": "strangersinparadisev7_sanctuary",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 454465740,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev7_sanctuary.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Ever: The Way Out",
+        "machine_name": "ever_thewayout",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 234292376,
+                "url": {
+                  "web": "https://cdn.example.com/demo/ever_thewayout.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V10: Tropic of Desire",
+        "machine_name": "strangersinparadisev10_tropicofdesire",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 233520178,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev10_tropicofdesire.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V5: Immortal Enemies",
+        "machine_name": "strangersinparadisev5_immortalenemies",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 417355451,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev5_immortalenemies.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Echo V1: Moon Lake",
+        "machine_name": "echov1_moonlake",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 273810007,
+                "url": {
+                  "web": "https://cdn.example.com/demo/echov1_moonlake.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V16: Molly & Poo",
+        "machine_name": "strangersinparadisev16_mollyandpoo",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 51542054,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev16_mollyandpoo.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Strangers in Paradise V1: The Collected Strangers In Paradise",
+        "machine_name": "strangersinparadisev1_thecollectedstrangersinparadise",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 252225449,
+                "url": {
+                  "web": "https://cdn.example.com/demo/strangersinparadisev1_thecollectedstrangersinparadise.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": []
+    }
+  },
+  "u2fcAm24WXwbnckF": {
+    "product": {
+      "human_name": "Humble Audiobook Bundle: More Torchwood & Doctor Who presented by Big Finish",
+      "category": "bundle"
+    },
+    "created": "2018-08-18T05:05:07.625100",
+    "amount_spent": 15.0,
+    "subproducts": [
+      {
+        "human_name": "Torchwood: More Than This",
+        "machine_name": "torchwood_morethanthis",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 353043054,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_morethanthis_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 150751830,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_morethanthis_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Torchwood: Fall to Earth",
+        "machine_name": "torchwood_falltoearth",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 365007015,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_falltoearth-flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 156632603,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_falltoearth-mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Big Finish Audiobooks: Tom Baker at 80",
+        "machine_name": "tombakerat80",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 639933668,
+                "url": {
+                  "web": "https://cdn.example.com/demo/tombakerat80_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 284149763,
+                "url": {
+                  "web": "https://cdn.example.com/demo/tombakerat80_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Torchwood: The Victorian Age",
+        "machine_name": "torchwood_thevictorianage",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 368748503,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_thevictorianage_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 129151774,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_thevictorianage_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - Short Trips: Volume 4",
+        "machine_name": "doctorwho_shorttrips_vol4",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 847447010,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_shorttrips_vol4_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 326979714,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_shorttrips_vol4_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - Short Trips: Volume 3",
+        "machine_name": "doctorwho_shorttrips_vol3",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 857915114,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_shorttrips_vol3-flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 267703863,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_shorttrips_vol3_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - Short Trips: Volume 2",
+        "machine_name": "doctorwho_shorttrips_vol2",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 807409835,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_shorttrips_vol2_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 370680225,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_shorttrips_vol2_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Big Finish Audiobooks: This is Colin Baker",
+        "machine_name": "thisiscolinbaker",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 828937716,
+                "url": {
+                  "web": "https://cdn.example.com/demo/thisiscolinbaker-flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 319760689,
+                "url": {
+                  "web": "https://cdn.example.com/demo/thisiscolinbaker_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Torchwood: The Conspiracy",
+        "machine_name": "torchwood_theconspiracy",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 339561223,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_theconspiracy_audiobook_flac_1450378935.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 139222357,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_theconspiracy_audiobook_mp3_1450378949.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - 4th Doctor Adventures: Philip Hinchcliffe Presents Vol. 1 (Bonus)",
+        "machine_name": "doctorwho_philliphinchcliffepresents_vol1_bonus",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 338296940,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_philliphinchcliffepresents_vol1_bonus_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 154133359,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_philliphinchcliffepresents_vol1_bonus_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Torchwood - Special Releases: The Torchwood Archive",
+        "machine_name": "torchwood_thetorchwoodarchive",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 757188294,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_thetorchwoodarchive_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 276826299,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_thetorchwoodarchive_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - 8th Doctor Adventures: Dark Eyes 1 (Bonus)",
+        "machine_name": "doctorwho_darkeyes_part1_bonus",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 323964676,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_bonus_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 143177944,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_bonus_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Torchwood: Forgotten Lives",
+        "machine_name": "torchwood_forgottenlives",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 339692311,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_forgottenlives-flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 147445362,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_forgottenlives-mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Torchwood: One Rule",
+        "machine_name": "torchwood_onerule",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 357562086,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_onerule_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 134760411,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_onerule_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - 4th Doctor Adventures: Philip Hinchcliffe Presents Vol. 1 (Disc 1)",
+        "machine_name": "doctorwho_philliphinchcliffepresents_vol1_disk1",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 1209976618,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_philliphinchcliffepresents_vol1_disk1_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 408657197,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_philliphinchcliffepresents_vol1_disk1_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - 4th Doctor Adventures: Philip Hinchcliffe Presents Vol. 1 (Disc 2)",
+        "machine_name": "doctorwho_philliphinchcliffepresents_vol1_disk2",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 788899923,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_philliphinchcliffepresents_vol1_disk2_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 285259196,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_philliphinchcliffepresents_vol1_disk2_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Torchwood: Uncanny Valley",
+        "machine_name": "torchwood_uncannyvalley",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 400493137,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_uncannyvalley_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 157599949,
+                "url": {
+                  "web": "https://cdn.example.com/demo/torchwood_uncannyvalley_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - 8th Doctor Adventures: Dark Eyes 1 (Disk 4)",
+        "machine_name": "doctorwho_darkeyes_part1_disk4",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 356709582,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_disk4_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 138484998,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_disk4_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - 8th Doctor Adventures: Dark Eyes 1 (Disc 3)",
+        "machine_name": "doctorwho_darkeyes_part1_disk3",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 351792011,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_disk3_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 137277530,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_disk3_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - 8th Doctor Adventures: Dark Eyes 1 (Disc 2)",
+        "machine_name": "doctorwho_darkeyes_part1_disk2",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 320722834,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_disk2_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 119654227,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_disk2_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - 8th Doctor Adventures: Dark Eyes 1 (Disc 1)",
+        "machine_name": "doctorwho_darkeyes_part1_disk1",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 335215616,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_disk1_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 120925164,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_darkeyes_part1_disk1_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Doctor Who - Short Trips: Volume 1",
+        "machine_name": "doctorwho_shorttrips_vol1",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "FLAC",
+                "file_size": 817504399,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_shorttrips_vol1_flac.zip"
+                }
+              },
+              {
+                "name": "MP3",
+                "file_size": 345821387,
+                "url": {
+                  "web": "https://cdn.example.com/demo/doctorwho_shorttrips_vol1_mp3.zip"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": []
+    }
+  },
+  "NCByfMveNqqGEVwc": {
+    "product": {
+      "human_name": "Databases and Data Management by Pragmatic",
+      "category": "bundle"
+    },
+    "created": "2023-02-02T00:36:52.661999",
+    "amount_spent": 18.0,
+    "subproducts": [
+      {
+        "human_name": "A Common-Sense Guide to Data Structures and Algorithms, Second Edition",
+        "machine_name": "acommon-senseguidetodatastructuresandalgorithmssecondedition",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 34013189,
+                "url": {
+                  "web": "https://cdn.example.com/demo/acommon-senseguidetodatastructuresandalgorithmssecondedition.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 21261317,
+                "url": {
+                  "web": "https://cdn.example.com/demo/acommon-senseguidetodatastructuresandalgorithmssecondedition.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 9206892,
+                "url": {
+                  "web": "https://cdn.example.com/demo/acommon-senseguidetodatastructuresandalgorithmssecondedition.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Text Processing with Ruby",
+        "machine_name": "textprocessingwithruby",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 2299717,
+                "url": {
+                  "web": "https://cdn.example.com/demo/textprocessingwithruby.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 2671996,
+                "url": {
+                  "web": "https://cdn.example.com/demo/textprocessingwithruby.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 3913021,
+                "url": {
+                  "web": "https://cdn.example.com/demo/textprocessingwithruby.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Seven Concurrency Models in Seven Weeks",
+        "machine_name": "sevenconcurrencymodelsinsevenweeks",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 4523526,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sevenconcurrencymodelsinsevenweeks.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 5212991,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sevenconcurrencymodelsinsevenweeks.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 4515052,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sevenconcurrencymodelsinsevenweeks.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "SQL Antipatterns, Volume 1",
+        "machine_name": "sqlantipatternsvolume1",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 8456540,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sqlantipatternsvolume1.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 3799896,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sqlantipatternsvolume1.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 10784775,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sqlantipatternsvolume1.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Seven Databases in Seven Weeks, Second Edition",
+        "machine_name": "sevendatabasesinsevenweekssecondedition",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 11261871,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sevendatabasesinsevenweekssecondedition.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 6278058,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sevendatabasesinsevenweekssecondedition.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 9252429,
+                "url": {
+                  "web": "https://cdn.example.com/demo/sevendatabasesinsevenweekssecondedition.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Pandas Brain Teasers",
+        "machine_name": "pandasbrainteasers",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 1898430,
+                "url": {
+                  "web": "https://cdn.example.com/demo/pandasbrainteasers.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 3481886,
+                "url": {
+                  "web": "https://cdn.example.com/demo/pandasbrainteasers.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Data Science Essentials in Python",
+        "machine_name": "datascienceessentialsinpython",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 4212836,
+                "url": {
+                  "web": "https://cdn.example.com/demo/datascienceessentialsinpython.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 5486319,
+                "url": {
+                  "web": "https://cdn.example.com/demo/datascienceessentialsinpython.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Good Math",
+        "machine_name": "goodmath",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 5565405,
+                "url": {
+                  "web": "https://cdn.example.com/demo/goodmath.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 7087008,
+                "url": {
+                  "web": "https://cdn.example.com/demo/goodmath.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Pythonic Programming",
+        "machine_name": "pythonicprogramming",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 4655419,
+                "url": {
+                  "web": "https://cdn.example.com/demo/pythonicprogramming.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 2088710,
+                "url": {
+                  "web": "https://cdn.example.com/demo/pythonicprogramming.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 5530887,
+                "url": {
+                  "web": "https://cdn.example.com/demo/pythonicprogramming.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Programmer Passport: Prolog",
+        "machine_name": "programmerpassport_prolog",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 3718868,
+                "url": {
+                  "web": "https://cdn.example.com/demo/programmerpassport_prolog.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 1833767,
+                "url": {
+                  "web": "https://cdn.example.com/demo/programmerpassport_prolog.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 2920782,
+                "url": {
+                  "web": "https://cdn.example.com/demo/programmerpassport_prolog.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Genetic Algorithms and Machine Learning for Programmers",
+        "machine_name": "geneticalgorithmsandmachinelearningforprogrammers",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 4072998,
+                "url": {
+                  "web": "https://cdn.example.com/demo/geneticalgorithmsandmachinelearningforprogrammers.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 15061644,
+                "url": {
+                  "web": "https://cdn.example.com/demo/geneticalgorithmsandmachinelearningforprogrammers.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Programming Machine Learning",
+        "machine_name": "programmingmachinelearning",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "EPUB",
+                "file_size": 13301015,
+                "url": {
+                  "web": "https://cdn.example.com/demo/programmingmachinelearning.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 55620592,
+                "url": {
+                  "web": "https://cdn.example.com/demo/programmingmachinelearning.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Building Table Views with Phoenix LiveView",
+        "machine_name": "buildingtableviewswithphoenixliveview",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 3978370,
+                "url": {
+                  "web": "https://cdn.example.com/demo/buildingtableviewswithphoenixliveview.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 1876585,
+                "url": {
+                  "web": "https://cdn.example.com/demo/buildingtableviewswithphoenixliveview.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 2112578,
+                "url": {
+                  "web": "https://cdn.example.com/demo/buildingtableviewswithphoenixliveview.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Practical Microservices",
+        "machine_name": "practicalmicroservices",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 8678758,
+                "url": {
+                  "web": "https://cdn.example.com/demo/practicalmicroservices.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 4575860,
+                "url": {
+                  "web": "https://cdn.example.com/demo/practicalmicroservices.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 9701962,
+                "url": {
+                  "web": "https://cdn.example.com/demo/practicalmicroservices.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Complex Network Analysis in Python",
+        "machine_name": "complexnetworkanalysisinpython",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "MOBI",
+                "file_size": 30487004,
+                "url": {
+                  "web": "https://cdn.example.com/demo/complexnetworkanalysisinpython.mobi"
+                }
+              },
+              {
+                "name": "EPUB",
+                "file_size": 14868668,
+                "url": {
+                  "web": "https://cdn.example.com/demo/complexnetworkanalysisinpython.epub"
+                }
+              },
+              {
+                "name": "PDF",
+                "file_size": 21399278,
+                "url": {
+                  "web": "https://cdn.example.com/demo/complexnetworkanalysisinpython.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": []
+    }
+  },
+  "syuyPpHGKnzFCXue": {
+    "product": {
+      "human_name": "Humble Comic Bundle: Kana Manga Mini-Bundle by Abrams",
+      "category": "bundle"
+    },
+    "created": "2026-05-03T21:00:22.027254",
+    "amount_spent": 18.67,
+    "subproducts": [
+      {
+        "human_name": "Eden of Witches Volume 4",
+        "machine_name": "edenofwitchesvolume4",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 109658328,
+                "url": {
+                  "web": "https://cdn.example.com/demo/edenofwitchesvolume4.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Eden of Witches Volume 5",
+        "machine_name": "edenofwitchesvolume5",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 98917382,
+                "url": {
+                  "web": "https://cdn.example.com/demo/edenofwitchesvolume5.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Leviathan Volume 2",
+        "machine_name": "leviathanvolume2",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 407580565,
+                "url": {
+                  "web": "https://cdn.example.com/demo/leviathanvolume2.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Leviathan Volume 3",
+        "machine_name": "leviathanvolume3",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 435749575,
+                "url": {
+                  "web": "https://cdn.example.com/demo/leviathanvolume3.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Manhole Volume 2",
+        "machine_name": "manholevolume2",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 335074128,
+                "url": {
+                  "web": "https://cdn.example.com/demo/manholevolume2.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Manhole Volume 3",
+        "machine_name": "manholevolume3",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 381989008,
+                "url": {
+                  "web": "https://cdn.example.com/demo/manholevolume3.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Eden of Witches Volume 2",
+        "machine_name": "edenofwitchesvolume2",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 127789545,
+                "url": {
+                  "web": "https://cdn.example.com/demo/edenofwitchesvolume2.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Eden of Witches Volume 3",
+        "machine_name": "edenofwitchesvolume3",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 111929827,
+                "url": {
+                  "web": "https://cdn.example.com/demo/edenofwitchesvolume3.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Eden of Witches Volume 6",
+        "machine_name": "edenofwitchesvolume6",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 142010474,
+                "url": {
+                  "web": "https://cdn.example.com/demo/edenofwitchesvolume6.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Leviathan Volume 1",
+        "machine_name": "leviathanvolume1",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 569434364,
+                "url": {
+                  "web": "https://cdn.example.com/demo/leviathanvolume1.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Manhole Volume 1",
+        "machine_name": "manholevolume1",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 322755503,
+                "url": {
+                  "web": "https://cdn.example.com/demo/manholevolume1.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "human_name": "Eden of Witches Volume 1",
+        "machine_name": "edenofwitchesvolume1",
+        "downloads": [
+          {
+            "download_struct": [
+              {
+                "name": "PDF",
+                "file_size": 97121435,
+                "url": {
+                  "web": "https://cdn.example.com/demo/edenofwitchesvolume1.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "tpkd_dict": {
+      "all_tpks": []
+    }
+  }
+}

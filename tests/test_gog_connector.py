@@ -4,7 +4,20 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pytest
 
+from app.config import settings
 from app.connectors import gog_connector
+
+
+def test_token_and_api_base_urls_are_real_by_default():
+    assert gog_connector._token_url() == gog_connector.TOKEN_URL
+    assert gog_connector._api_base() == gog_connector.API_BASE
+
+
+def test_token_and_api_base_urls_redirect_to_the_mock_server_in_demo_mode(monkeypatch):
+    monkeypatch.setattr(settings, "demo_mode", True)
+    monkeypatch.setattr(settings, "mock_api_base_url", "http://127.0.0.1:9999")
+    assert gog_connector._token_url() == "http://127.0.0.1:9999/gog/token"
+    assert gog_connector._api_base() == "http://127.0.0.1:9999/gog"
 
 
 def _resp(json_body, status=200):

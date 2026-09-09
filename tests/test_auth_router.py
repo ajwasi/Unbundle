@@ -103,6 +103,13 @@ def test_login_page_has_no_logout_link(client):
     assert 'action="/logout"' not in resp.text
 
 
+def test_theme_toggle_button_present_on_both_login_and_authed_pages(authed_client, client):
+    # Unlike logout, the theme toggle isn't auth-gated — someone looking at the
+    # login screen itself should still be able to switch to dark mode.
+    assert 'id="theme-toggle"' in client.get("/login").text
+    assert 'id="theme-toggle"' in authed_client.get("/").text
+
+
 def test_unconfigured_app_redirects_any_request_to_setup(client, monkeypatch):
     monkeypatch.setattr("app.config.settings.app_password", "")
     resp = client.get("/bundles", follow_redirects=False)

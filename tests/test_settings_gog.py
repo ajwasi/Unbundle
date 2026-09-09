@@ -12,6 +12,15 @@ def test_settings_page_shows_gog_card_with_login_link(authed_client):
     assert 'name="pasted_code"' in resp.text
 
 
+def test_settings_page_shows_demo_shortcut_instead_of_real_login_link_in_demo_mode(authed_client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "demo_mode", True)
+    resp = authed_client.get("/settings")
+    assert "auth.gog.com/auth" not in resp.text
+    assert "Connect with demo data" in resp.text
+
+
 def test_save_gog_success_with_bare_code(authed_client, db):
     with patch("app.routers.settings.gog_connector.exchange_code", new=AsyncMock(return_value={"access_token": "AT", "refresh_token": "RT"})) as mock_exchange:
         resp = authed_client.post("/settings/gog", data={"pasted_code": "abc123"})

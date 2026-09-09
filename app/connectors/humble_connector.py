@@ -18,6 +18,7 @@ import asyncio
 
 import httpx
 
+from app.config import settings
 from app.connectors.base import (
     BaseConnector,
     ConnectorAuthError,
@@ -31,6 +32,12 @@ from app.connectors.base import (
 BASE_URL = "https://www.humblebundle.com/api/v1"
 SITE_BASE_URL = "https://www.humblebundle.com"
 BATCH_SIZE = 10  # matches humble-cli's own batching for /orders
+
+
+def _base_url() -> str:
+    # settings.demo_mode redirects every call in this file to the mock API
+    # server (mock_api/) instead of the real Humble API — see app/config.py.
+    return f"{settings.mock_api_base_url}/humble/api/v1" if settings.demo_mode else BASE_URL
 
 
 def order_page_url(gamekey: str) -> str:
@@ -59,7 +66,7 @@ class HumbleConnector(BaseConnector):
     async def check_credentials(self) -> CredentialStatus:
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(f"{BASE_URL}/user/order", headers=self._headers())
+                resp = await client.get(f"{_base_url()}/user/order", headers=self._headers())
         except ConnectorAuthError as exc:
             return CredentialStatus(ok=False, message=str(exc))
         except httpx.HTTPError as exc:
@@ -90,7 +97,7 @@ class HumbleConnector(BaseConnector):
         async with httpx.AsyncClient(timeout=30) as client:
             headers = self._headers()
 
-            resp = await client.get(f"{BASE_URL}/user/order", headers=headers)
+            resp = await client.get(f"{_base_url()}/user/order", headers=headers)
             if resp.status_code in (401, 403):
                 raise ConnectorAuthError("Humble session key was rejected — reconnect in Settings.")
             resp.raise_for_status()
@@ -107,7 +114,7 @@ class HumbleConnector(BaseConnector):
                 # real account with 550 bundles (every batch failed identically until
                 # this was fixed).
                 resp = await client.get(
-                    f"{BASE_URL}/orders",
+                    f"{_base_url()}/orders",
                     params={"all_tpkds": "true", "gamekeys": batch},
                     headers=headers,
                 )
