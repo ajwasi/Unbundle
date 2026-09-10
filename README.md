@@ -304,4 +304,7 @@ HTTP/session involved.
   workers or replicas.
 - The folder-scan reconciliation tool (Downloads page) matches by filename alone, not
   content — a renamed file won't be found, and a coincidental filename collision across
-  two different library items is reported as ambiguous rather than guessed at.
+  two different library items is reported as ambiguous rather than guessed at. It can
+  only see `SCAN_ROOT` (a read-only Docker volume — see `.env.example`) and its
+  subdirectories, never an arbitrary path — point it at wherever your existing library
+  actually lives.

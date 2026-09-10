@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.csrf import require_csrf
 from app.deps import get_db
-from app.downloads import worker
+from app.downloads import paths, worker
 from app.downloads.scan import build_expected_index, commit_matches, scan_folder
 from app.models.bundle import Bundle
 from app.models.download import Download
@@ -141,37 +141,26 @@ def save_concurrency(request: Request, concurrency: str = Form(default=""), db: 
 
 
 def _resolve_scan_folder(folder: str) -> Path | None:
-    """Any real directory the app's own OS-level file permissions can already
-    see is a legitimate scan target — this feature exists specifically to
-    reconcile a library kept somewhere the app doesn't otherwise track (see
-    scan.py's own docstring: files "placed there manually"), the same way
-    DownloadDestination.path already assumes a folder anywhere on disk (e.g.
-    "/mnt/comics"). Restricting this to only the app's own downloads_dir
-    would defeat that — most real libraries live outside it.
+    """folder-scan can only ever see settings.scan_root_dir and its
+    subdirectories — never an arbitrary path from the request. In Docker
+    that directory is a dedicated, admin-chosen, read-only mount
+    (docker-compose.yml's SCAN_ROOT), so this is a real containment
+    boundary: whatever isn't mounted there is genuinely unreachable to this
+    feature, regardless of what a request submits — not just a convention
+    this code happens to follow.
 
-    This app has exactly one trust tier: whoever submits this form is already
-    the fully-authenticated admin, with equivalent filesystem-adjacent access
-    via every other route (triggering real downloads, editing destinations,
-    reading current_location_path values, ...). So there's no privilege
-    boundary here for a base-folder allowlist to defend — only malformed
-    input to defend against, which is what .resolve()'s try/except is for
-    (a bare Path(folder).is_dir() could previously raise on some malformed
-    strings instead of cleanly falling through to the "not a directory"
-    message).
+    Reuses paths.resolve_within(), the same choke point worker.py's
+    predicted download paths already go through, rather than a second,
+    hand-rolled containment check.
     """
     folder = folder.strip()
     if not folder:
         return None
-    # codeql[py/path-injection]
     try:
-        # codeql[py/path-injection]
-        resolved = Path(folder).resolve()
-    except (OSError, ValueError):
+        resolved = paths.resolve_within(settings.scan_root_dir, Path(folder))
+    except (OSError, ValueError, paths.PathTraversalError):
         return None
-    # codeql[py/path-injection]
-    if not resolved.is_dir():
-        return None
-    return resolved
+    return resolved if resolved.is_dir() else None
 
 
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])

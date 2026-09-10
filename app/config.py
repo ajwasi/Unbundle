@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     downloads_dir: Path = Path("./data/downloads")
     download_concurrency: int = 2
 
+    # The folder-scan feature (routers/downloads.py) can only ever see this
+    # directory and its subdirectories — never an arbitrary path from a
+    # request — so it's a real containment boundary, not just a convention.
+    # In Docker this is a dedicated, admin-chosen, read-only mount (see
+    # docker-compose.yml's SCAN_ROOT); the default only makes sense inside
+    # that container, so local/non-Docker runs need to override this to a
+    # real directory to use the scan feature at all.
+    scan_root_dir: Path = Path("/scan-root")
+
     humble_cli_path: str = "/usr/local/bin/humble-cli"
     # In the container this resolves under $HOME=/root (the Dockerfile runs as root and
     # sets this explicitly — see its own comment on why) — the exact path humble-cli

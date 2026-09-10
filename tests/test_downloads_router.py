@@ -186,7 +186,8 @@ def test_delete_destination(authed_client, db):
     assert db.query(DownloadDestination).count() == 0
 
 
-def test_scan_preview_does_not_write_any_download_rows(authed_client, db, make_bundle, tmp_path):
+def test_scan_preview_does_not_write_any_download_rows(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
     make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
     (tmp_path / "book.epub").write_bytes(b"x" * 5)
 
@@ -196,7 +197,8 @@ def test_scan_preview_does_not_write_any_download_rows(authed_client, db, make_b
     assert db.query(Download).count() == 0
 
 
-def test_scan_commit_creates_download_rows(authed_client, db, make_bundle, tmp_path):
+def test_scan_commit_creates_download_rows(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
     make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
     (tmp_path / "book.epub").write_bytes(b"x" * 5)
 
@@ -209,14 +211,42 @@ def test_scan_commit_creates_download_rows(authed_client, db, make_bundle, tmp_p
     assert row.current_location_path == str(tmp_path / "book.epub")
 
 
-def test_scan_rejects_a_path_that_is_not_a_directory(authed_client, tmp_path):
+def test_scan_allows_a_subdirectory_of_the_configured_root(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
+    subdir = tmp_path / "my-library"
+    subdir.mkdir()
+    (subdir / "book.epub").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": str(subdir)})
+    assert resp.status_code == 200
+    assert "book.epub" in resp.text
+
+
+def test_scan_rejects_a_path_outside_the_configured_root(authed_client, tmp_path, monkeypatch):
+    root = tmp_path / "scan-root"
+    root.mkdir()
+    monkeypatch.setattr("app.config.settings.scan_root_dir", root)
+    outside = tmp_path / "outside-the-root"
+    outside.mkdir()
+    (outside / "book.epub").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": str(outside)})
+    assert resp.status_code == 200
+    assert "not a directory" in resp.text
+    assert "book.epub" not in resp.text
+
+
+def test_scan_rejects_a_path_that_is_not_a_directory(authed_client, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
     missing = tmp_path / "does-not-exist"
     resp = authed_client.post("/downloads/scan", data={"folder": str(missing)})
     assert resp.status_code == 200
     assert "not a directory" in resp.text
 
 
-def test_scan_rejects_a_malformed_path_without_raising(authed_client):
+def test_scan_rejects_a_malformed_path_without_raising(authed_client, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
     # Path.resolve() raises ValueError on an embedded null byte — this must be
     # caught by _resolve_scan_folder and turned into the normal "not a
     # directory" response, not surface as a 500.
