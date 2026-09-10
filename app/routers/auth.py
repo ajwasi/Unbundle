@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
+from app import accounts
 from app.cli import _set_password
 from app.config import settings
 from app.csrf import require_csrf
@@ -135,7 +136,11 @@ def setup_page(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/setup", dependencies=[Depends(require_csrf)])
 def setup_submit(
-    request: Request, password: str = Form(""), confirm_password: str = Form(""), db: Session = Depends(get_db)
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(""),
+    confirm_password: str = Form(""),
+    db: Session = Depends(get_db),
 ):
     if is_auth_configured(db):
         return RedirectResponse(url="/", status_code=303)
@@ -147,9 +152,16 @@ def setup_submit(
         error = "Passwords do not match."
 
     if error:
-        return templates.TemplateResponse(request, "auth/setup.html", {"error": error}, status_code=400)
+        return templates.TemplateResponse(
+            request, "auth/setup.html", {"error": error, "username": username}, status_code=400
+        )
 
     _set_password(password)
+    username = username.strip()
+    if username:
+        cfg = accounts.get_or_create_account_settings(db)
+        cfg.email = username
+        db.commit()
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(
         SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.behind_https_proxy

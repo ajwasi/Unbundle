@@ -177,6 +177,42 @@ def test_setup_success_sets_password_and_logs_in(client, db, monkeypatch):
     assert check_app_password("fresh-password", db) is True
 
 
+def test_setup_with_username_saves_it_and_shows_it_in_the_user_menu(client, db, monkeypatch):
+    from app.accounts import get_or_create_account_settings
+
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    client.post(
+        "/setup",
+        data={"username": "admin@example.com", "password": "fresh-password", "confirm_password": "fresh-password"},
+        follow_redirects=False,
+    )
+    assert get_or_create_account_settings(db).email == "admin@example.com"
+    resp = client.get("/")
+    assert "admin@example.com" in resp.text
+
+
+def test_setup_without_username_leaves_it_unset(client, db, monkeypatch):
+    from app.accounts import get_or_create_account_settings
+
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    client.post(
+        "/setup", data={"password": "fresh-password", "confirm_password": "fresh-password"}, follow_redirects=False
+    )
+    assert get_or_create_account_settings(db).email is None
+    resp = client.get("/")
+    assert ">Account<" in resp.text  # fallback label, no username set
+
+
+def test_setup_preserves_typed_username_on_validation_error(client, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.post(
+        "/setup",
+        data={"username": "admin@example.com", "password": "one-password", "confirm_password": "different-password"},
+    )
+    assert resp.status_code == 400
+    assert 'value="admin@example.com"' in resp.text
+
+
 def test_setup_rejects_empty_password(client, db, monkeypatch):
     monkeypatch.setattr("app.config.settings.app_password", "")
     resp = client.post("/setup", data={"password": "", "confirm_password": ""})

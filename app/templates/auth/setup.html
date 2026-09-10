@@ -12,7 +12,8 @@
 
   <form method="post" action="/setup">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-    <input type="password" name="password" placeholder="Password" required autofocus style="width: 100%; margin-bottom: 0.5rem;">
+    <input type="email" name="username" value="{{ username | default('') }}" placeholder="Username (email address, optional)" autofocus style="width: 100%; margin-bottom: 0.5rem;">
+    <input type="password" name="password" placeholder="Password" required style="width: 100%; margin-bottom: 0.5rem;">
     <input type="password" name="confirm_password" placeholder="Confirm password" required style="width: 100%; margin-bottom: 0.5rem;">
     <button type="submit" style="width: 100%;">Set password &amp; continue</button>
   </form>
