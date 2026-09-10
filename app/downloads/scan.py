@@ -56,7 +56,8 @@ def scan_folder(root: Path, index: dict[str, list[dict]]) -> ScanResult:
     # for why an arbitrary admin-chosen root is this feature's intended input,
     # not a bug to fix by constraining it to a single safe base folder.
     result = ScanResult()
-    for path in root.rglob("*"):  # lgtm[py/path-injection]
+    # codeql[py/path-injection]
+    for path in root.rglob("*"):
         if not path.is_file():
             continue
         candidates = index.get(path.name.lower())

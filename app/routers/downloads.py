@@ -163,10 +163,11 @@ def _resolve_scan_folder(folder: str) -> Path | None:
     if not folder:
         return None
     try:
+        # codeql[py/path-injection]
         resolved = Path(folder).resolve()
     except (OSError, ValueError):
         return None
-    return resolved if resolved.is_dir() else None  # lgtm[py/path-injection]
+    return resolved if resolved.is_dir() else None
 
 
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
