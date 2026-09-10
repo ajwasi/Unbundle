@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import asc, desc, exists, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.connectors.humble_connector import order_page_url, parse_bundle
 from app.csrf import require_csrf
@@ -137,7 +137,11 @@ def list_bundles(
     # coerce to int and would 422 on.
     min_items_val = int(min_items) if min_items.isdigit() else None
     tag_id_val = int(tag_id) if tag_id.isdigit() else None
-    query = _apply_filters(db.query(Bundle), q, category, min_items_val, tag_id_val, redeemed)
+    # raw_json alone totals 30+ MB across a real 550-bundle library — deferred
+    # here since the list view never reads it (only denormalized columns:
+    # name/category/amount_spent/etc.), unlike bundle_detail() and catalog.py,
+    # which genuinely parse it and load it normally.
+    query = _apply_filters(db.query(Bundle).options(defer(Bundle.raw_json)), q, category, min_items_val, tag_id_val, redeemed)
     query = _apply_sort(query, sort, dir)
     bundles = query.all()
 
@@ -156,7 +160,12 @@ def list_bundles(
         "all_tags": db.query(Tag).order_by(Tag.name).all(),
         "tags_by_gamekey": _bundle_tags(db, [b.gamekey for b in bundles]),
         "unredeemed_gamekeys": _bundles_with_unredeemed(db, [b.gamekey for b in bundles]),
-        "total_count": db.query(Bundle).count(),
+        # func.count(...) rather than db.query(Bundle).count() — the latter wraps
+        # the *entire* entity query (every column, raw_json included) in a
+        # `SELECT count(*) FROM (SELECT ... FROM bundle)` subquery; selecting
+        # just the count expression avoids that entirely rather than relying on
+        # the query planner to optimize the unused columns away.
+        "total_count": db.query(func.count(Bundle.gamekey)).scalar(),
         "filtered_total_spent": sum(b.amount_spent for b in bundles),
         "category_breakdown": _category_breakdown(db),
         "grand_total_spent": db.query(func.sum(Bundle.amount_spent)).scalar() or 0.0,

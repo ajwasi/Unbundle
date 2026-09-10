@@ -1,0 +1,26 @@
+{% macro render_row(r) %}
+<tr>
+  <td>{{ r.item_name }}</td>
+  <td>{{ (r.first_purchased.strftime("%Y-%m-%d") if r.first_purchased else "&mdash;") | safe }}</td>
+  <td>
+    {% if r.count > 1 %}
+    <button type="button" class="secondary" style="padding: 0.1rem 0.5rem;"
+            hx-get="/catalog/item/{{ r.key }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"
+            onclick="document.getElementById('bundles-modal').showModal()">
+      &times;{{ r.count }} bundles
+    </button>
+    {% else %}
+    <span class="muted">1</span>
+    {% endif %}
+  </td>
+  <td>{% with machine_name = r.key, tags = r.tags %}{% include "catalog/_item_tags.html" %}{% endwith %}</td>
+</tr>
+{% endmacro %}
+
+{% macro sentinel(q, dupes_only, tag_id, sort, dir, next_offset) %}
+<tr id="catalog-sentinel"
+    hx-get="/catalog/rows?q={{ q | urlencode }}&dupes_only={{ 'true' if dupes_only else 'false' }}&tag_id={{ tag_id if tag_id is not none else '' }}&sort={{ sort }}&dir={{ dir }}&offset={{ next_offset }}"
+    hx-trigger="revealed" hx-swap="outerHTML">
+  <td colspan="4" class="muted">Loading more&hellip;</td>
+</tr>
+{% endmacro %}

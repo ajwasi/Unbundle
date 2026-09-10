@@ -44,6 +44,64 @@ def test_avg_item_value_returns_none_for_empty_list():
     assert _avg_item_value([]) is None
 
 
+def _seed_many_items(make_bundle, count, prefix="Item"):
+    subproducts = [make_subproduct(f"{prefix} {i:03d}", machine_name=f"{prefix.lower()}{i:03d}") for i in range(count)]
+    make_bundle(gamekey="GK1", order=make_order(subproducts=subproducts))
+
+
+def test_catalog_page_shows_only_first_page_with_sentinel(authed_client, make_bundle):
+    _seed_many_items(make_bundle, 150)
+    resp = authed_client.get("/catalog")
+    assert resp.status_code == 200
+    assert "Item 000" in resp.text
+    assert "Item 099" in resp.text
+    assert "Item 100" not in resp.text
+    assert "Item 149" not in resp.text
+    assert 'id="catalog-sentinel"' in resp.text
+    assert "Showing 100 of 150" in resp.text
+
+
+def test_catalog_page_no_sentinel_when_under_page_size(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Solo Item", machine_name="solo")]))
+    resp = authed_client.get("/catalog")
+    assert 'id="catalog-sentinel"' not in resp.text
+    assert "Showing 1 of 1" in resp.text
+
+
+def test_catalog_rows_returns_the_next_batch(authed_client, make_bundle):
+    _seed_many_items(make_bundle, 150)
+    resp = authed_client.get("/catalog/rows", params={"offset": 100})
+    assert resp.status_code == 200
+    assert "Item 100" in resp.text
+    assert "Item 149" in resp.text
+    assert "Item 000" not in resp.text
+    assert "<thead>" not in resp.text  # a row batch, not a full table re-render
+    assert "Showing 150 of 150" in resp.text
+
+
+def test_catalog_rows_omits_sentinel_on_the_last_batch(authed_client, make_bundle):
+    _seed_many_items(make_bundle, 150)
+    resp = authed_client.get("/catalog/rows", params={"offset": 100})
+    assert 'id="catalog-sentinel"' not in resp.text  # 150 items: batch 2 (rows 100-149) is the last one
+
+
+def test_catalog_rows_includes_sentinel_when_more_batches_remain(authed_client, make_bundle):
+    _seed_many_items(make_bundle, 250)
+    resp = authed_client.get("/catalog/rows", params={"offset": 100})
+    assert 'id="catalog-sentinel"' in resp.text
+    assert "offset=200" in resp.text
+
+
+def test_catalog_rows_respects_search_filter_across_pages(authed_client, make_bundle):
+    subproducts = [make_subproduct(f"Match {i:03d}", machine_name=f"match{i:03d}") for i in range(150)]
+    subproducts.append(make_subproduct("Different Thing", machine_name="different"))
+    make_bundle(gamekey="GK1", order=make_order(subproducts=subproducts))
+
+    resp = authed_client.get("/catalog/rows", params={"q": "Match", "offset": 100})
+    assert "Match 149" in resp.text
+    assert "Different Thing" not in resp.text
+
+
 def test_avg_item_value_ignores_zero_item_count_bundles():
     bundles = [{"amount_spent": 10.0, "item_count": 0}, {"amount_spent": 20.0, "item_count": 2}]
     assert _avg_item_value(bundles) == 10.0
