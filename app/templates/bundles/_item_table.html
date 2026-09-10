@@ -24,7 +24,7 @@
     <table>
       <thead>
         <tr>
-          <th><input type="checkbox" onclick="document.querySelectorAll('#item-form .item-check').forEach(c => c.checked = this.checked)"></th>
+          <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#item-form .item-check').forEach(c => c.checked = this.checked)"></th>
           <th>Item</th>
           {% for key, label in all_formats %}<th>{{ label }}</th>{% endfor %}
           <th>Total Size</th>
@@ -34,7 +34,7 @@
       <tbody>
         {% for g in item_groups %}
         <tr>
-          <td><input type="checkbox" class="item-check" name="items" value="{{ g.subproduct_index }}"></td>
+          <td class="table-lead-col"><input type="checkbox" class="item-check" name="items" value="{{ g.subproduct_index }}"></td>
           <td>{{ g.item_name }}</td>
           {% for key, label in all_formats %}
           {% set info = g.by_format.get(key) %}
