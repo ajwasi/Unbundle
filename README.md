@@ -39,8 +39,9 @@ Docker-based, no external services required beyond the ones you choose to connec
   before the app is usable at all, or OIDC/SSO (Authentik, Keycloak, etc.) configured
   from Settings afterward, with password login optionally turned off once SSO is
   verified working. An emergency CLI recovery tool (see below) covers both "locked
-  out of SSO" and "forgot the password." A logout button lives at the bottom of the
-  sidebar.
+  out of SSO" and "forgot the password." The top-right user menu has your display
+  identity, a link to change your password/email (Settings), the dark-mode toggle,
+  and Log out.
 - **Backups** — automatic daily backups on a schedule you set from Settings (how many
   to keep, what time UTC), a manual "Back up now," one-click download of any existing
   backup, and upload-to-restore for disaster recovery. See Backups below.

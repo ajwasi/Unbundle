@@ -8,6 +8,7 @@ from app.security import (
     _derive_key_legacy,
     check_app_password,
     create_session_token,
+    decode_session_token,
     decrypt_json,
     encrypt_json,
     hash_password,
@@ -62,6 +63,23 @@ def test_session_token_round_trip():
 def test_session_token_rejects_garbage():
     assert not verify_session_token("not-a-real-token")
     assert not verify_session_token(None)
+
+
+def test_create_session_token_without_identity_omits_identity_key():
+    token = create_session_token()
+    assert "identity" not in decode_session_token(token)
+
+
+def test_create_session_token_embeds_identity():
+    token = create_session_token(identity={"email": "person@example.com", "sub": "abc"})
+    payload = decode_session_token(token)
+    assert payload["identity"] == {"email": "person@example.com", "sub": "abc"}
+    assert payload["authenticated"] is True
+
+
+def test_decode_session_token_rejects_garbage():
+    assert decode_session_token("not-a-real-token") is None
+    assert decode_session_token(None) is None
 
 
 def test_hash_password_round_trip():

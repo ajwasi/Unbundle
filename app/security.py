@@ -143,15 +143,25 @@ def check_app_password(candidate: str, db: Session) -> bool:
     return bool(settings.app_password) and hmac.compare_digest(candidate, settings.app_password)
 
 
-def create_session_token() -> str:
-    return _serializer().dumps({"authenticated": True})
+def create_session_token(identity: dict | None = None) -> str:
+    payload = {"authenticated": True}
+    if identity:
+        payload["identity"] = identity
+    return _serializer().dumps(payload)
+
+
+def decode_session_token(token: str | None) -> dict | None:
+    """The full signed payload (possibly with an "identity" key — see
+    oidc.py's identity_from_userinfo) rather than just a yes/no, so
+    AuthMiddleware can resolve request.state.identity_label from it directly
+    instead of decoding the cookie twice."""
+    if not token:
+        return None
+    try:
+        return _serializer().loads(token, max_age=SESSION_MAX_AGE_SECONDS)
+    except BadSignature:
+        return None
 
 
 def verify_session_token(token: str | None) -> bool:
-    if not token:
-        return False
-    try:
-        _serializer().loads(token, max_age=SESSION_MAX_AGE_SECONDS)
-    except BadSignature:
-        return False
-    return True
+    return decode_session_token(token) is not None

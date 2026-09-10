@@ -93,7 +93,7 @@ def test_logout_clears_session_cookie(authed_client):
     assert resp2.status_code == 303
 
 
-def test_sidebar_shows_logout_link_when_authed(authed_client):
+def test_user_menu_shows_logout_link_when_authed(authed_client):
     resp = authed_client.get("/")
     assert 'action="/logout"' in resp.text
 
@@ -101,6 +101,31 @@ def test_sidebar_shows_logout_link_when_authed(authed_client):
 def test_login_page_has_no_logout_link(client):
     resp = client.get("/login")
     assert 'action="/logout"' not in resp.text
+
+
+def test_user_menu_not_shown_on_login_page(client):
+    resp = client.get("/login")
+    assert 'class="user-menu"' not in resp.text
+
+
+def test_user_menu_shows_fallback_label_when_no_identity_set(authed_client):
+    resp = authed_client.get("/")
+    assert ">Account<" in resp.text
+
+
+def test_user_menu_shows_account_settings_email_when_set(authed_client, db):
+    from app.models.account_settings import AccountSettings
+
+    db.add(AccountSettings(id=1, email="admin@example.com"))
+    db.commit()
+
+    resp = authed_client.get("/")
+    assert "admin@example.com" in resp.text
+
+
+def test_user_menu_links_to_account_settings_card(authed_client):
+    resp = authed_client.get("/")
+    assert 'href="/settings#account-card"' in resp.text
 
 
 def test_theme_toggle_button_present_on_both_login_and_authed_pages(authed_client, client):
@@ -218,6 +243,57 @@ def test_oidc_callback_success_sets_session_cookie(client, db):
         resp = client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
     assert resp.status_code == 303
     assert "humble_tracker_session" in resp.cookies
+
+
+def test_oidc_callback_stores_identity_with_only_sub_when_no_email_claim(client, db):
+    from app.security import decode_session_token
+
+    _save_oidc(db, enabled=True)
+    with patch("app.routers.auth.build_oauth_client") as mock_build:
+        mock_build.return_value.authorize_access_token = AsyncMock(return_value={"userinfo": {"sub": "user1"}})
+        resp = client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
+    payload = decode_session_token(resp.cookies["humble_tracker_session"])
+    assert payload["identity"] == {"sub": "user1"}
+
+
+def test_oidc_callback_stores_identity_with_email_in_session(client, db):
+    from app.security import decode_session_token
+
+    _save_oidc(db, enabled=True)
+    userinfo = {"sub": "user1", "email": "person@example.com", "name": "Person Example"}
+    with patch("app.routers.auth.build_oauth_client") as mock_build:
+        mock_build.return_value.authorize_access_token = AsyncMock(return_value={"userinfo": userinfo})
+        resp = client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
+    payload = decode_session_token(resp.cookies["humble_tracker_session"])
+    assert payload["identity"]["email"] == "person@example.com"
+    assert payload["identity"]["name"] == "Person Example"
+
+
+def test_user_menu_shows_oidc_email_after_sso_login(client, db):
+    _save_oidc(db, enabled=True)
+    userinfo = {"sub": "user1", "email": "person@example.com"}
+    with patch("app.routers.auth.build_oauth_client") as mock_build:
+        mock_build.return_value.authorize_access_token = AsyncMock(return_value={"userinfo": userinfo})
+        client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
+
+    resp = client.get("/")
+    assert "person@example.com" in resp.text
+
+
+def test_user_menu_prefers_session_identity_over_account_settings_email(client, db):
+    from app.models.account_settings import AccountSettings
+
+    db.add(AccountSettings(id=1, email="admin@example.com"))
+    db.commit()
+    _save_oidc(db, enabled=True)
+    userinfo = {"sub": "user1", "email": "sso-person@example.com"}
+    with patch("app.routers.auth.build_oauth_client") as mock_build:
+        mock_build.return_value.authorize_access_token = AsyncMock(return_value={"userinfo": userinfo})
+        client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
+
+    resp = client.get("/")
+    assert "sso-person@example.com" in resp.text
+    assert "admin@example.com" not in resp.text
 
 
 def test_oidc_callback_sanitizes_malicious_next_from_session(client, db):

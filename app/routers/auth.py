@@ -15,7 +15,14 @@ from app.cli import _set_password
 from app.config import settings
 from app.csrf import require_csrf
 from app.deps import get_db
-from app.oidc import build_oauth_client, get_oidc_config, is_auth_configured, is_oidc_enabled, is_password_disabled
+from app.oidc import (
+    build_oauth_client,
+    get_oidc_config,
+    identity_from_userinfo,
+    is_auth_configured,
+    is_oidc_enabled,
+    is_password_disabled,
+)
 from app.ratelimit import RateLimiter, rate_limit
 from app.security import SESSION_COOKIE_NAME, check_app_password, create_session_token
 from app.templates_env import templates
@@ -179,12 +186,13 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
 
     client = build_oauth_client(cfg)
     try:
-        await client.authorize_access_token(request)
+        token = await client.authorize_access_token(request)
     except OAuthError as exc:
         return templates.TemplateResponse(
             request, "auth/login.html", _login_context(db, "/", f"SSO login failed: {exc.description or exc.error}"),
             status_code=401,
         )
+    identity = identity_from_userinfo(token.get("userinfo") or {})
 
     stored_next = request.session.pop("oidc_next", "/")
     if (
@@ -199,6 +207,10 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
     else:
         response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(
-        SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.behind_https_proxy
+        SESSION_COOKIE_NAME,
+        create_session_token(identity=identity),
+        httponly=True,
+        samesite="lax",
+        secure=settings.behind_https_proxy,
     )
     return response

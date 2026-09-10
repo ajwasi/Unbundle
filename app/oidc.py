@@ -37,24 +37,45 @@ def is_password_disabled(db: Session, cfg: dict | None = None) -> bool:
     return bool(cfg and cfg.get("enabled") and cfg.get("disable_password"))
 
 
+def is_password_login_active(db: Session, cfg: dict | None = None) -> bool:
+    """True if a password (APP_PASSWORD or one set via `python -m app.cli
+    set-password`) is currently a usable login method — not turned off by
+    SSO-only mode. Extracted out of is_auth_configured() below since the
+    Account settings card needs this exact same check to decide whether to
+    show password-change fields at all.
+    """
+    from app.config import settings  # local import: settings has no reason to import oidc.py
+
+    cfg = get_oidc_config(db) if cfg is None else cfg
+    return (bool(settings.app_password) or has_db_password(db)) and not is_password_disabled(db, cfg)
+
+
 def is_auth_configured(db: Session) -> bool:
     """True if some login method is actually usable right now — either a
-    password (APP_PASSWORD or one set via `python -m app.cli set-password`,
-    and not turned off by SSO-only mode) or an enabled OIDC provider. False
-    means the app is wide open to anyone who can reach it. Shared by
-    AuthMiddleware (the actual gate), main.py's startup warning, and the
-    site-wide banner in base.html — one definition, so they can't drift.
+    password or an enabled OIDC provider. False means the app is wide open to
+    anyone who can reach it. Shared by AuthMiddleware (the actual gate),
+    main.py's startup warning, and the site-wide banner in base.html — one
+    definition, so they can't drift.
 
     Fetches the OIDC config once and passes it to both checks below rather
     than letting each call get_oidc_config() independently — this runs on
     every single request via AuthMiddleware, so the extra DB round trip and
     Fernet decrypt would otherwise be paid twice per request for no reason.
     """
-    from app.config import settings  # local import: settings has no reason to import oidc.py
-
     cfg = get_oidc_config(db)
-    password_allowed = (bool(settings.app_password) or has_db_password(db)) and not is_password_disabled(db, cfg)
-    return password_allowed or is_oidc_enabled(db, cfg)
+    return is_password_login_active(db, cfg) or is_oidc_enabled(db, cfg)
+
+
+def identity_from_userinfo(userinfo: dict) -> dict:
+    """sub is always present for a real OIDC response; email/name depend on
+    the provider actually returning them for the "profile email" scopes
+    requested above — both are common but neither is guaranteed."""
+    identity = {"sub": userinfo.get("sub")}
+    if userinfo.get("email"):
+        identity["email"] = userinfo["email"]
+    if userinfo.get("name"):
+        identity["name"] = userinfo["name"]
+    return identity
 
 
 def build_oauth_client(cfg: dict):

@@ -2,11 +2,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
+from app import accounts
 from app.config import settings
 from app.csrf import COOKIE_NAME as CSRF_COOKIE_NAME, ensure_csrf_cookie
 from app.db import SessionLocal, get_db  # get_db re-exported: routers do `db: Session = Depends(get_db)`
 from app.oidc import is_auth_configured
-from app.security import SESSION_COOKIE_NAME, verify_session_token
+from app.security import SESSION_COOKIE_NAME, decode_session_token
 
 __all__ = ["get_db", "AuthMiddleware"]
 
@@ -32,6 +33,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
     fallback (harmless, and covers the pre-/setup "unknown" instant a process
     restarts) even though normal flow should never actually reach a page in
     that state anymore.
+
+    request.state.identity_label is resolved here too (once a session is
+    confirmed valid) — the only place this happens — so base.html's top-right
+    user menu can read it directly, the same way it already reads
+    auth_configured/csrf_token. None on any page a logged-out request can
+    reach (login/setup/public paths).
 
     OIDC config lives in the DB (editable from Settings at runtime), so this opens
     a short-lived session directly rather than via FastAPI's Depends — middleware
@@ -63,6 +70,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         finally:
             db.close()
         request.state.auth_configured = auth_configured
+        request.state.identity_label = None  # overwritten below once a session is confirmed valid
 
         if not auth_configured and not request.url.path.startswith("/setup"):
             return _finish(RedirectResponse(url="/setup", status_code=303))
@@ -71,7 +79,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return _finish(await call_next(request))
 
         token = request.cookies.get(SESSION_COOKIE_NAME)
-        if not verify_session_token(token):
+        session_payload = decode_session_token(token)
+        if session_payload is None:
             return _finish(RedirectResponse(url=f"/login?next={request.url.path}", status_code=303))
+
+        db = SessionLocal()
+        try:
+            request.state.identity_label = accounts.resolve_identity_label(session_payload.get("identity"), db)
+        finally:
+            db.close()
 
         return _finish(await call_next(request))

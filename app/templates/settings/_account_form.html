@@ -1,0 +1,34 @@
+{% if account_error %}<p style="color: var(--error);">{{ account_error }}</p>{% endif %}
+
+<form hx-post="/settings/account" hx-target="#account-card-body" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+    <label>
+      Display email
+      <input type="email" name="email" value="{{ account_email }}" placeholder="you@example.com" style="width: 100%;">
+    </label>
+    <p class="muted" style="margin: 0;">Shown in the user menu, top-right. Doesn't affect how you sign in.</p>
+
+    {% if account_password_active %}
+    <label>
+      Current password
+      <input type="password" name="current_password" style="width: 100%;">
+    </label>
+    <label>
+      New password
+      <input type="password" name="new_password" style="width: 100%;">
+    </label>
+    <label>
+      Confirm new password
+      <input type="password" name="confirm_password" style="width: 100%;">
+    </label>
+    {% else %}
+    <p class="muted">
+      Password login is currently turned off (SSO-only mode) — there's nothing to change here.
+      Turn off "Require SSO only" in the OIDC card below to manage a password again.
+    </p>
+    {% endif %}
+
+    <button type="submit" style="align-self: flex-start;">Save</button>
+  </div>
+</form>
