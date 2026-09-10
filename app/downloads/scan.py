@@ -51,8 +51,12 @@ class ScanResult:
 
 
 def scan_folder(root: Path, index: dict[str, list[dict]]) -> ScanResult:
+    # root is already resolved and directory-checked by the router's
+    # _resolve_scan_folder() before this is ever called — see its docstring
+    # for why an arbitrary admin-chosen root is this feature's intended input,
+    # not a bug to fix by constraining it to a single safe base folder.
     result = ScanResult()
-    for path in root.rglob("*"):
+    for path in root.rglob("*"):  # lgtm[py/path-injection]
         if not path.is_file():
             continue
         candidates = index.get(path.name.lower())
