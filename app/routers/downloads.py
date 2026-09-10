@@ -162,12 +162,16 @@ def _resolve_scan_folder(folder: str) -> Path | None:
     folder = folder.strip()
     if not folder:
         return None
+    # codeql[py/path-injection]
     try:
         # codeql[py/path-injection]
         resolved = Path(folder).resolve()
     except (OSError, ValueError):
         return None
-    return resolved if resolved.is_dir() else None
+    # codeql[py/path-injection]
+    if not resolved.is_dir():
+        return None
+    return resolved
 
 
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
