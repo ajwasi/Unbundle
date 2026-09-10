@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.downloads import worker
@@ -19,6 +20,7 @@ from app.downloads.scan import build_expected_index, commit_matches, scan_folder
 from app.models.bundle import Bundle
 from app.models.download import Download
 from app.models.download_destination import DownloadDestination
+from app.models.download_settings import DownloadSettings
 from app.models.tag import Tag
 from app.templates_env import templates
 
@@ -41,6 +43,11 @@ def _destination_rows(db: Session) -> list[dict]:
 
 def _destinations_context(db: Session) -> dict:
     return {"destinations": _destination_rows(db), "all_tags": db.query(Tag).order_by(Tag.name).all()}
+
+
+def _concurrency_context(db: Session) -> dict:
+    row = db.get(DownloadSettings, 1)
+    return {"concurrency": row.concurrency if row is not None else settings.download_concurrency}
 
 
 def _history_context(db: Session, status: str, file_format: str, q: str) -> dict:
@@ -67,15 +74,16 @@ def downloads_page(
     q: str = "",
     db: Session = Depends(get_db),
 ):
-    context: dict = {"running": worker.is_download_running()}
+    context: dict = {"active_jobs": worker.get_active_jobs(db)}
     context.update(_history_context(db, status, file_format, q))
     context.update(_destinations_context(db))
+    context.update(_concurrency_context(db))
     return templates.TemplateResponse(request, "downloads/list.html", context)
 
 
 @router.get("/active", response_class=HTMLResponse)
-def active_status(request: Request):
-    return templates.TemplateResponse(request, "downloads/_active.html", {"running": worker.is_download_running()})
+def active_status(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(request, "downloads/_active.html", {"active_jobs": worker.get_active_jobs(db)})
 
 
 @router.get("/history", response_class=HTMLResponse)
@@ -118,6 +126,18 @@ def delete_destination(request: Request, destination_id: int, db: Session = Depe
         db.delete(dest)
         db.commit()
     return templates.TemplateResponse(request, "downloads/_destinations.html", _destinations_context(db))
+
+
+@router.post("/concurrency", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def save_concurrency(request: Request, concurrency: str = Form(default=""), db: Session = Depends(get_db)):
+    if concurrency.strip().isdigit() and int(concurrency) >= 1:
+        row = db.get(DownloadSettings, 1)
+        if row is None:
+            row = DownloadSettings(id=1)
+            db.add(row)
+        row.concurrency = int(concurrency)
+        db.commit()
+    return templates.TemplateResponse(request, "downloads/_concurrency_form.html", _concurrency_context(db))
 
 
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])

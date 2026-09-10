@@ -33,6 +33,32 @@ def test_downloads_page_loads(authed_client, db, make_bundle):
     assert "My Bundle" in resp.text
 
 
+def test_downloads_page_shows_default_concurrency_when_unconfigured(authed_client):
+    from app.config import settings
+
+    resp = authed_client.get("/downloads")
+    assert f'value="{settings.download_concurrency}"' in resp.text
+
+
+def test_save_concurrency_persists_and_is_reflected_on_reload(authed_client, db):
+    from app.models.download_settings import DownloadSettings
+
+    resp = authed_client.post("/downloads/concurrency", data={"concurrency": "5"})
+    assert resp.status_code == 200
+    assert db.get(DownloadSettings, 1).concurrency == 5
+
+    resp = authed_client.get("/downloads")
+    assert 'value="5"' in resp.text
+
+
+def test_save_concurrency_rejects_non_positive_values(authed_client, db):
+    from app.models.download_settings import DownloadSettings
+
+    resp = authed_client.post("/downloads/concurrency", data={"concurrency": "0"})
+    assert resp.status_code == 200
+    assert db.get(DownloadSettings, 1) is None  # never created from a bad value
+
+
 def test_history_location_cell_wraps_instead_of_overflowing_its_card(authed_client, db, make_bundle):
     # Regression: a real absolute path has no spaces to wrap at, so without
     # overflow-wrap the table (and the long unbroken filename in particular)
@@ -65,11 +91,31 @@ def test_active_shows_no_download_running_by_default(authed_client):
     assert "No download running" in resp.text
 
 
-def test_active_reflects_a_running_job(authed_client, monkeypatch):
-    monkeypatch.setattr("app.downloads.worker.is_download_running", lambda: True)
+def test_active_reflects_a_running_job(authed_client, db, make_bundle):
+    from app.models.download_job import STATUS_RUNNING, DownloadJob
+
+    make_bundle(gamekey="GK1", order=make_order(name="Running Bundle"))
+    db.add(DownloadJob(gamekey="GK1", bundle_name="Running Bundle", status=STATUS_RUNNING))
+    db.commit()
+
     resp = authed_client.get("/downloads/active")
-    assert "in progress" in resp.text
+    assert "Running Bundle" in resp.text
+    assert "Running" in resp.text
     assert "every 2s" in resp.text
+
+
+def test_active_reflects_a_queued_job_distinctly_from_running(authed_client, db, make_bundle):
+    # Multiple jobs can now be "started" at once — a queued one should read
+    # as waiting, not be confused with the one actually running.
+    from app.models.download_job import STATUS_QUEUED, DownloadJob
+
+    make_bundle(gamekey="GK1", order=make_order(name="Waiting Bundle"))
+    db.add(DownloadJob(gamekey="GK1", bundle_name="Waiting Bundle", status=STATUS_QUEUED))
+    db.commit()
+
+    resp = authed_client.get("/downloads/active")
+    assert "Waiting Bundle" in resp.text
+    assert "Queued" in resp.text
 
 
 def test_history_filters_by_status(authed_client, db, make_bundle):

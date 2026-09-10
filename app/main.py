@@ -56,6 +56,7 @@ async def lifespan(app: FastAPI):
         print(f"WARNING: {warning}", file=sys.stderr)
     refresh.sweep_stale_runs()
     worker.sweep_stale_jobs()
+    await worker.try_dispatch_queued_downloads()  # picks up any jobs left STATUS_QUEUED across a restart
 
     # The one genuinely perpetual background task in this app — see backup.py's
     # own docstring for why scheduled backups are a deliberate exception to the

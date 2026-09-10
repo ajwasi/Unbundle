@@ -560,13 +560,6 @@ def test_trigger_download_expands_canonical_format_keys_to_raw_variants(authed_c
     assert sorted(formats_arg) == ["ZIP", "Zip"]
 
 
-def test_trigger_download_ignores_already_running_error(authed_client, make_bundle):
-    make_bundle(gamekey="GK1")
-    with patch("app.routers.bundles.worker.start_download", new=AsyncMock(side_effect=RuntimeError("busy"))):
-        resp = authed_client.post("/bundles/GK1/download", data={})
-    assert resp.status_code == 200
-
-
 def test_trigger_item_download_with_format_passes_single_element_lists(authed_client, make_bundle):
     make_bundle(gamekey="GK1")
     with patch("app.routers.bundles.worker.start_download", new=AsyncMock(return_value=1)) as mock_start:
@@ -596,6 +589,21 @@ def test_download_status_shows_message_after_completion(authed_client, make_bund
     resp = authed_client.get("/bundles/GK1/download/status")
     assert resp.status_code == 200
     assert "complete" in resp.text.lower()
+
+
+def test_download_status_shows_queued_when_waiting_for_a_slot(authed_client, make_bundle, db):
+    # Multiple downloads can now be "started" at once (queued), not just
+    # rejected outright — a bundle whose own job hasn't been picked up by the
+    # dispatcher yet should show as queued, not silently blank.
+    from app.models.download_job import STATUS_QUEUED, DownloadJob
+
+    make_bundle(gamekey="GK1")
+    db.add(DownloadJob(gamekey="GK1", status=STATUS_QUEUED))
+    db.commit()
+
+    resp = authed_client.get("/bundles/GK1/download/status")
+    assert resp.status_code == 200
+    assert "queued" in resp.text.lower()
 
 
 def test_refresh_status_shows_failure_message(authed_client, db):
