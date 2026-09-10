@@ -191,7 +191,7 @@ def catalog_rows(
     batch of rows plus a new sentinel (or none, if this was the last page).
     """
     tag_id_val = int(tag_id) if tag_id.isdigit() else None
-    all_rows, items = _filtered_sorted_rows(db, q, dupes_only, tag_id_val, sort, dir)
+    all_rows, _items = _filtered_sorted_rows(db, q, dupes_only, tag_id_val, sort, dir)
     rows = all_rows[offset : offset + _PAGE_SIZE]
 
     context = {
@@ -203,8 +203,6 @@ def catalog_rows(
         "dir": dir,
         "has_more": offset + _PAGE_SIZE < len(all_rows),
         "next_offset": offset + _PAGE_SIZE,
-        "shown_so_far": min(offset + _PAGE_SIZE, len(all_rows)),
-        "total_items": len(items),
     }
     return templates.TemplateResponse(request, "catalog/_rows_batch.html", context)
 
