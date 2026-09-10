@@ -8,7 +8,7 @@
       <td>
         {% if dest.tag_name %}<span class="tag-chip">{{ dest.tag_name }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}
       </td>
-      <td style="font-family: monospace; font-size: 0.85em;">{{ dest.path }}</td>
+      <td class="path-cell">{{ dest.path }}</td>
       <td>
         <form hx-post="/downloads/destinations/{{ dest.id }}/delete" hx-target="#download-destinations" hx-swap="innerHTML"
               hx-confirm="Delete this destination rule? Files already moved there are not affected." style="display: inline;">

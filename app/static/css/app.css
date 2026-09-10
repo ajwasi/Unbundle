@@ -63,6 +63,16 @@
 
 * { box-sizing: border-box; }
 
+/* Chromium's default :focus outline is auto-colored against the element
+   itself, not the page background — confirmed live in dark mode it resolves
+   to a near-black rgb(16,16,16), almost invisible against this theme's
+   near-black --bg. :focus-visible (not :focus) so this only shows for
+   keyboard/programmatic focus, not every mouse click. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -307,6 +317,18 @@ th a { text-decoration: none; color: var(--text); }
 .log-line { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; }
 .log-error { color: var(--error); }
 .log-warning { color: var(--warning); }
+
+/* A real absolute filesystem path has no spaces to wrap at, so without this a
+   long one (Downloads history's "Location" column, the scan tool's "Found
+   at") pushes its table wider than the card and visibly overflows past it —
+   confirmed live, not hypothetical. overflow-wrap lets it break anywhere
+   instead; the card-level overflow-x rules below are the backstop for
+   anything even that doesn't fully resolve. */
+.path-cell {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
 
 .bundle-grid {
   display: grid;

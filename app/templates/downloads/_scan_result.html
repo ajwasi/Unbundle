@@ -18,7 +18,7 @@
       <td><a href="/bundles/{{ m.gamekey }}">{{ m.bundle_name }}</a></td>
       <td>{{ m.item_name }}</td>
       <td>{{ m.file_format }}</td>
-      <td style="font-family: monospace; font-size: 0.85em;">{{ m.found_path }}</td>
+      <td class="path-cell">{{ m.found_path }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -40,7 +40,7 @@
     {% for a in result.ambiguous %}
     <tr>
       <td>{{ a.filename }}</td>
-      <td style="font-family: monospace; font-size: 0.85em;">{{ a.found_path }}</td>
+      <td class="path-cell">{{ a.found_path }}</td>
       <td>{% for c in a.candidates %}{{ c.bundle_name }} &mdash; {{ c.item_name }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
     </tr>
     {% endfor %}
