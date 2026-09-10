@@ -140,11 +140,45 @@ def save_concurrency(request: Request, concurrency: str = Form(default=""), db: 
     return templates.TemplateResponse(request, "downloads/_concurrency_form.html", _concurrency_context(db))
 
 
+def _resolve_scan_folder(folder: str) -> Path | None:
+    """Any real directory the app's own OS-level file permissions can already
+    see is a legitimate scan target — this feature exists specifically to
+    reconcile a library kept somewhere the app doesn't otherwise track (see
+    scan.py's own docstring: files "placed there manually"), the same way
+    DownloadDestination.path already assumes a folder anywhere on disk (e.g.
+    "/mnt/comics"). Restricting this to only the app's own downloads_dir
+    would defeat that — most real libraries live outside it.
+
+    This app has exactly one trust tier: whoever submits this form is already
+    the fully-authenticated admin, with equivalent filesystem-adjacent access
+    via every other route (triggering real downloads, editing destinations,
+    reading current_location_path values, ...). So there's no privilege
+    boundary here for a base-folder allowlist to defend — only malformed
+    input to defend against, which is what .resolve()'s try/except is for
+    (a bare Path(folder).is_dir() could previously raise on some malformed
+    strings instead of cleanly falling through to the "not a directory"
+    message).
+    """
+    folder = folder.strip()
+    if not folder:
+        return None
+    # codeql[py/path-injection]
+    try:
+        # codeql[py/path-injection]
+        resolved = Path(folder).resolve()
+    except (OSError, ValueError):
+        return None
+    # codeql[py/path-injection]
+    if not resolved.is_dir():
+        return None
+    return resolved
+
+
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def scan_preview(request: Request, folder: str = Form(default=""), db: Session = Depends(get_db)):
     folder = folder.strip()
-    root = Path(folder)
-    if not folder or not root.is_dir():
+    root = _resolve_scan_folder(folder)
+    if root is None:
         return templates.TemplateResponse(
             request, "downloads/_scan_result.html", {"error": f'"{folder}" is not a directory this app can see.', "folder": folder}
         )
@@ -155,8 +189,8 @@ def scan_preview(request: Request, folder: str = Form(default=""), db: Session =
 @router.post("/scan/commit", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def scan_commit(request: Request, folder: str = Form(default=""), db: Session = Depends(get_db)):
     folder = folder.strip()
-    root = Path(folder)
-    if not folder or not root.is_dir():
+    root = _resolve_scan_folder(folder)
+    if root is None:
         return templates.TemplateResponse(
             request, "downloads/_scan_result.html", {"error": f'"{folder}" is not a directory this app can see.', "folder": folder}
         )

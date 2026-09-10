@@ -214,3 +214,12 @@ def test_scan_rejects_a_path_that_is_not_a_directory(authed_client, tmp_path):
     resp = authed_client.post("/downloads/scan", data={"folder": str(missing)})
     assert resp.status_code == 200
     assert "not a directory" in resp.text
+
+
+def test_scan_rejects_a_malformed_path_without_raising(authed_client):
+    # Path.resolve() raises ValueError on an embedded null byte — this must be
+    # caught by _resolve_scan_folder and turned into the normal "not a
+    # directory" response, not surface as a 500.
+    resp = authed_client.post("/downloads/scan", data={"folder": "foo\x00bar"})
+    assert resp.status_code == 200
+    assert "not a directory" in resp.text

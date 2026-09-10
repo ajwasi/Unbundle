@@ -4,6 +4,8 @@ Both paths converge on the same session cookie, so nothing downstream of login n
 to know or care which method was actually used.
 """
 
+from urllib.parse import urlparse
+
 from authlib.integrations.base_client.errors import OAuthError
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -38,17 +40,33 @@ _login_limiter = RateLimiter(max_calls=10, period_seconds=60)
 # prior attempts at exactly that (a function returning a "cleaned" value; an
 # inline ternary calling a boolean predicate; a real if/else statement whose
 # *condition* was still a call to that predicate) all still left CodeQL's
-# open-redirect query flagging the RedirectResponse sinks below. The common
-# thread: every attempt hid the actual comparison behind a named function call
-# in the guarding condition, even once the sink itself was correctly inside an
-# if/else statement's true branch (which *did* independently fix this app's
-# separate SSRF alert in storefront.py, whose guard was already a direct
-# inline comparison, never a function call). CodeQL's guard recognition for
-# this query apparently needs the literal comparison visible at the point of
-# the check, not merely a same-function boolean result — sink-in-branch and
-# statement-vs-expression turned out not to be the deciding factors after all.
+# open-redirect query flagging the RedirectResponse sinks below — hiding the
+# actual comparison behind any named function call in the guarding condition
+# defeated its guard recognition, even with the sink correctly inside an
+# if/else's true branch.
+#
+# A 4th attempt (this same startswith-chain, still inlined, no function) was
+# *believed* to have fixed it, on the theory that inlining alone was the fix —
+# but a later scan proved that wrong too: the alert stayed open. The actual
+# fix needed the specific `urlparse(...).netloc`/`.scheme` idiom CodeQL's own
+# query documentation shows as its recognized-safe pattern (`not
+# urlparse(x).netloc and not urlparse(x).scheme`) present in the guard —
+# apparently a semantically-equivalent hand-rolled `startswith` check doesn't
+# register as a sanitizer barrier at all, regardless of inlining. Added here
+# as an extra ANDed condition rather than a replacement for the startswith
+# chain, since the startswith chain's stricter backslash handling (rejecting
+# "/\\..." outright rather than stripping and re-validating it, unlike this
+# query's own example) is this app's deliberately-chosen, test-locked policy —
+# see test_login_rejects_backslash_next_as_open_redirect.
 def _login_context(db: Session, next: str, error: str | None) -> dict:
-    if next and next.startswith("/") and not next.startswith("//") and not next.startswith("/\\"):
+    if (
+        next
+        and next.startswith("/")
+        and not next.startswith("//")
+        and not next.startswith("/\\")
+        and not urlparse(next).netloc
+        and not urlparse(next).scheme
+    ):
         safe_next = next
     else:
         safe_next = "/"
@@ -70,7 +88,14 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
     if is_password_disabled(db) or not check_app_password(password, db):
         context = _login_context(db, next, "Incorrect password")
         return templates.TemplateResponse(request, "auth/login.html", context, status_code=401)
-    if next and next.startswith("/") and not next.startswith("//") and not next.startswith("/\\"):
+    if (
+        next
+        and next.startswith("/")
+        and not next.startswith("//")
+        and not next.startswith("/\\")
+        and not urlparse(next).netloc
+        and not urlparse(next).scheme
+    ):
         response = RedirectResponse(url=next, status_code=303)
     else:
         response = RedirectResponse(url="/", status_code=303)
@@ -130,7 +155,14 @@ async def oidc_login(request: Request, next: str = "/", db: Session = Depends(ge
     cfg = get_oidc_config(db)
     if not cfg or not cfg.get("enabled"):
         raise HTTPException(status_code=404, detail="OIDC is not configured")
-    if next and next.startswith("/") and not next.startswith("//") and not next.startswith("/\\"):
+    if (
+        next
+        and next.startswith("/")
+        and not next.startswith("//")
+        and not next.startswith("/\\")
+        and not urlparse(next).netloc
+        and not urlparse(next).scheme
+    ):
         request.session["oidc_next"] = next
     else:
         request.session["oidc_next"] = "/"
@@ -155,7 +187,14 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
         )
 
     stored_next = request.session.pop("oidc_next", "/")
-    if stored_next and stored_next.startswith("/") and not stored_next.startswith("//") and not stored_next.startswith("/\\"):
+    if (
+        stored_next
+        and stored_next.startswith("/")
+        and not stored_next.startswith("//")
+        and not stored_next.startswith("/\\")
+        and not urlparse(stored_next).netloc
+        and not urlparse(stored_next).scheme
+    ):
         response = RedirectResponse(url=stored_next, status_code=303)
     else:
         response = RedirectResponse(url="/", status_code=303)
