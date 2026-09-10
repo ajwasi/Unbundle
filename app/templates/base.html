@@ -18,6 +18,7 @@
   <script src="/static/js/htmx.min.js"></script>
   <script src="/static/js/tag-suggest.js"></script>
   <script src="/static/js/theme-toggle.js" defer></script>
+  <script src="/static/js/user-menu.js" defer></script>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -31,7 +32,9 @@
     <nav class="sidebar">
       <div class="brand">
         <span>🎁 Humble Tracker</span>
+        {% if not request.state.identity_label %}
         <button type="button" id="theme-toggle" aria-label="Toggle dark mode"></button>
+        {% endif %}
       </div>
       <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Home</a>
       <a href="/bundles" class="{{ 'active' if request.url.path.startswith('/bundles') else '' }}">Bundles</a>
@@ -42,18 +45,30 @@
       <a href="/steam" class="{{ 'active' if request.url.path.startswith('/steam') else '' }}">Steam</a>
       <a href="/gog" class="{{ 'active' if request.url.path.startswith('/gog') else '' }}">GOG</a>
       <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') else '' }}">Settings</a>
-      {% if not request.url.path.startswith('/login') and not request.url.path.startswith('/setup') %}
-      <form method="post" action="/logout" style="margin-top: auto; padding: 0.65rem 1.25rem 0;">
-        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-        <button type="submit" class="secondary" style="width: 100%;">Log out</button>
-      </form>
-      {% endif %}
-      <div class="muted" style="padding: 0.5rem 1.25rem 0; font-size: 0.75rem; {{ 'margin-top: auto;' if request.url.path.startswith('/login') or request.url.path.startswith('/setup') else '' }}">
-        v{{ app_version }}
-        {%- if is_update_available() %} &middot; <a href="https://github.com/ajwasi/Unbundle/compare/{{ app_version }}...main" target="_blank" rel="noopener">Update available</a>{% endif -%}
+      <div class="version-box">
+        <div class="version-box-number">v{{ app_version }}</div>
+        {% if is_update_available() %}
+        <a class="badge badge-pending" href="https://github.com/ajwasi/Unbundle/compare/{{ app_version }}...main" target="_blank" rel="noopener">Update available</a>
+        {% endif %}
       </div>
     </nav>
     <div class="page-wrapper">
+      {% if request.state.identity_label %}
+      <header class="topbar">
+        <details class="user-menu">
+          <summary>{{ request.state.identity_label }}</summary>
+          <div class="user-menu-panel">
+            <div class="user-menu-identity">{{ request.state.identity_label }}</div>
+            <a href="/settings#account-card">Change password / email</a>
+            <button type="button" id="theme-toggle" data-with-label="true" aria-label="Toggle dark mode"></button>
+            <form method="post" action="/logout">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+              <button type="submit">Log out</button>
+            </form>
+          </div>
+        </details>
+      </header>
+      {% endif %}
       <main>
         {% block content %}{% endblock %}
       </main>

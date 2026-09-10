@@ -3,6 +3,14 @@
 {% block content %}
 <h1>Settings</h1>
 
+<div class="card" id="account-card">
+  <h2>Account</h2>
+  <p class="muted">Your display identity and password for this instance.</p>
+  <div id="account-card-body">
+    {% include "settings/_account_form.html" %}
+  </div>
+</div>
+
 <div class="card" id="humble-card">
   <h2>Humble Bundle</h2>
   <p class="muted">

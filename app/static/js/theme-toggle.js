@@ -8,7 +8,12 @@
   function updateIcon(btn) {
     // Icon shows what clicking it *does*, not the current state — moon means
     // "go dark", sun means "go light", matching the convention most sites use.
-    btn.textContent = currentTheme() === "dark" ? "☀️" : "🌙";
+    var dark = currentTheme() === "dark";
+    var icon = dark ? "☀️" : "🌙";
+    // The in-menu instance (data-with-label) also gets a text label, since it
+    // sits among labelled rows there; the standalone sidebar-brand instance
+    // stays icon-only, unchanged from before.
+    btn.textContent = btn.dataset.withLabel ? icon + " " + (dark ? "Light mode" : "Dark mode") : icon;
   }
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
-from app import backup
+from app import accounts, backup
+from app.cli import _set_password
 from app.config import settings
 from app.connectors import gog_connector, steam_connector
 from app.connectors.humble_connector import HumbleConnector
@@ -25,14 +26,23 @@ from app.models.credential import (
     STATUS_OK,
     Credential,
 )
-from app.oidc import discover, get_oidc_config
-from app.security import decrypt_json, encrypt_json
+from app.oidc import discover, get_oidc_config, is_password_login_active
+from app.security import check_app_password, decrypt_json, encrypt_json
 from app.sync import gog_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/settings")
 
 _TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
+
+
+def _account_context(db: Session, account_error: str | None = None) -> dict:
+    cfg = accounts.get_or_create_account_settings(db)
+    return {
+        "account_email": cfg.email or "",
+        "account_password_active": is_password_login_active(db),
+        "account_error": account_error,
+    }
 
 
 def _humble_credential(db: Session) -> Credential | None:
@@ -124,11 +134,47 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
         "humble_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "humble_error": cred.last_error if cred else None,
     }
+    context.update(_account_context(db))
     context.update(_oidc_context(request, db))
     context.update(_steam_context(db))
     context.update(_gog_context(db))
     context.update(_backup_context(db))
     return templates.TemplateResponse(request, "settings/index.html", context)
+
+
+@router.post("/account", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def save_account(
+    request: Request,
+    email: str = Form(""),
+    current_password: str = Form(""),
+    new_password: str = Form(""),
+    confirm_password: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    email = email.strip()
+    password_active = is_password_login_active(db)
+    wants_password_change = password_active and (current_password or new_password or confirm_password)
+
+    error = None
+    if wants_password_change:
+        if not check_app_password(current_password, db):
+            error = "Current password is incorrect."
+        elif not new_password:
+            error = "New password cannot be empty."
+        elif new_password != confirm_password:
+            error = "New passwords do not match."
+
+    # Email always saves regardless of password-validation outcome — matches
+    # save_oidc's own "always persist what was typed" convention below rather
+    # than an atomic all-or-nothing save.
+    cfg = accounts.get_or_create_account_settings(db)
+    cfg.email = email or None
+    db.commit()
+
+    if wants_password_change and not error:
+        _set_password(new_password)
+
+    return templates.TemplateResponse(request, "settings/_account_form.html", _account_context(db, error))
 
 
 @router.post("/humble-key", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])

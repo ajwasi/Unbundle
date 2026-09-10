@@ -116,6 +116,16 @@ nav.sidebar {
   padding: 1.25rem 0;
   display: flex;
   flex-direction: column;
+  /* Pinned to the viewport (not just this flex container) so the version box
+     at the bottom stays visible on a page tall enough to scroll — body itself
+     only sets min-height:100vh, so without this the whole sidebar scrolls
+     away with a long page. overflow-y:auto is a safety net for an unusually
+     short viewport, not something the current (short) nav list should ever
+     actually trigger. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 nav.sidebar .brand {
@@ -139,6 +149,22 @@ nav.sidebar .brand {
   border-radius: 999px;
 }
 
+/* Inside the user menu it's a labelled row like its siblings, not the small
+   standalone pill it is nowhere else (the two contexts are mutually
+   exclusive, so this never fights the rule above on the same page). Needs
+   the extra specificity from the parent class to win over the plain #id
+   rule above. */
+.user-menu-panel #theme-toggle {
+  border: none;
+  border-radius: var(--radius);
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.user-menu-panel #theme-toggle:hover { background: var(--bg); }
+
 nav.sidebar a {
   display: block;
   padding: 0.65rem 1.25rem;
@@ -156,10 +182,110 @@ nav.sidebar a.active {
   background: var(--bg);
 }
 
+.version-box {
+  margin: 0.75rem 1.25rem 0;
+  margin-top: auto;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.version-box-number { color: var(--muted); font-weight: 600; }
+
+.version-box .badge { align-self: flex-start; text-decoration: none; }
+
 .page-wrapper {
   flex: 1;
   min-width: 0;
 }
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1.5rem 0;
+  background: var(--bg);
+}
+
+.user-menu { position: relative; }
+
+.user-menu summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 0.85rem;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu summary::-webkit-details-marker { display: none; }
+.user-menu summary::marker { content: ""; }
+
+.user-menu[open] summary { border-color: var(--accent); }
+
+.user-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 30;
+  min-width: 230px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.user-menu-identity {
+  font-weight: 600;
+  padding: 0.3rem 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.3rem;
+  overflow-wrap: anywhere;
+}
+
+.user-menu-panel a,
+.user-menu-panel button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  text-decoration: none;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-weight: 500;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.user-menu-panel a:hover,
+.user-menu-panel button:hover { background: var(--bg); }
+
+.user-menu-panel form {
+  margin: 0.25rem 0 0;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--border);
+}
+
+.user-menu-panel form button { color: var(--error); }
 
 main {
   max-width: 1100px;

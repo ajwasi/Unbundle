@@ -5,7 +5,15 @@ import pytest
 
 from app.cli import _set_password
 from app.models.credential import SOURCE_OIDC, STATUS_OK, Credential
-from app.oidc import discover, get_oidc_config, is_auth_configured, is_oidc_enabled, is_password_disabled
+from app.oidc import (
+    discover,
+    get_oidc_config,
+    identity_from_userinfo,
+    is_auth_configured,
+    is_oidc_enabled,
+    is_password_disabled,
+    is_password_login_active,
+)
 from app.security import encrypt_json
 
 
@@ -97,6 +105,50 @@ def test_is_auth_configured_false_when_password_disabled_and_oidc_not_enabled(db
     # if it ever happened.
     _save_oidc(db, enabled=False, disable_password=True)
     assert is_auth_configured(db)  # password still allowed: disable_password only bites when enabled=True too
+
+
+def test_is_password_login_active_true_with_env_password_and_no_oidc(db):
+    # conftest.py sets APP_PASSWORD for the whole suite, no OIDC configured here.
+    assert is_password_login_active(db)
+
+
+def test_is_password_login_active_false_without_any_password(db, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    assert not is_password_login_active(db)
+
+
+def test_is_password_login_active_true_with_db_password_and_no_env_var(db, monkeypatch):
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    _set_password("a-real-db-password")
+    assert is_password_login_active(db)
+
+
+def test_is_password_login_active_false_when_sso_only(db):
+    _save_oidc(db, enabled=True, disable_password=True)
+    assert not is_password_login_active(db)
+
+
+def test_is_auth_configured_matches_password_or_oidc_active(db):
+    # Pins the is_auth_configured/is_password_login_active refactor down —
+    # same boolean logic, just named and independently testable now.
+    assert is_auth_configured(db) == (is_password_login_active(db) or is_oidc_enabled(db))
+
+
+def test_identity_from_userinfo_keeps_sub_only_when_no_other_claims():
+    assert identity_from_userinfo({"sub": "user1"}) == {"sub": "user1"}
+
+
+def test_identity_from_userinfo_includes_email_and_name_when_present():
+    userinfo = {"sub": "user1", "email": "person@example.com", "name": "Person Example"}
+    assert identity_from_userinfo(userinfo) == {
+        "sub": "user1",
+        "email": "person@example.com",
+        "name": "Person Example",
+    }
+
+
+def test_identity_from_userinfo_omits_falsy_email_and_name():
+    assert identity_from_userinfo({"sub": "user1", "email": "", "name": None}) == {"sub": "user1"}
 
 
 @pytest.mark.asyncio
