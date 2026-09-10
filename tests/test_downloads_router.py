@@ -33,6 +33,19 @@ def test_downloads_page_loads(authed_client, db, make_bundle):
     assert "My Bundle" in resp.text
 
 
+def test_history_location_cell_wraps_instead_of_overflowing_its_card(authed_client, db, make_bundle):
+    # Regression: a real absolute path has no spaces to wrap at, so without
+    # overflow-wrap the table (and the long unbroken filename in particular)
+    # visibly overflowed past the History card — confirmed live, not just a
+    # style nitpick. .path-cell (app.css) is what fixes it.
+    _make_download(
+        db, make_bundle,
+        current_location_path="/mnt/library/network-share/comics/long/nested/path/averyveryverylongfilenamewithnobreaks.pdf",
+    )
+    resp = authed_client.get("/downloads")
+    assert 'class="muted path-cell"' in resp.text
+
+
 def test_downloads_page_renders_missing_completed_at_as_a_real_dash_not_literal_text(authed_client, db, make_bundle):
     # Regression: the "Completed" cell's fallback used a Jinja if/else expression
     # with no `| safe` on the whole result, so autoescaping re-escaped the "&" in

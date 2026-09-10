@@ -8,7 +8,7 @@
   {% include "downloads/_active.html" %}
 </div>
 
-<div class="card" style="margin-top: 1rem;">
+<div class="card" style="margin-top: 1rem; overflow-x: auto;">
   <h2 style="margin-top: 0;">History</h2>
   <div class="toolbar">
     <form hx-get="/downloads/history" hx-target="#download-history" hx-swap="outerHTML"
@@ -32,7 +32,7 @@
   {% include "downloads/_history.html" %}
 </div>
 
-<div class="card" style="margin-top: 1rem;">
+<div class="card" style="margin-top: 1rem; overflow-x: auto;">
   <h2 style="margin-top: 0;">Destinations</h2>
   <p class="muted">
     Where a completed download moves to, based on its format and (optionally) one of its
@@ -45,7 +45,7 @@
   </div>
 </div>
 
-<div class="card" style="margin-top: 1rem;">
+<div class="card" style="margin-top: 1rem; overflow-x: auto;">
   <h2 style="margin-top: 0;">Scan a folder</h2>
   <p class="muted">
     Mark files that already exist on disk as downloaded, without re-downloading or moving
