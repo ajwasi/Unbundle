@@ -6,7 +6,14 @@ import pytest
 from app.config import settings
 from app.downloads import paths, worker
 from app.models.download import STATUS_COMPLETED, STATUS_FAILED, Download
-from app.models.download_job import STATUS_COMPLETED as JOB_COMPLETED, STATUS_FAILED as JOB_FAILED, STATUS_RUNNING, DownloadJob
+from app.models.download_job import (
+    STATUS_COMPLETED as JOB_COMPLETED,
+    STATUS_FAILED as JOB_FAILED,
+    STATUS_QUEUED,
+    STATUS_RUNNING,
+    DownloadJob,
+)
+from app.models.download_settings import DownloadSettings
 from tests.factories import make_order, make_subproduct
 
 
@@ -193,11 +200,59 @@ async def test_run_job_unexpected_exception_still_marks_job_failed(db, make_bund
 
 
 @pytest.mark.asyncio
-async def test_start_download_raises_when_already_running(db, make_bundle):
-    bundle = _seed_bundle(make_bundle)
-    async with worker._download_lock:
-        with pytest.raises(RuntimeError):
-            await worker.start_download(bundle.gamekey, bundle.name, None, None)
+async def test_start_download_never_raises_it_queues_instead(db, make_bundle):
+    # A second (or third...) download attempt while one is already running
+    # used to be rejected outright (RuntimeError) — it's queued now.
+    bundles = [_seed_bundle(make_bundle, gamekey=f"GK{i}", filename=f"book{i}.epub") for i in range(3)]
+    for i, b in enumerate(bundles):
+        target = _predicted_path(b.name, "Cool Book", f"book{i}.epub")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"x" * 10)
+    release = asyncio.Event()
+
+    async def _blocked_run(*args, **kwargs):
+        await release.wait()
+        return (0, "ok")
+
+    with patch("app.downloads.worker.runner.run_download_job", new=AsyncMock(side_effect=_blocked_run)):
+        for b in bundles:
+            job_id = await worker.start_download(b.gamekey, b.name, [1], ["EPUB"])
+            assert job_id is not None  # never raises
+        await asyncio.sleep(0.05)  # let the dispatcher's spawned tasks actually start
+
+        statuses = sorted(j.status for j in db.query(DownloadJob).all())
+        # concurrency defaults to settings.download_concurrency (2, no
+        # DownloadSettings row yet) — exactly 2 running, 1 waiting.
+        assert statuses == sorted([STATUS_QUEUED, STATUS_RUNNING, STATUS_RUNNING])
+
+        release.set()
+        await asyncio.sleep(0.1)  # let all three finish, including the one that was queued
+
+    db.expire_all()
+    assert {j.status for j in db.query(DownloadJob).all()} == {JOB_COMPLETED}
+
+
+@pytest.mark.asyncio
+async def test_concurrency_setting_controls_how_many_jobs_run_at_once(db, make_bundle):
+    db.add(DownloadSettings(id=1, concurrency=1))
+    db.commit()
+    bundles = [_seed_bundle(make_bundle, gamekey=f"GK{i}", filename=f"book{i}.epub") for i in range(2)]
+    release = asyncio.Event()
+
+    async def _blocked_run(*args, **kwargs):
+        await release.wait()
+        return (0, "ok")
+
+    with patch("app.downloads.worker.runner.run_download_job", new=AsyncMock(side_effect=_blocked_run)):
+        for b in bundles:
+            await worker.start_download(b.gamekey, b.name, [1], ["EPUB"])
+        await asyncio.sleep(0.05)
+
+        statuses = sorted(j.status for j in db.query(DownloadJob).all())
+        assert statuses == sorted([STATUS_QUEUED, STATUS_RUNNING])
+
+        release.set()
+        await asyncio.sleep(0.1)
 
 
 @pytest.mark.asyncio
@@ -236,3 +291,38 @@ def test_latest_job_for_bundle_returns_most_recent(db):
 
     latest = worker.latest_job_for_bundle(db, "GK1")
     assert latest.id == j2.id
+
+
+@pytest.mark.asyncio
+async def test_progress_polling_tracks_bytes_done_and_speed_while_running(db, make_bundle):
+    # Progress comes from repeatedly stat()-ing the predicted output path
+    # while the (mocked) subprocess is "running" — never from parsing any
+    # output — so this drives that by writing real bytes to the real
+    # predicted path partway through a long-running mocked call.
+    bundle = _seed_bundle(make_bundle, size=1000)
+    target = _predicted_path(bundle.name, "Cool Book", "book.epub")
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    async def _slow_run(*args, **kwargs):
+        await asyncio.sleep(0.1)
+        target.write_bytes(b"x" * 500)
+        await asyncio.sleep(3.0)  # wide margin around _poll_progress's ~1.5s interval
+        target.write_bytes(b"x" * 1000)
+        return (0, "ok")
+
+    with patch("app.downloads.worker.runner.run_download_job", new=AsyncMock(side_effect=_slow_run)):
+        job_id = await worker.start_download(bundle.gamekey, bundle.name, [1], ["EPUB"])
+
+        await asyncio.sleep(2.0)  # past the poller's first check, well before _slow_run returns
+        mid_progress = worker.get_job_progress(job_id)
+        assert mid_progress["bytes_done"] == 500
+        assert mid_progress["bytes_total"] == 1000
+        assert mid_progress["bytes_per_sec"] > 0
+
+        await asyncio.sleep(1.5)  # let the job finish
+
+    db.expire_all()
+    job = db.get(DownloadJob, job_id)
+    assert job.status == JOB_COMPLETED
+    # Cleared once the job finishes — not left showing stale "still running" numbers.
+    assert worker.get_job_progress(job_id) == {"bytes_done": 0, "bytes_total": 0, "bytes_per_sec": 0.0}

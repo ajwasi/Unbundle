@@ -1,7 +1,42 @@
-{% if running %}
-<span id="download-active" hx-get="/downloads/active" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
-  A download is in progress&hellip; see the bundle's own page for per-item detail.
-</span>
+{% if active_jobs %}
+<div id="download-active" hx-get="/downloads/active" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
+  <table>
+    <thead>
+      <tr><th>Bundle</th><th>Status</th><th>Progress</th><th>Speed</th></tr>
+    </thead>
+    <tbody>
+      {% for job in active_jobs %}
+      <tr>
+        <td><a href="/bundles/{{ job.gamekey }}">{{ job.bundle_name }}</a></td>
+        <td>
+          {% if job.status == "running" %}
+          <span class="badge badge-pending">Running</span>
+          {% else %}
+          <span class="badge badge-not-configured">Queued</span>
+          {% endif %}
+        </td>
+        <td style="min-width: 12rem;">
+          {% if job.status == "running" and job.bytes_total %}
+          <progress value="{{ job.bytes_done }}" max="{{ job.bytes_total }}" style="width: 100%; display: block; margin-bottom: 0.2rem;"></progress>
+          <span class="muted" style="font-size: 0.85em;">{{ job.bytes_done | human_size }} / {{ job.bytes_total | human_size }}</span>
+          {% elif job.status == "running" %}
+          <span class="muted">Starting&hellip;</span>
+          {% else %}
+          <span class="muted">Waiting for a slot&hellip;</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if job.status == "running" and job.bytes_per_sec %}
+          {{ job.bytes_per_sec | human_size }}/s
+          {% else %}
+          <span class="muted">&mdash;</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% else %}
 <span id="download-active" class="muted">No download running.</span>
 {% endif %}

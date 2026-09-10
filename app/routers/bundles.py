@@ -15,7 +15,12 @@ from app.downloads import worker
 from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.download import STATUS_COMPLETED as FILE_COMPLETED, STATUS_FAILED as FILE_FAILED, Download
-from app.models.download_job import STATUS_FAILED as JOB_FAILED, STATUS_COMPLETED as JOB_COMPLETED
+from app.models.download_job import (
+    STATUS_COMPLETED as JOB_COMPLETED,
+    STATUS_FAILED as JOB_FAILED,
+    STATUS_QUEUED as JOB_QUEUED,
+    STATUS_RUNNING as JOB_RUNNING,
+)
 from app.models.sync_run import STATUS_FAILED, STATUS_SUCCESS
 from app.models.tag import BundleTag, Tag
 from app.ratelimit import RateLimiter, rate_limit
@@ -420,6 +425,32 @@ def remove_bundle_tag(request: Request, gamekey: str, tag_id: int, db: Session =
     return templates.TemplateResponse(request, "bundles/_tags.html", {"gamekey": gamekey, "tags": tags})
 
 
+def _bundle_download_status_context(db: Session, gamekey: str) -> dict:
+    """Shared by both trigger routes and the polling status route — a job for
+    this bundle can now be genuinely queued (not just running or done), since
+    start_download() no longer rejects a second attempt while one is already
+    in progress elsewhere.
+    """
+    job = worker.latest_job_for_bundle(db, gamekey)
+    if job is not None and job.status in (JOB_RUNNING, JOB_QUEUED):
+        context = {"gamekey": gamekey, "running": job.status == JOB_RUNNING, "queued": job.status == JOB_QUEUED}
+        context.update(worker.get_job_progress(job.id))
+        return context
+
+    message = None
+    if job and job.status == JOB_COMPLETED:
+        message = "Download complete."
+    elif job and job.status == JOB_FAILED:
+        message = f"Download failed: {job.error_message}"
+
+    context = {"gamekey": gamekey, "running": False, "queued": False, "message": message}
+    if message:
+        bundle = db.get(Bundle, gamekey)
+        if bundle is not None:
+            context.update(_build_item_context(gamekey, bundle, db))
+    return context
+
+
 @router.post("/{gamekey}/download", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def trigger_download(
     request: Request,
@@ -437,11 +468,8 @@ async def trigger_download(
         normalized = parse_bundle(gamekey, json.loads(bundle.raw_json))
         expanded_formats = _expand_format_keys(normalized.downloads, formats)
 
-    try:
-        await worker.start_download(gamekey, bundle.name, items or None, expanded_formats)
-    except RuntimeError:
-        pass  # already running — the polling view below will just keep polling
-    return templates.TemplateResponse(request, "bundles/_download_status.html", {"gamekey": gamekey, "running": True})
+    await worker.start_download(gamekey, bundle.name, items or None, expanded_formats)
+    return templates.TemplateResponse(request, "bundles/_download_status.html", _bundle_download_status_context(db, gamekey))
 
 
 @router.post("/{gamekey}/download/item/{subproduct_index}", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
@@ -462,28 +490,10 @@ async def trigger_item_download(
     if bundle is None:
         return templates.TemplateResponse(request, "bundles/not_found.html", {"gamekey": gamekey}, status_code=404)
 
-    try:
-        await worker.start_download(gamekey, bundle.name, [subproduct_index], [format] if format else None)
-    except RuntimeError:
-        pass  # already running — the polling view below will just keep polling
-    return templates.TemplateResponse(request, "bundles/_download_status.html", {"gamekey": gamekey, "running": True})
+    await worker.start_download(gamekey, bundle.name, [subproduct_index], [format] if format else None)
+    return templates.TemplateResponse(request, "bundles/_download_status.html", _bundle_download_status_context(db, gamekey))
 
 
 @router.get("/{gamekey}/download/status", response_class=HTMLResponse)
 def download_status(request: Request, gamekey: str, db: Session = Depends(get_db)):
-    if worker.is_download_running():
-        return templates.TemplateResponse(request, "bundles/_download_status.html", {"gamekey": gamekey, "running": True})
-
-    job = worker.latest_job_for_bundle(db, gamekey)
-    message = None
-    if job and job.status == JOB_COMPLETED:
-        message = "Download complete."
-    elif job and job.status == JOB_FAILED:
-        message = f"Download failed: {job.error_message}"
-
-    context = {"gamekey": gamekey, "running": False, "message": message}
-    if message:
-        bundle = db.get(Bundle, gamekey)
-        if bundle is not None:
-            context.update(_build_item_context(gamekey, bundle, db))
-    return templates.TemplateResponse(request, "bundles/_download_status.html", context)
+    return templates.TemplateResponse(request, "bundles/_download_status.html", _bundle_download_status_context(db, gamekey))
