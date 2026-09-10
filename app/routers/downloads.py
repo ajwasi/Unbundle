@@ -141,37 +141,31 @@ def save_concurrency(request: Request, concurrency: str = Form(default=""), db: 
 
 
 def _resolve_scan_folder(folder: str) -> Path | None:
-    """Any real directory the app's own OS-level file permissions can already
-    see is a legitimate scan target — this feature exists specifically to
-    reconcile a library kept somewhere the app doesn't otherwise track (see
-    scan.py's own docstring: files "placed there manually"), the same way
-    DownloadDestination.path already assumes a folder anywhere on disk (e.g.
-    "/mnt/comics"). Restricting this to only the app's own downloads_dir
-    would defeat that — most real libraries live outside it.
+    """folder-scan can only ever see settings.scan_root_dir and its
+    subdirectories — never an arbitrary path from the request. In Docker
+    that directory is a dedicated, admin-chosen, read-only mount
+    (docker-compose.yml's SCAN_ROOT), so this is a real containment
+    boundary: whatever isn't mounted there is genuinely unreachable to this
+    feature, regardless of what a request submits — not just a convention
+    this code happens to follow.
 
-    This app has exactly one trust tier: whoever submits this form is already
-    the fully-authenticated admin, with equivalent filesystem-adjacent access
-    via every other route (triggering real downloads, editing destinations,
-    reading current_location_path values, ...). So there's no privilege
-    boundary here for a base-folder allowlist to defend — only malformed
-    input to defend against, which is what .resolve()'s try/except is for
-    (a bare Path(folder).is_dir() could previously raise on some malformed
-    strings instead of cleanly falling through to the "not a directory"
-    message).
+    Inlined here (rather than reusing paths.resolve_within(), which does
+    the same is_relative_to() check) so the containment check sits in the
+    same function as its own use — a call to a separate helper function
+    left CodeQL's path-injection query still flagging the result as
+    tainted, even though the helper is unconditionally safe.
     """
     folder = folder.strip()
     if not folder:
         return None
-    # codeql[py/path-injection]
+    root = settings.scan_root_dir.resolve()
     try:
-        # codeql[py/path-injection]
-        resolved = Path(folder).resolve()
+        candidate = (root / folder).resolve()
     except (OSError, ValueError):
         return None
-    # codeql[py/path-injection]
-    if not resolved.is_dir():
+    if not candidate.is_relative_to(root):
         return None
-    return resolved
+    return candidate if candidate.is_dir() else None
 
 
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
