@@ -39,10 +39,11 @@
     libraries — connect them in Settings if this always shows "unknown."
   </p>
   <table>
-    <thead><tr><th>Key</th><th>Platform</th><th>Revealed on Humble</th><th>Ownership</th></tr></thead>
+    <thead><tr><th class="table-lead-col"></th><th>Key</th><th>Platform</th><th>Revealed on Humble</th><th>Ownership</th></tr></thead>
     <tbody>
       {% for e in entitlements %}
       <tr>
+        <td class="table-lead-col"></td>
         <td>
           <a href="{{ e.redeem_url }}" target="_blank" rel="noopener" title="View/redeem on Humble Bundle">{{ e.key_name }}</a>
           {% if e.external_redeem_url %}
@@ -69,7 +70,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="muted">No third-party keys in this bundle.</td></tr>
+      <tr><td colspan="5" class="muted">No third-party keys in this bundle.</td></tr>
       {% endfor %}
     </tbody>
   </table>

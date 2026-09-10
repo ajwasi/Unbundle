@@ -329,6 +329,23 @@ def test_bundle_detail_shows_entitlements_separately_from_downloads(authed_clien
     assert "Steam Key Game" in resp.text
 
 
+def test_bundle_detail_tables_share_a_leading_column_width_for_alignment(authed_client, make_bundle, db):
+    # The "Downloadable items" and "Third-party keys" tables are two separate
+    # <table> elements with a different column count/meaning, so nothing
+    # forces their columns to line up with each other automatically — a
+    # shared fixed-width leading column (checkbox in one, a blank spacer in
+    # the other) is what makes Item/Key actually start at the same x
+    # position down the page instead of each table auto-sizing independently.
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Real File")]))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="steamgame", keyindex=0, key_name="Steam Key Game"))
+    db.commit()
+
+    resp = authed_client.get("/bundles/GK1")
+    assert resp.text.count('class="table-lead-col"') >= 2
+
+
 def test_bundle_detail_shows_steam_platform_and_ownership(authed_client, make_bundle, db):
     import json
 

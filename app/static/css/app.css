@@ -352,6 +352,14 @@ th, td {
   vertical-align: middle;
 }
 
+/* A fixed width for whichever column leads a table, so tables that don't
+   share a column count or meaning (e.g. bundle detail's "Downloadable
+   items" with its checkbox column vs. "Third-party keys" with none) still
+   line up their first real content column — Item/Key/etc. — at the same
+   horizontal position down the page, instead of each table's columns
+   auto-sizing independently of its neighbors. */
+.table-lead-col { width: 2.25rem; }
+
 th a { text-decoration: none; color: var(--text); }
 
 .badge {
