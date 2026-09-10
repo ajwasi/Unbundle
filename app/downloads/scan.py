@@ -52,8 +52,7 @@ class ScanResult:
 
 def scan_folder(root: Path, index: dict[str, list[dict]]) -> ScanResult:
     # root is already confirmed contained within settings.scan_root_dir by
-    # the router's _resolve_scan_folder() (paths.resolve_within()) before
-    # this is ever called.
+    # the router's _resolve_scan_folder() before this is ever called.
     result = ScanResult()
     for path in root.rglob("*"):
         if not path.is_file():

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.csrf import require_csrf
 from app.deps import get_db
-from app.downloads import paths, worker
+from app.downloads import worker
 from app.downloads.scan import build_expected_index, commit_matches, scan_folder
 from app.models.bundle import Bundle
 from app.models.download import Download
@@ -149,18 +149,23 @@ def _resolve_scan_folder(folder: str) -> Path | None:
     feature, regardless of what a request submits — not just a convention
     this code happens to follow.
 
-    Reuses paths.resolve_within(), the same choke point worker.py's
-    predicted download paths already go through, rather than a second,
-    hand-rolled containment check.
+    Inlined here (rather than reusing paths.resolve_within(), which does
+    the same is_relative_to() check) so the containment check sits in the
+    same function as its own use — a call to a separate helper function
+    left CodeQL's path-injection query still flagging the result as
+    tainted, even though the helper is unconditionally safe.
     """
     folder = folder.strip()
     if not folder:
         return None
+    root = settings.scan_root_dir.resolve()
     try:
-        resolved = paths.resolve_within(settings.scan_root_dir, Path(folder))
-    except (OSError, ValueError, paths.PathTraversalError):
+        candidate = (root / folder).resolve()
+    except (OSError, ValueError):
         return None
-    return resolved if resolved.is_dir() else None
+    if not candidate.is_relative_to(root):
+        return None
+    return candidate if candidate.is_dir() else None
 
 
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
