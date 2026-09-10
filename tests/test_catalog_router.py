@@ -76,7 +76,18 @@ def test_catalog_rows_returns_the_next_batch(authed_client, make_bundle):
     assert "Item 149" in resp.text
     assert "Item 000" not in resp.text
     assert "<thead>" not in resp.text  # a row batch, not a full table re-render
-    assert "Showing 150 of 150" in resp.text
+
+
+def test_catalog_rows_response_has_no_out_of_band_swap(authed_client, make_bundle):
+    # Regression: an hx-swap-oob element here previously broke htmx's swap
+    # entirely (confirmed live: htmx:swapError, "e.querySelectorAll is not a
+    # function") — htmx parses an outerHTML response targeting a <tr> using
+    # special table-context wrapping, and mixing in a non-table OOB element
+    # breaks that parsing. The request itself always succeeded; only the
+    # swap failed, so no earlier test caught this.
+    _seed_many_items(make_bundle, 150)
+    resp = authed_client.get("/catalog/rows", params={"offset": 100})
+    assert "hx-swap-oob" not in resp.text
 
 
 def test_catalog_rows_omits_sentinel_on_the_last_batch(authed_client, make_bundle):

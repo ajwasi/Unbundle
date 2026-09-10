@@ -1,4 +1,13 @@
 {% import "catalog/_row_macro.html" as rowmacro with context %}
+{# No hx-swap-oob element here: htmx parses an outerHTML response targeting
+   a <tr> using special table-context wrapping, and mixing that with a
+   non-table OOB element (tried here for a live "Showing X of Y" update)
+   breaks that parsing outright — confirmed via a real browser console:
+   htmx:swapError + "e.querySelectorAll is not a function". The request
+   itself fires and succeeds; only the swap fails. Not worth fighting
+   htmx's internals for a cosmetic count update — the count now simply
+   stays at the first page's total until the next full page load/filter
+   change, same as every other value on this page that isn't part of the
+   swapped fragment. #}
 {% for r in rows %}{{ rowmacro.render_row(r) }}{% endfor %}
 {% if has_more %}{{ rowmacro.sentinel(q, dupes_only, tag_id, sort, dir, next_offset) }}{% endif %}
-<p id="catalog-count" class="muted" hx-swap-oob="true">Showing {{ shown_so_far }} of {{ total_items }} item(s)</p>
