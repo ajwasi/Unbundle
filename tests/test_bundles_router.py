@@ -43,6 +43,33 @@ def test_list_bundles_shows_seeded_bundle(authed_client, make_bundle):
     assert "Findable Bundle" in resp.text
 
 
+def test_list_bundles_defers_raw_json_column(authed_client, make_bundle, db):
+    # Perf regression guard: raw_json can be tens of MB across a real library
+    # and the list view never reads it — confirmed via a real 550-bundle
+    # library that loading it here (vs. deferring) is the entire difference
+    # between a ~50ms and a ~400ms query. Captures the actual SQL the real
+    # route emits over a real HTTP request, rather than re-testing the query
+    # helpers directly — those would stay green even if someone dropped the
+    # defer() call from list_bundles() itself.
+    from sqlalchemy import event
+
+    make_bundle(gamekey="GK1", order=make_order(name="Findable Bundle"))
+
+    statements = []
+    engine = db.get_bind()
+    listener = lambda conn, cursor, statement, *a: statements.append(statement)
+    event.listen(engine, "before_cursor_execute", listener)
+    try:
+        resp = authed_client.get("/bundles")
+    finally:
+        event.remove(engine, "before_cursor_execute", listener)
+
+    assert resp.status_code == 200
+    bundle_selects = [s for s in statements if "FROM bundle" in s and "bundle_entitlement" not in s and "bundle_tag" not in s]
+    assert bundle_selects, "expected at least one SELECT against the bundle table"
+    assert all("raw_json" not in s for s in bundle_selects)
+
+
 def test_list_bundles_search_filters_by_name(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(name="Zebra Bundle"))
     make_bundle(gamekey="GK2", order=make_order(name="Aardvark Bundle"))

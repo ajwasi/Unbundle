@@ -1,3 +1,5 @@
+{% import "catalog/_row_macro.html" as rowmacro with context %}
+
 {% macro sort_link(col, label) %}
 {% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
 <a href="#"
@@ -8,7 +10,7 @@
 {% endmacro %}
 
 <div id="catalog-table">
-  <p class="muted">Showing {{ rows|length }} of {{ total_items }} item(s)</p>
+  <p class="muted" id="catalog-count">Showing {{ shown_so_far }} of {{ total_items }} item(s)</p>
   <table>
     <thead>
       <tr>
@@ -19,26 +21,10 @@
       </tr>
     </thead>
     <tbody>
-      {% for r in rows %}
-      <tr>
-        <td>{{ r.item_name }}</td>
-        <td>{{ (r.first_purchased.strftime("%Y-%m-%d") if r.first_purchased else "&mdash;") | safe }}</td>
-        <td>
-          {% if r.count > 1 %}
-          <button type="button" class="secondary" style="padding: 0.1rem 0.5rem;"
-                  hx-get="/catalog/item/{{ r.key }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"
-                  onclick="document.getElementById('bundles-modal').showModal()">
-            &times;{{ r.count }} bundles
-          </button>
-          {% else %}
-          <span class="muted">1</span>
-          {% endif %}
-        </td>
-        <td>{% with machine_name = r.key, tags = r.tags %}{% include "catalog/_item_tags.html" %}{% endwith %}</td>
-      </tr>
-      {% else %}
+      {% for r in rows %}{{ rowmacro.render_row(r) }}{% else %}
       <tr><td colspan="4" class="muted">No items match.</td></tr>
       {% endfor %}
+      {% if has_more %}{{ rowmacro.sentinel(q, dupes_only, tag_id, sort, dir, next_offset) }}{% endif %}
     </tbody>
   </table>
 </div>

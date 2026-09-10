@@ -1,0 +1,4 @@
+{% import "catalog/_row_macro.html" as rowmacro with context %}
+{% for r in rows %}{{ rowmacro.render_row(r) }}{% endfor %}
+{% if has_more %}{{ rowmacro.sentinel(q, dupes_only, tag_id, sort, dir, next_offset) }}{% endif %}
+<p id="catalog-count" class="muted" hx-swap-oob="true">Showing {{ shown_so_far }} of {{ total_items }} item(s)</p>
