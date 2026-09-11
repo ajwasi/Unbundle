@@ -41,6 +41,12 @@ def resolve_destination(db: Session, gamekey: str, machine_name: str, file_forma
     default. Ties within a tier (e.g. two tag rules both apply) resolve by
     lowest id — first-created wins, a simple deterministic rule rather than
     depending on incidental query order.
+
+    Called once per completed file (see worker.py), so this and
+    _applicable_tag_ids together run a handful of small, indexed queries per
+    item — same "not worth bulk-prefetching" reasoning as worker.py's own
+    _row_for: bounded by one bundle's item count, dwarfed by the download
+    I/O this always follows.
     """
     tag_ids = _applicable_tag_ids(db, gamekey, machine_name)
     rules = db.query(DownloadDestination).order_by(DownloadDestination.id).all()

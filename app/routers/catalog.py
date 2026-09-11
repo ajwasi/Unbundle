@@ -123,11 +123,19 @@ def _rows_from_catalog(items: dict[str, dict]) -> list[dict]:
 def _filtered_sorted_rows(
     db: Session, q: str, dupes_only: bool, tag_id_val: int | None, sort: str, dir: str
 ) -> tuple[list[dict], dict]:
-    """The full filtered+sorted+tagged row list (unpaginated) plus the raw,
+    """The full filtered+sorted row list (unpaginated, untagged) plus the raw,
     unfiltered catalog dict — callers slice `rows` for their own page and use
     `items` for whole-library totals. Shared by catalog_page (first page) and
     catalog_rows (every subsequent infinite-scroll batch) so the two can never
-    drift out of sync on filtering/sorting/tagging behavior.
+    drift out of sync on filtering/sorting behavior.
+
+    Deliberately doesn't attach tags here: every caller only ever renders its
+    own _PAGE_SIZE-sized slice of the result, so tagging the full (possibly
+    12,000+ item) filtered set here would look up tags for rows that get
+    discarded the moment this returns — tag lookup belongs on the slice
+    instead (see _tag_rows), not the full list. Sorting the full list back
+    when this was written measured well under the JSON-parsing cost _build_catalog
+    already caches, so it's left as a per-request computation.
     """
     items = _build_catalog(db)
     rows = _rows_from_catalog(items)
@@ -153,10 +161,18 @@ def _filtered_sorted_rows(
     else:
         rows.sort(key=lambda r: r["item_name"].casefold(), reverse=reverse)
 
+    return rows, items
+
+
+def _tag_rows(db: Session, rows: list[dict]) -> list[dict]:
+    """Attaches tags to exactly the rows given — callers pass only their own
+    page-sized slice, so the `.in_(machine_names)` list this builds stays
+    bounded by _PAGE_SIZE (100) rather than the whole filtered result set.
+    """
     tags_by_machine_name = _item_tags(db, [r["key"] for r in rows])
     for r in rows:
         r["tags"] = tags_by_machine_name.get(r["key"], [])
-    return rows, items
+    return rows
 
 
 @router.get("", response_class=HTMLResponse)
@@ -173,7 +189,7 @@ def catalog_page(
     # which FastAPI can't coerce to int and would 422 on.
     tag_id_val = int(tag_id) if tag_id.isdigit() else None
     all_rows, items = _filtered_sorted_rows(db, q, dupes_only, tag_id_val, sort, dir)
-    rows = all_rows[:_PAGE_SIZE]
+    rows = _tag_rows(db, all_rows[:_PAGE_SIZE])
 
     context = {
         "rows": rows,
@@ -213,7 +229,7 @@ def catalog_rows(
     """
     tag_id_val = int(tag_id) if tag_id.isdigit() else None
     all_rows, _items = _filtered_sorted_rows(db, q, dupes_only, tag_id_val, sort, dir)
-    rows = all_rows[offset : offset + _PAGE_SIZE]
+    rows = _tag_rows(db, all_rows[offset : offset + _PAGE_SIZE])
 
     context = {
         "rows": rows,

@@ -255,6 +255,15 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
                     await poll_task
 
             def _row_for(item) -> Download:
+                # One query per item rather than a bulk prefetch (contrast
+                # sync/refresh.py) — deliberately left this way: `expected` is
+                # bounded by one bundle's own subproduct count (single digits to
+                # low dozens), and this whole function runs once per completed
+                # file inside a job that's already dominated by real download
+                # I/O (seconds to minutes), not by these sub-millisecond,
+                # already-indexed lookups. Worth bulk-fetching if this ever
+                # processes whole-library-sized batches like refresh_library
+                # does; not worth the extra state for what it does today.
                 row = (
                     db.query(Download)
                     .filter(

@@ -238,6 +238,21 @@ def test_catalog_page_shows_item_tag_chips(authed_client, make_bundle, db):
     assert "Favorites" in resp.text
 
 
+def test_catalog_rows_shows_item_tag_chips(authed_client, make_bundle, db):
+    # Regression guard: catalog_rows tags only its own page slice (see
+    # _tag_rows), not the full filtered set — confirms that refactor didn't
+    # drop tags from the infinite-scroll batch endpoint specifically.
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Item A", machine_name="a")]))
+    tag = Tag(name="Favorites")
+    db.add(tag)
+    db.commit()
+    db.add(ItemTag(tag_id=tag.id, machine_name="a"))
+    db.commit()
+
+    resp = authed_client.get("/catalog/rows", params={"offset": 0})
+    assert "Favorites" in resp.text
+
+
 def test_add_item_tag_creates_tag_and_attaches_it(authed_client, make_bundle, db):
     make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Item A", machine_name="a")]))
     resp = authed_client.post("/catalog/item/a/tags", data={"name": "New Tag"})

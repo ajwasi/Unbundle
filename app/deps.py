@@ -64,28 +64,27 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 )
             return response
 
+        # One shared session for both DB reads below (auth check, then identity
+        # label) rather than one SessionLocal() per read — both happen back to
+        # back before call_next either way, so this doesn't hold the connection
+        # open any longer than the original two-session version did, it just
+        # halves the pool checkouts (and, on Postgres, pool_pre_ping's per-checkout
+        # liveness ping) for every authenticated request.
         db = SessionLocal()
         try:
             auth_configured = is_auth_configured(db)
-        finally:
-            db.close()
-        request.state.auth_configured = auth_configured
-        request.state.identity_label = None  # overwritten below once a session is confirmed valid
+            request.state.auth_configured = auth_configured
+            request.state.identity_label = None  # overwritten below once a session is confirmed valid
 
-        if not auth_configured and not request.url.path.startswith("/setup"):
-            return _finish(RedirectResponse(url="/setup", status_code=303))
+            if not auth_configured and not request.url.path.startswith("/setup"):
+                return _finish(RedirectResponse(url="/setup", status_code=303))
 
-        if request.url.path.startswith(_PUBLIC_PATH_PREFIXES):
-            return _finish(await call_next(request))
-
-        token = request.cookies.get(SESSION_COOKIE_NAME)
-        session_payload = decode_session_token(token)
-        if session_payload is None:
-            return _finish(RedirectResponse(url=f"/login?next={request.url.path}", status_code=303))
-
-        db = SessionLocal()
-        try:
-            request.state.identity_label = accounts.resolve_identity_label(session_payload.get("identity"), db)
+            if not request.url.path.startswith(_PUBLIC_PATH_PREFIXES):
+                token = request.cookies.get(SESSION_COOKIE_NAME)
+                session_payload = decode_session_token(token)
+                if session_payload is None:
+                    return _finish(RedirectResponse(url=f"/login?next={request.url.path}", status_code=303))
+                request.state.identity_label = accounts.resolve_identity_label(session_payload.get("identity"), db)
         finally:
             db.close()
 
