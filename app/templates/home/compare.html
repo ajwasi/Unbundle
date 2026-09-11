@@ -16,7 +16,7 @@
     {%- if tier.price_amount and not tier.is_bta and "$" not in tier.label %} (${{ "%.2f"|format(tier.price_amount) }}){% endif %}
   </h2>
   <p class="muted">{{ tier.owned_count }} of {{ tier.rows|length }} already in your catalog</p>
-  <table>
+  <table class="compare-table">
     <thead>
       <tr><th>Item</th><th>Type</th><th>Value</th><th>Status</th></tr>
     </thead>

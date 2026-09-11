@@ -360,6 +360,18 @@ th, td {
    auto-sizing independently of its neighbors. */
 .table-lead-col { width: 2.25rem; }
 
+/* home/compare.html renders one <table> per price tier, all with the exact
+   same 4 columns — table-layout:fixed plus matching percentages (rather
+   than the default auto layout, which sizes each table from its own
+   content) is what keeps Type/Value/Status starting at the same x position
+   across every tier regardless of how long that tier's own item names are.
+   Long names wrap within Item's 46% instead of stretching it wider. */
+.compare-table { table-layout: fixed; }
+.compare-table th:nth-child(1), .compare-table td:nth-child(1) { width: 46%; overflow-wrap: anywhere; }
+.compare-table th:nth-child(2), .compare-table td:nth-child(2) { width: 14%; }
+.compare-table th:nth-child(3), .compare-table td:nth-child(3) { width: 18%; }
+.compare-table th:nth-child(4), .compare-table td:nth-child(4) { width: 22%; }
+
 th a { text-decoration: none; color: var(--text); }
 
 .badge {
