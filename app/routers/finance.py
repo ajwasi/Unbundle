@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.db import engine
 from app.deps import get_db
 from app.models.bundle import Bundle
 from app.models.tag import BundleTag, Tag
@@ -33,11 +34,38 @@ _MONTH_NAMES = [
 ]
 
 
+def _is_postgres() -> bool:
+    return engine.url.get_backend_name() == "postgresql"
+
+
+# strftime() is SQLite-only; Postgres's equivalent is to_char() — with a
+# reversed argument order (value, format) instead of (format, value). Both
+# produce zero-padded "MM" and 4-digit "YYYY" by default, so every caller
+# below (string equality filters, GROUP BY, chart labels) needs no further
+# dialect-awareness once it's built through these.
+def _year_expr(column):
+    if _is_postgres():
+        return func.to_char(column, "YYYY")
+    return func.strftime("%Y", column)
+
+
+def _month_expr(column):
+    if _is_postgres():
+        return func.to_char(column, "MM")
+    return func.strftime("%m", column)
+
+
+def _year_month_expr(column):
+    if _is_postgres():
+        return func.to_char(column, "YYYY-MM")
+    return func.strftime("%Y-%m", column)
+
+
 def _apply_filters(query, year: str, month: str, category: str, tag_id: int | None):
     if year:
-        query = query.filter(func.strftime("%Y", Bundle.purchased_at) == year)
+        query = query.filter(_year_expr(Bundle.purchased_at) == year)
     if month:
-        query = query.filter(func.strftime("%m", Bundle.purchased_at) == month)
+        query = query.filter(_month_expr(Bundle.purchased_at) == month)
     if category:
         query = query.filter(Bundle.category == category)
     if tag_id is not None:
@@ -62,7 +90,7 @@ def finance_page(
     filtered_total = sum(b.amount_spent for b in rows)
 
     granularity = "month" if year else "year"
-    period_expr = func.strftime("%Y-%m" if granularity == "month" else "%Y", Bundle.purchased_at)
+    period_expr = _year_month_expr(Bundle.purchased_at) if granularity == "month" else _year_expr(Bundle.purchased_at)
     period_rows = (
         _apply_filters(db.query(period_expr, func.sum(Bundle.amount_spent), func.count(Bundle.gamekey)), year, month, category, tag_id_val)
         .group_by(period_expr)
@@ -81,9 +109,11 @@ def finance_page(
     category_labels = [format_category(c) if c else "(none)" for c, _ in category_rows]
     category_values = [round(total or 0.0, 2) for _, total in category_rows]
 
-    all_years = [
-        row[0] for row in db.query(func.strftime("%Y", Bundle.purchased_at)).distinct().order_by(func.strftime("%Y", Bundle.purchased_at).desc()).all() if row[0]
-    ]
+    # Postgres requires a SELECT DISTINCT's ORDER BY to reference the exact
+    # same expression as the select list (SQLite is lenient about this) — so
+    # this must be one shared expression object, not two separate calls.
+    year_expr = _year_expr(Bundle.purchased_at)
+    all_years = [row[0] for row in db.query(year_expr).distinct().order_by(year_expr.desc()).all() if row[0]]
     all_categories = [row[0] for row in db.query(Bundle.category).distinct().order_by(Bundle.category).all() if row[0]]
 
     context = {

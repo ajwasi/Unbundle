@@ -118,6 +118,7 @@ def _oidc_context(request: Request, db: Session, oidc_error: str | None = None) 
 def _backup_context(db: Session, backup_error: str | None = None) -> dict:
     cfg = backup.get_or_create_backup_settings(db)
     return {
+        "backups_supported": backup.backups_supported(),
         "backup_enabled": cfg.enabled,
         "backup_daily_time_utc": cfg.daily_time_utc,
         "backup_retention_count": cfg.retention_count,
@@ -355,6 +356,10 @@ def save_backup_config(
     retention_count: int = Form(7),
     db: Session = Depends(get_db),
 ):
+    if not backup.backups_supported():
+        return templates.TemplateResponse(
+            request, "settings/_backup_form.html", _backup_context(db)
+        )
     error = None
     if not _TIME_PATTERN.match(daily_time_utc):
         error = "Time must be in 24-hour HH:MM format, e.g. 03:00."
@@ -372,6 +377,14 @@ def save_backup_config(
 
 @router.post("/backups/run", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def run_backup_now(request: Request, db: Session = Depends(get_db)):
+    # Required, not cosmetic: create_backup() -> db_file_path() now raises
+    # RuntimeError on a non-SQLite backend, which the `except OSError` below
+    # does not catch — without this guard a stray call here would 500
+    # instead of degrading cleanly.
+    if not backup.backups_supported():
+        return templates.TemplateResponse(
+            request, "settings/_backup_form.html", _backup_context(db)
+        )
     error = None
     try:
         backup.create_backup(db)
@@ -392,12 +405,20 @@ def download_backup(filename: str):
 
 @router.post("/backups/{filename}/delete", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def delete_backup_route(request: Request, filename: str, db: Session = Depends(get_db)):
+    if not backup.backups_supported():
+        return templates.TemplateResponse(
+            request, "settings/_backup_form.html", _backup_context(db)
+        )
     error = None if backup.delete_backup(filename) else "Backup not found"
     return templates.TemplateResponse(request, "settings/_backup_form.html", _backup_context(db, error))
 
 
 @router.post("/backups/restore", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def restore_backup_route(request: Request, backup_file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not backup.backups_supported():
+        return templates.TemplateResponse(
+            request, "settings/_backup_form.html", _backup_context(db)
+        )
     error = None
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir) / "upload.db"

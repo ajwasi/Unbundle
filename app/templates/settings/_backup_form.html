@@ -1,3 +1,10 @@
+{% if not backups_supported %}
+<p class="muted">
+  Backups aren't available on this database backend — this feature only works against
+  SQLite. Use <code>pg_dump</code>/<code>pg_dumpall</code> or your own PostgreSQL backup
+  strategy instead. See the README's Backups section for details.
+</p>
+{% else %}
 {% if backup_error %}<p style="color: var(--error);">{{ backup_error }}</p>{% endif %}
 <p class="muted">
   {% if backup_last_backup_at %}Last backup: {{ backup_last_backup_at.strftime('%Y-%m-%d %H:%M UTC') }}{% else %}No backups yet.{% endif %}
@@ -59,3 +66,4 @@
     <button type="submit" class="secondary">Upload and restore</button>
   </form>
 </div>
+{% endif %}

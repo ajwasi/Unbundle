@@ -1,0 +1,36 @@
+# Override fragment, not a standalone stack — combine with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up
+# Adds a postgres service and points app at it; everything else (mock-api,
+# observability, volumes for /data and the scan root) still comes from
+# docker-compose.yml unchanged. Set POSTGRES_PASSWORD in your .env first —
+# it feeds both this file's postgres service and app's DATABASE_URL below,
+# so it only ever needs to be written in one place.
+services:
+  app:
+    environment:
+      - DATABASE_URL=postgresql+psycopg://humble:${POSTGRES_PASSWORD}@postgres:5432/humble
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=humble
+      - POSTGRES_DB=humble
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U humble -d humble"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # Not exposed to the host by default — same principle docker-compose.yml
+    # already applies to mock-api. Uncomment to point psql/DBeaver at it directly:
+    # ports:
+    #   - "5432:5432"
+
+volumes:
+  postgres-data:

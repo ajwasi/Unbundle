@@ -1,5 +1,39 @@
+from unittest.mock import MagicMock
+
 from app.models.tag import BundleTag, Tag
+from app.routers import finance
 from tests.factories import make_order
+
+
+def _fake_postgres_engine():
+    # Mirrors tests/test_backup.py's helper: a real create_engine(
+    # "postgresql+psycopg://...") imports the psycopg driver at construction
+    # time, which isn't installed in the base test env. These tests only
+    # need engine.url.get_backend_name(), so a MagicMock stub is enough.
+    fake = MagicMock()
+    fake.url.get_backend_name.return_value = "postgresql"
+    return fake
+
+
+def test_year_expr_uses_strftime_on_sqlite():
+    assert "strftime" in str(finance._year_expr(finance.Bundle.purchased_at))
+
+
+def test_year_expr_uses_to_char_on_postgres(monkeypatch):
+    monkeypatch.setattr(finance, "engine", _fake_postgres_engine())
+    sql = str(finance._year_expr(finance.Bundle.purchased_at))
+    assert "to_char" in sql
+    assert "strftime" not in sql
+
+
+def test_month_expr_uses_to_char_on_postgres(monkeypatch):
+    monkeypatch.setattr(finance, "engine", _fake_postgres_engine())
+    assert "to_char" in str(finance._month_expr(finance.Bundle.purchased_at))
+
+
+def test_year_month_expr_uses_to_char_on_postgres(monkeypatch):
+    monkeypatch.setattr(finance, "engine", _fake_postgres_engine())
+    assert "to_char" in str(finance._year_month_expr(finance.Bundle.purchased_at))
 
 
 def test_finance_requires_auth(client):

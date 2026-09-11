@@ -266,6 +266,35 @@ def test_settings_page_shows_backup_card(authed_client):
     assert "backup-card" in resp.text
 
 
+def test_settings_page_shows_backup_disabled_message_when_not_supported(authed_client, monkeypatch):
+    monkeypatch.setattr("app.backup.backups_supported", lambda: False)
+    resp = authed_client.get("/settings")
+    assert "aren't available on this database backend" in resp.text
+    assert 'name="daily_time_utc"' not in resp.text
+
+
+def test_run_backup_now_returns_clean_message_instead_of_500_when_not_supported(authed_client, monkeypatch):
+    # The route the plan called out as load-bearing: create_backup() ->
+    # db_file_path() raises RuntimeError, which this route's own
+    # `except OSError` does not catch — without the early-return guard this
+    # would 500 instead of degrading cleanly.
+    monkeypatch.setattr("app.backup.backups_supported", lambda: False)
+    resp = authed_client.post("/settings/backups/run")
+    assert resp.status_code == 200
+    assert "aren't available on this database backend" in resp.text
+
+
+def test_save_backup_config_does_not_persist_when_not_supported(authed_client, db, monkeypatch):
+    from app import backup
+
+    monkeypatch.setattr("app.backup.backups_supported", lambda: False)
+    authed_client.post(
+        "/settings/backups/config", data={"enabled": "true", "daily_time_utc": "04:30", "retention_count": "3"}
+    )
+    cfg = backup.get_or_create_backup_settings(db)
+    assert cfg.enabled is False  # unchanged default, save was never attempted
+
+
 def test_settings_page_links_to_the_api_docs(authed_client):
     resp = authed_client.get("/settings")
     assert 'href="/docs"' in resp.text
