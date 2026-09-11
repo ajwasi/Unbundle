@@ -33,6 +33,51 @@ def test_build_catalog_skips_items_with_no_machine_name(db, make_bundle):
     assert catalog == {}
 
 
+def test_build_catalog_is_cached_across_calls(db, make_bundle):
+    from sqlalchemy import event
+
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("A Book", machine_name="abook")]))
+    _build_catalog(db)  # warm the cache
+
+    statements = []
+    engine = db.get_bind()
+    listener = lambda conn, cursor, statement, *a: statements.append(statement)
+    event.listen(engine, "before_cursor_execute", listener)
+    try:
+        result = _build_catalog(db)
+    finally:
+        event.remove(engine, "before_cursor_execute", listener)
+
+    assert result["abook"]["item_name"] == "A Book"
+    bundle_selects = [s for s in statements if "raw_json" in s and "FROM bundle" in s]
+    assert not bundle_selects, "expected the cache hit to skip re-querying/re-parsing bundle rows"
+
+
+def test_build_catalog_cache_invalidates_when_a_bundle_is_added(db, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("First Book", machine_name="first")]))
+    first = _build_catalog(db)
+    assert "second" not in first
+
+    make_bundle(gamekey="GK2", order=make_order(subproducts=[make_subproduct("Second Book", machine_name="second")]))
+    second = _build_catalog(db)
+    assert "second" in second
+
+
+def test_build_catalog_cache_does_not_leak_between_tests_a(db, make_bundle):
+    # Paired with the "_b" test below — together they prove the autouse
+    # _fresh_catalog_cache fixture actually resets the module-level cache,
+    # not just that caching works within one test.
+    make_bundle(gamekey="ONLY_IN_A", order=make_order(subproducts=[make_subproduct("Only In A", machine_name="onlyina")]))
+    assert "onlyina" in _build_catalog(db)
+
+
+def test_build_catalog_cache_does_not_leak_between_tests_b(db, make_bundle):
+    make_bundle(gamekey="ONLY_IN_B", order=make_order(subproducts=[make_subproduct("Only In B", machine_name="onlyinb")]))
+    catalog = _build_catalog(db)
+    assert "onlyinb" in catalog
+    assert "onlyina" not in catalog
+
+
 def test_avg_item_value_averages_per_bundle_effective_price():
     bundles = [{"amount_spent": 18.0, "item_count": 29}, {"amount_spent": 20.0, "item_count": 29}, {"amount_spent": 18.0, "item_count": 32}]
     result = _avg_item_value(bundles)

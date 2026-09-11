@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import backup, version
@@ -82,6 +83,11 @@ app.add_middleware(
     session_cookie="humble_tracker_oidc_state",
     https_only=settings.behind_https_proxy,
 )
+# Added last so it's the outermost layer — compresses the fully-rendered
+# response (pages, htmx fragments, and static JS/CSS) right before it goes
+# out, after everything else has finished. Default 500-byte threshold skips
+# tiny responses where compression overhead isn't worth it.
+app.add_middleware(GZipMiddleware)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(auth.router)

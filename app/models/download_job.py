@@ -26,7 +26,7 @@ class DownloadJob(Base):
     __tablename__ = "download_job"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    gamekey: Mapped[str] = mapped_column(ForeignKey("bundle.gamekey"), nullable=False)
+    gamekey: Mapped[str] = mapped_column(ForeignKey("bundle.gamekey"), nullable=False, index=True)
     bundle_name: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     requested_indices: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     requested_formats: Mapped[str] = mapped_column(String(200), nullable=False, default="")

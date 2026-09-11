@@ -29,7 +29,12 @@ class BundleTag(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False)
-    gamekey: Mapped[str] = mapped_column(ForeignKey("bundle.gamekey"), nullable=False)
+    # The (tag_id, gamekey) unique index below only serves lookups by tag_id
+    # (its leading column) or by tag_id+gamekey together — filtering by
+    # gamekey alone (e.g. _bundle_tags(db, gamekeys) batch-loading tags for a
+    # page of bundles) can't use that composite as a leftmost prefix, so it's
+    # a real full-table scan without this index of its own.
+    gamekey: Mapped[str] = mapped_column(ForeignKey("bundle.gamekey"), nullable=False, index=True)
 
     __table_args__ = (UniqueConstraint("tag_id", "gamekey", name="uq_bundle_tag"),)
 
@@ -46,6 +51,10 @@ class ItemTag(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False)
-    machine_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    # Same reasoning as BundleTag.gamekey above: the (tag_id, machine_name)
+    # unique index doesn't serve a machine_name-alone lookup, which is
+    # exactly what catalog.py's _item_tags(db, machine_names) does for every
+    # page/batch of catalog rows.
+    machine_name: Mapped[str] = mapped_column(String(300), nullable=False, index=True)
 
     __table_args__ = (UniqueConstraint("tag_id", "machine_name", name="uq_item_tag"),)
