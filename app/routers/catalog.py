@@ -5,12 +5,20 @@ present on all 14,834 subproduct rows across a real 550-bundle library
 fuzzy human_name matching (titles could vary slightly between bundle
 listings; machine_name is Humble's own stable slug).
 
-Computed fresh from Bundle.raw_json on every request rather than a persisted
-table — confirmed cheap enough not to matter (0.13s to parse+group all 550
-bundles' JSON on this machine), consistent with how bundle_detail already
-re-derives its view from raw_json rather than caching a denormalized copy.
-Price/date per bundle come from the already-persisted Bundle.amount_spent/
-purchased_at columns rather than re-parsing those two fields out of raw_json.
+Computed from Bundle.raw_json rather than a persisted table, consistent with
+how bundle_detail already re-derives its view from raw_json rather than
+caching a denormalized copy. Price/date per bundle come from the
+already-persisted Bundle.amount_spent/purchased_at columns rather than
+re-parsing those two fields out of raw_json.
+
+_build_catalog() itself is cached in-process (see _catalog_cache below) —
+parsing+grouping all 550 bundles' JSON measured at ~0.3-0.4s, cheap enough
+for one page load but paid on every infinite-scroll batch once catalog_rows
+existed, which adds up over a long scroll session. Keyed on (bundle count,
+max(fetched_at)) rather than tied to a specific mutation call site, so it
+self-invalidates whenever a sync/refresh actually changes bundle data
+without needing every future bundle-mutating code path to remember to
+clear it.
 """
 
 import json
@@ -49,7 +57,18 @@ def _item_tags(db: Session, machine_names: list[str] | None = None) -> dict[str,
     return by_machine_name
 
 
+_catalog_cache: dict = {"key": None, "items": None}
+
+
+def _catalog_cache_key(db: Session) -> tuple:
+    return db.query(func.count(Bundle.gamekey), func.max(Bundle.fetched_at)).one()
+
+
 def _build_catalog(db: Session) -> dict[str, dict]:
+    key = _catalog_cache_key(db)
+    if _catalog_cache["key"] == key:
+        return _catalog_cache["items"]
+
     items: dict[str, dict] = {}
     for bundle in db.query(Bundle).all():
         order = json.loads(bundle.raw_json)
@@ -67,6 +86,8 @@ def _build_catalog(db: Session) -> dict[str, dict]:
                     "item_count": bundle.subproduct_count,
                 }
             )
+    _catalog_cache["key"] = key
+    _catalog_cache["items"] = items
     return items
 
 

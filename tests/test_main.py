@@ -26,6 +26,18 @@ def test_warns_on_both_simultaneously(db, monkeypatch):
     assert len(warnings) == 2
 
 
+def test_responses_are_gzip_compressed_above_the_size_threshold(authed_client):
+    # GZipMiddleware's default 500-byte floor — the full /downloads page (base
+    # layout + sidebar + cards) is comfortably over that regardless of seeded
+    # data, so no fixtures needed. httpx (TestClient) negotiates and decodes
+    # gzip transparently, so the content-encoding header — not resp.text,
+    # which looks identical either way — is what actually proves compression
+    # happened.
+    resp = authed_client.get("/downloads")
+    assert resp.status_code == 200
+    assert resp.headers.get("content-encoding") == "gzip"
+
+
 def test_no_auth_warning_when_oidc_enabled_instead(db, monkeypatch):
     from app.models.credential import SOURCE_OIDC, STATUS_OK, Credential
     from app.security import encrypt_json
