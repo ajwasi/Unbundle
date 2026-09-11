@@ -63,7 +63,11 @@ RUN case "${TARGETARCH}" in \
     && /usr/local/bin/humble-cli --version
 
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir .
+# [postgres] is always installed — one shared image supports either backend
+# unconditionally, since switching is just a DATABASE_URL change (see
+# docker-compose.postgres.yml), never a rebuild. psycopg[binary] adds no
+# apt-get packages of its own (vendors libpq in the wheel).
+RUN pip install --no-cache-dir ".[postgres]"
 COPY alembic.ini ./
 COPY app/ ./app/
 # Only used by the "demo" compose profile's mock-api service (see

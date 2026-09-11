@@ -82,6 +82,21 @@ a "Connect with demo data" button in place of the real login link (GOG's real fl
 an actual external browser login, which can't be faked). Nothing here touches a real
 account; `mock-api` isn't reachable from outside the compose network.
 
+### Using PostgreSQL instead of SQLite
+
+SQLite is the default and needs no setup. To use PostgreSQL instead, set
+`POSTGRES_PASSWORD` in `.env`, then start both compose files together:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
+```
+
+`docker-compose.postgres.yml` is an override, not a separate stack — it adds
+a `postgres` service and points `app` at it; the `demo`/`observability`
+profiles above still work the same way layered on top. See
+[Backups](#backups) for a caveat and [Local development](#local-development)
+for running against Postgres outside Docker.
+
 ## Security notes
 
 This app defaults to safe behavior but will tell you loudly if you haven't finished
@@ -124,6 +139,11 @@ top of every page:
   Both could change without notice.
 
 ## Backups
+
+> **Running on PostgreSQL?** This section doesn't apply — the Backups card in
+> Settings will show that in-app backups aren't available on this database
+> backend. Use `pg_dump`/`pg_dumpall` or your own external PostgreSQL backup
+> strategy instead; nothing here has a Postgres equivalent.
 
 The Backups card in Settings handles this in-app: enable a daily backup at whatever
 time (UTC) you choose, set how many to keep, and older ones are pruned automatically.
@@ -261,7 +281,22 @@ python -m venv .venv
 ```
 
 Tests run against a throwaway temp SQLite DB and a test-only secret key — no real
-credentials or network access needed.
+credentials or network access needed. This is true regardless of which database
+you run the app itself against; the automated suite always uses SQLite.
+
+To develop against a real local PostgreSQL instead of SQLite (outside Docker —
+see the Quick start section for the Docker Compose route): install Postgres
+yourself, create a database, then:
+
+```bash
+.venv/Scripts/pip install -e ".[dev,postgres]"
+DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/humble .venv/Scripts/alembic upgrade head
+DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/humble .venv/Scripts/uvicorn app.main:app --reload
+```
+
+(set `DATABASE_URL` before each command that imports `app.*` — `app/config.py`
+reads it once at import time, so setting it and launching a process must
+happen together, not in separate steps).
 
 **Do not point `HUMBLE_CLI_KEY_PATH` (or the `humble_cli_key_path` setting) at your real
 home directory during local development** — it defaults to `~/.humble-cli-key`, the exact

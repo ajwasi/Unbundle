@@ -72,11 +72,18 @@
 
 <div class="card" id="backup-card">
   <h2>Backups</h2>
+  {% if backups_supported %}
   <p class="muted">
     The whole database as one file — bundles, tags, and every stored credential.
     Automatic backups run in-app on the schedule below; you can also trigger one
     manually or restore from a previously downloaded file.
   </p>
+  {% else %}
+  <p class="muted">
+    In-app backups only work against SQLite — this instance is running on a
+    different database backend.
+  </p>
+  {% endif %}
   <div id="backup-card-body">
     {% include "settings/_backup_form.html" %}
   </div>

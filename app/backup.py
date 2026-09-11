@@ -41,7 +41,28 @@ def backups_dir() -> Path:
     return settings.data_dir / "backups"
 
 
+def backups_supported() -> bool:
+    """False on any non-SQLite backend — this whole module is built around
+    SQLite being a single file (sqlite3's own backup API, and restore by
+    swapping the file). There's no in-app equivalent for a client-server
+    database like Postgres; see the Settings page's Backups card and
+    README's Backups section for the pg_dump-based alternative.
+    """
+    return engine.url.get_backend_name() == "sqlite"
+
+
 def db_file_path() -> Path:
+    if not backups_supported():
+        # engine.url.database means something different per backend — for
+        # SQLite it's the file path this function returns; for Postgres it's
+        # just the database *name* (e.g. "humble"). Without this guard,
+        # sqlite3.connect(Path("humble")) below would silently create a new,
+        # empty SQLite file rather than raising — create_backup() would then
+        # report success having backed up nothing real. This is the single
+        # lowest-level chokepoint every real caller reaches before touching
+        # any file, so the guard lives here rather than duplicated at each
+        # call site.
+        raise RuntimeError("Automatic/manual backups are only supported when running on SQLite.")
     return Path(engine.url.database)
 
 
@@ -127,6 +148,13 @@ def _is_due(cfg: BackupSettings, now: datetime) -> bool:
 
 
 async def run_scheduler_loop() -> None:
+    if not backups_supported():
+        # DATABASE_URL is read once at process startup (app/db.py's
+        # module-level engine) and never changes mid-process, so a single
+        # check-and-return is correct here — no point looping forever to
+        # keep re-checking something that can't change.
+        print("Automatic backups are only supported on SQLite — scheduler not starting.", file=sys.stderr)
+        return
     while True:
         await asyncio.sleep(_SCHEDULER_POLL_SECONDS)
         db = SessionLocal()
@@ -186,7 +214,11 @@ def restore_backup(db: Session, upload_path: Path) -> None:
     """
     _validate_backup_file(upload_path)
 
-    create_backup(db)  # safety net: a bad restore is itself undo-able a moment later
+    # Safety net: a bad restore is itself undo-able a moment later. Also
+    # load-bearing for Postgres-safety, not just undo-ability — this call
+    # raises via db_file_path()'s guard before this function ever reaches
+    # its own two later db_file_path() calls, so don't reorder it away.
+    create_backup(db)
 
     # db's own connection must be released (not just idle pooled ones) before the
     # swap — on Windows, an open handle on the destination blocks os.replace()

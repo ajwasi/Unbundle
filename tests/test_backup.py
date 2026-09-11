@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import create_engine
@@ -200,3 +200,42 @@ def test_restore_backup_rejects_invalid_file_without_touching_live_db(db, make_b
         conn.close()
     assert gamekeys == {"UNTOUCHED"}
     assert backup.list_backups() == []
+
+
+def test_backups_supported_true_on_sqlite(db):
+    assert backup.backups_supported() is True
+
+
+def _fake_postgres_engine():
+    # A real create_engine("postgresql+psycopg://...") would import the
+    # psycopg driver at engine-construction time (not just on first
+    # connection) — requiring it installed here would defeat the point of
+    # `postgres` being an optional extra. backups_supported()/db_file_path()
+    # only ever read engine.url.get_backend_name(), so a lightweight stub
+    # exercises the exact same logic without needing any driver installed.
+    fake = MagicMock()
+    fake.url.get_backend_name.return_value = "postgresql"
+    return fake
+
+
+def test_backups_not_supported_on_postgres(monkeypatch):
+    monkeypatch.setattr(backup, "engine", _fake_postgres_engine())
+    assert backup.backups_supported() is False
+
+
+def test_db_file_path_raises_on_postgres(monkeypatch):
+    monkeypatch.setattr(backup, "engine", _fake_postgres_engine())
+    with pytest.raises(RuntimeError, match="only supported when running on SQLite"):
+        backup.db_file_path()
+
+
+@pytest.mark.asyncio
+async def test_run_scheduler_loop_exits_immediately_on_postgres(monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(backup, "engine", _fake_postgres_engine())
+    # Would hang for _SCHEDULER_POLL_SECONDS (600s) if the early-return guard
+    # didn't fire before the while True: loop — wait_for's short timeout
+    # turns "the guard is missing" into a fast, clear test failure instead
+    # of an actual multi-minute hang.
+    await asyncio.wait_for(backup.run_scheduler_loop(), timeout=1)

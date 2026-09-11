@@ -27,6 +27,14 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
 ]
+# psycopg3, not psycopg2 (SQLAlchemy 2.0's actively-recommended modern driver).
+# [binary] vendors a statically-linked libpq in the wheel, so no apt-get
+# libpq-dev/postgresql-client is needed anywhere this installs (Dockerfile or
+# a plain local `pip install`). DSN scheme must be postgresql+psycopg://
+# (bare postgresql:// resolves to psycopg2 by default, which isn't installed).
+postgres = [
+    "psycopg[binary]>=3.1",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

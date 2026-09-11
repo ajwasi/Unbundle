@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # front locks out every login. See README's "Reverse proxy / HTTPS" section.
     behind_https_proxy: bool = False
 
+    # SQLite (default) or PostgreSQL — e.g. "postgresql+psycopg://user:pass@host/db"
+    # (requires the optional `postgres` extra; see README's "Using PostgreSQL
+    # instead of SQLite"). app/db.py branches on the real backend name to pick
+    # connection options; app/backup.py's backups feature only works on SQLite.
     database_url: str = "sqlite:///./data/humble.db"
     data_dir: Path = Path("./data")
     downloads_dir: Path = Path("./data/downloads")

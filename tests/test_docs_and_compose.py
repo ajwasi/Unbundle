@@ -106,6 +106,48 @@ def test_compose_mock_api_service_reuses_the_apps_own_image():
     assert services["mock-api"]["build"] == services["app"]["build"]
 
 
+# --- docker-compose.postgres.yml structure (override fragment, not standalone) ---
+
+
+def test_postgres_compose_app_database_url_uses_the_postgres_service_hostname_and_scheme():
+    # Regression-locks the easy-to-mistype trap: SQLAlchemy's real backend
+    # name is "postgresql" (trailing "ql"), and the DSN must use the
+    # +psycopg driver suffix (bare postgresql:// resolves to psycopg2 by
+    # default, which isn't installed) and the Compose *service* name
+    # "postgres" as the hostname (only resolves inside the Compose network,
+    # never "localhost").
+    app = _load_yaml("docker-compose.postgres.yml")["services"]["app"]
+    database_url = next(e for e in app["environment"] if e.startswith("DATABASE_URL="))
+    assert "postgresql+psycopg://" in database_url
+    assert "@postgres:5432/" in database_url
+
+
+def test_postgres_compose_app_waits_for_postgres_to_be_healthy():
+    app = _load_yaml("docker-compose.postgres.yml")["services"]["app"]
+    assert app["depends_on"]["postgres"]["condition"] == "service_healthy"
+
+
+def test_postgres_compose_postgres_service_has_a_healthcheck():
+    postgres = _load_yaml("docker-compose.postgres.yml")["services"]["postgres"]
+    assert "healthcheck" in postgres and postgres["healthcheck"]["test"]
+
+
+def test_postgres_compose_does_not_redefine_services_from_the_base_file():
+    # Encodes the confirmed "override fragment, not standalone stack"
+    # decision as a real test rather than just an intention — mock-api/
+    # prometheus/grafana must keep coming from docker-compose.yml alone.
+    services = _load_yaml("docker-compose.postgres.yml")["services"]
+    assert set(services) == {"app", "postgres"}
+
+
+def test_postgres_compose_password_is_a_single_shared_token_not_duplicated_hardcoded_values():
+    services = _load_yaml("docker-compose.postgres.yml")["services"]
+    app_env = services["app"]["environment"]
+    postgres_env = services["postgres"]["environment"]
+    assert any("${POSTGRES_PASSWORD}" in e for e in app_env)
+    assert any(e == "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" for e in postgres_env)
+
+
 # --- the observability example configs, cross-checked against each other ---
 
 
@@ -133,6 +175,17 @@ def test_example_grafana_datasource_points_at_the_compose_prometheus_service():
 # warn against (colliding with a real ~/.humble-cli-key on the host).
 _INTENTIONALLY_UNDOCUMENTED_SETTINGS = {"humble_cli_path", "humble_cli_key_path"}
 
+# The opposite direction of the exemption above: a real .env.example entry
+# that intentionally has no matching Settings field. POSTGRES_PASSWORD is
+# only ever consumed by docker-compose.postgres.yml's own ${POSTGRES_PASSWORD}
+# substitution (feeds both the postgres service and app's interpolated
+# DATABASE_URL) — the app itself never reads it directly, so it can't live
+# in the Settings model the way FORWARDED_ALLOW_IPS's *absence* from
+# .env.example solves the same kind of mismatch in the other direction (that
+# one is a safe fixed value set directly in docker-compose.yml instead; a
+# password can't be hardcoded into committed YAML the same way).
+_ENV_ONLY_VARS_WITH_NO_SETTINGS_FIELD = {"POSTGRES_PASSWORD"}
+
 
 def test_env_example_documents_every_user_facing_setting():
     documented = _env_example_names()
@@ -144,7 +197,7 @@ def test_env_example_documents_every_user_facing_setting():
 
 
 def test_env_example_has_no_stale_entries_for_settings_that_no_longer_exist():
-    known_env_vars = {f.upper() for f in Settings.model_fields}
+    known_env_vars = {f.upper() for f in Settings.model_fields} | _ENV_ONLY_VARS_WITH_NO_SETTINGS_FIELD
     for name in _env_example_names():
         assert name in known_env_vars, f".env.example documents {name}, which no Settings field defines"
 
