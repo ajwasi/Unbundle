@@ -148,6 +148,50 @@ def test_postgres_compose_password_is_a_single_shared_token_not_duplicated_hardc
     assert any(e == "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" for e in postgres_env)
 
 
+# --- docker-compose.image.yml structure (standalone, pulls instead of building) ---
+
+
+def test_image_compose_app_service_uses_the_published_image_not_a_local_build():
+    app = _load_yaml("docker-compose.image.yml")["services"]["app"]
+    assert app["image"] == "ghcr.io/ajwasi/unbundle:latest"
+    assert "build" not in app
+
+
+def test_image_compose_app_service_matches_the_base_files_port_and_data_mount():
+    # Same deployment shape as docker-compose.yml's own app service — only how
+    # the image is obtained differs.
+    image_app = _load_yaml("docker-compose.image.yml")["services"]["app"]
+    base_app = _load_yaml("docker-compose.yml")["services"]["app"]
+    assert image_app["ports"] == base_app["ports"]
+    assert "./data:/data" in image_app["volumes"]
+
+
+def test_image_compose_has_no_demo_profile_service():
+    # mock-api runs from a `build:`-produced image with a different command —
+    # not reachable in a no-source, pull-only deployment (see the file's own
+    # header comment), so it must not be offered here at all.
+    services = _load_yaml("docker-compose.image.yml")["services"]
+    assert "mock-api" not in services
+
+
+def test_image_compose_observability_services_are_behind_a_profile_not_started_by_default():
+    services = _load_yaml("docker-compose.image.yml")["services"]
+    for name in ("prometheus", "grafana"):
+        assert "observability" in services[name]["profiles"]
+
+
+def test_image_compose_image_matches_the_tag_the_publish_workflow_pushes():
+    # Regression-locks the two sources of truth this file already exists to
+    # catch drift between: the compose file's own image reference, and the
+    # workflow that actually publishes under that name. A rename on one side
+    # with the other left stale would otherwise only surface as a confusing
+    # "pull access denied" on someone's real homelab host.
+    compose_image = _load_yaml("docker-compose.image.yml")["services"]["app"]["image"]
+    workflow = _load_yaml(".github/workflows/docker-publish.yml")
+    workflow_image_name = workflow["env"]["IMAGE_NAME"]
+    assert compose_image == f"{workflow_image_name}:latest"
+
+
 # --- the observability example configs, cross-checked against each other ---
 
 
