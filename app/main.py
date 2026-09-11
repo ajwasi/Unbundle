@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI):
         update_check_task.cancel()
 
 
-app = FastAPI(title="Humble Tracker", lifespan=lifespan, docs_url=None, redoc_url=None)
+app = FastAPI(title="Unbundle", lifespan=lifespan, docs_url=None, redoc_url=None)
 instrument_app(app)  # wraps ASGI middleware for http.server.* metrics — before add_middleware below
 app.add_middleware(AuthMiddleware)
 # Short-lived signed-cookie session used only to hold the OIDC handshake's state/nonce
@@ -80,7 +80,7 @@ app.add_middleware(AuthMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.app_secret_key,
-    session_cookie="humble_tracker_oidc_state",
+    session_cookie="unbundle_oidc_state",
     https_only=settings.behind_https_proxy,
 )
 # Added last so it's the outermost layer — compresses the fully-rendered

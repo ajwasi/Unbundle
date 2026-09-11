@@ -1,5 +1,5 @@
 [project]
-name = "humble-tracker"
+name = "unbundle"
 version = "0.1.0"
 description = "Self-hosted web UI + download/location tracker for humble-cli"
 requires-python = ">=3.11"

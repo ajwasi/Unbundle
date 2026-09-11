@@ -132,7 +132,7 @@ def test_validate_backup_file_rejects_sqlite_file_missing_expected_tables(tmp_pa
 
 
 def _build_alternate_backup(tmp_path: Path, gamekey: str) -> Path:
-    """A standalone, valid Humble Tracker database with different data than
+    """A standalone, valid Unbundle database with different data than
     whatever's currently live — built directly against Base.metadata rather
     than through the app's own engine, so it's independent of the live DB.
     """

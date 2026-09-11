@@ -186,7 +186,7 @@ def _validate_backup_file(path: Path) -> None:
     missing = _EXPECTED_TABLES - tables
     if missing:
         raise InvalidBackupFile(
-            f"Doesn't look like a Humble Tracker backup (missing table(s): {', '.join(sorted(missing))})."
+            f"Doesn't look like an Unbundle backup (missing table(s): {', '.join(sorted(missing))})."
         )
 
 

@@ -49,12 +49,12 @@ def test_bundle_count_gauge_reflects_real_db_state(client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order())
     make_bundle(gamekey="GK2", order=make_order())
     resp = client.get("/metrics")
-    assert _metric_value(resp.text, "humble_tracker_bundles_count") == 2.0
+    assert _metric_value(resp.text, "unbundle_bundles_count") == 2.0
 
 
 def test_bundle_count_gauge_is_zero_with_no_bundles(client):
     resp = client.get("/metrics")
-    assert _metric_value(resp.text, "humble_tracker_bundles_count") == 0.0
+    assert _metric_value(resp.text, "unbundle_bundles_count") == 0.0
 
 
 def test_connector_status_gauge_reflects_credential_state(client, db):
@@ -64,8 +64,8 @@ def test_connector_status_gauge_reflects_credential_state(client, db):
     db.commit()
 
     resp = client.get("/metrics")
-    assert _metric_value(resp.text, "humble_tracker_connector_status", 'source="steam"') == 1.0
-    assert _metric_value(resp.text, "humble_tracker_connector_status", 'source="humble"') == 0.0
+    assert _metric_value(resp.text, "unbundle_connector_status", 'source="steam"') == 1.0
+    assert _metric_value(resp.text, "unbundle_connector_status", 'source="humble"') == 0.0
 
 
 def test_unredeemed_key_gauge_counts_only_unredeemed_steam_keys(client, make_bundle, db):
@@ -77,7 +77,7 @@ def test_unredeemed_key_gauge_counts_only_unredeemed_steam_keys(client, make_bun
     db.commit()
 
     resp = client.get("/metrics")
-    assert _metric_value(resp.text, "humble_tracker_entitlements_unredeemed", 'platform="steam"') == 1.0
+    assert _metric_value(resp.text, "unbundle_entitlements_unredeemed", 'platform="steam"') == 1.0
 
 
 def test_unredeemed_key_gauge_counts_name_matched_gog_keys_too(client, make_bundle, db):
@@ -92,27 +92,27 @@ def test_unredeemed_key_gauge_counts_name_matched_gog_keys_too(client, make_bund
     db.commit()
 
     resp = client.get("/metrics")
-    assert _metric_value(resp.text, "humble_tracker_entitlements_unredeemed", 'platform="gog"') == 1.0
+    assert _metric_value(resp.text, "unbundle_entitlements_unredeemed", 'platform="gog"') == 1.0
 
 
 def test_update_available_gauge_reflects_cached_flag(client, monkeypatch):
     monkeypatch.setattr("app.version._update_available", True)
     resp = client.get("/metrics")
-    assert _metric_value(resp.text, "humble_tracker_update_available") == 1.0
+    assert _metric_value(resp.text, "unbundle_update_available") == 1.0
 
     monkeypatch.setattr("app.version._update_available", False)
     resp = client.get("/metrics")
-    assert _metric_value(resp.text, "humble_tracker_update_available") == 0.0
+    assert _metric_value(resp.text, "unbundle_update_available") == 0.0
 
 
 def test_rate_limit_rejection_counter_increments_on_429(client):
     # rate_limit() runs before require_csrf() in /login's dependency list, so this
     # counts every attempt regardless of CSRF validity — no need for a real token here.
-    before = _metric_value(client.get("/metrics").text, "humble_tracker_rate_limit_rejections_total", 'limiter="login"') or 0.0
+    before = _metric_value(client.get("/metrics").text, "unbundle_rate_limit_rejections_total", 'limiter="login"') or 0.0
 
     for _ in range(11):
         client.post("/login", data={"password": "wrong"})
 
-    after = _metric_value(client.get("/metrics").text, "humble_tracker_rate_limit_rejections_total", 'limiter="login"')
+    after = _metric_value(client.get("/metrics").text, "unbundle_rate_limit_rejections_total", 'limiter="login"')
     assert after is not None
     assert after >= before + 1

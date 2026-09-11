@@ -13,7 +13,7 @@ import os
 import tempfile
 from pathlib import Path
 
-_TEST_DIR = Path(tempfile.mkdtemp(prefix="humble_tracker_test_"))
+_TEST_DIR = Path(tempfile.mkdtemp(prefix="unbundle_test_"))
 os.environ["DATABASE_URL"] = f"sqlite:///{(_TEST_DIR / 'test.db').as_posix()}"
 os.environ["APP_SECRET_KEY"] = "test-only-secret-key"
 os.environ["APP_PASSWORD"] = "test-password"

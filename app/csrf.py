@@ -20,7 +20,7 @@ import secrets
 
 from fastapi import HTTPException, Request
 
-COOKIE_NAME = "humble_tracker_csrf"
+COOKIE_NAME = "unbundle_csrf"
 FIELD_NAME = "csrf_token"
 HEADER_NAME = "X-CSRF-Token"
 
