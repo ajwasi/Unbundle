@@ -126,8 +126,22 @@ async def refresh_library(db: Session, log: LogCallback) -> int:
     else:
         _set_credential_status(db, STATUS_OK, None)
 
+    # Bulk-prefetch every existing Bundle/BundleEntitlement row this refresh could
+    # possibly touch, once, rather than one query per bundle plus one per
+    # not-yet-seen entitlement (up to ~2,300 round trips against a real 550-bundle/
+    # 1,277-entitlement library) — same "fetch once into a dict, upsert against
+    # that" pattern _bundle_tags() and sync/gog_sync.py's match function already
+    # use elsewhere. gamekeys stays well under any driver's IN-list limits at
+    # this app's scale (a whole Humble library, not an arbitrary table).
+    gamekeys = [normalized.gamekey for normalized in bundles]
+    existing_bundles = {b.gamekey: b for b in db.query(Bundle).filter(Bundle.gamekey.in_(gamekeys)).all()}
+    existing_entitlements = {
+        (e.gamekey, e.machine_name, e.keyindex): e
+        for e in db.query(BundleEntitlement).filter(BundleEntitlement.gamekey.in_(gamekeys)).all()
+    }
+
     for normalized in bundles:
-        bundle = db.get(Bundle, normalized.gamekey)
+        bundle = existing_bundles.get(normalized.gamekey)
         if bundle is None:
             bundle = Bundle(gamekey=normalized.gamekey, name=normalized.name, raw_json="{}",
                              fetched_at=datetime.utcnow())
@@ -144,31 +158,23 @@ async def refresh_library(db: Session, log: LogCallback) -> int:
                 bundle.purchased_at = None
         bundle.raw_json = json.dumps(normalized.raw_json, default=str)
         bundle.fetched_at = datetime.utcnow()
-        db.flush()
 
-        seen_entitlements: dict[tuple, BundleEntitlement] = {}
         for ent in normalized.entitlements:
+            # existing_entitlements doubles as this bundle's own dedup cache: a
+            # gamekey never repeats across `bundles`, so a hit here is either a
+            # row from before this refresh or one this same loop already added
+            # for an earlier duplicate entry within this bundle's own list.
             dedup_key = (normalized.gamekey, ent.machine_name, ent.keyindex)
-            row = seen_entitlements.get(dedup_key)
-            if row is None:
-                row = (
-                    db.query(BundleEntitlement)
-                    .filter(
-                        BundleEntitlement.gamekey == normalized.gamekey,
-                        BundleEntitlement.machine_name == ent.machine_name,
-                        BundleEntitlement.keyindex == ent.keyindex,
-                    )
-                    .one_or_none()
-                )
+            row = existing_entitlements.get(dedup_key)
             if row is None:
                 row = BundleEntitlement(gamekey=normalized.gamekey, machine_name=ent.machine_name, keyindex=ent.keyindex)
                 db.add(row)
+                existing_entitlements[dedup_key] = row
             row.key_name = ent.key_name
             row.redeemed_on_humble = ent.redeemed_on_source
             row.steam_app_id = ent.steam_app_id
             row.gog_id = ent.gog_id
             row.raw_json = json.dumps(ent.raw_json, default=str)
-            seen_entitlements[dedup_key] = row
 
     db.commit()
     log("info", f"Humble: refresh complete, {len(bundles)} bundle(s)")

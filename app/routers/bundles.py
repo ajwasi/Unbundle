@@ -145,7 +145,14 @@ def list_bundles(
     query = _apply_sort(query, sort, dir)
     bundles = query.all()
 
-    categories = [row[0] for row in db.query(Bundle.category).distinct().order_by(Bundle.category).all() if row[0]]
+    # category_breakdown (below) already computes one row per distinct category
+    # value via GROUP BY — deriving the filter dropdown's options from it instead
+    # of a second, separate `SELECT DISTINCT category` avoids a redundant query
+    # every page load. "(none)" is category_breakdown's own substitution for a
+    # NULL category, never a real Humble category value, so excluding it here
+    # reproduces the old query's `if row[0]` behavior exactly.
+    category_breakdown = _category_breakdown(db)
+    categories = [row["category"] for row in category_breakdown if row["category"] != "(none)"]
 
     context = {
         "bundles": bundles,
@@ -167,7 +174,7 @@ def list_bundles(
         # the query planner to optimize the unused columns away.
         "total_count": db.query(func.count(Bundle.gamekey)).scalar(),
         "filtered_total_spent": sum(b.amount_spent for b in bundles),
-        "category_breakdown": _category_breakdown(db),
+        "category_breakdown": category_breakdown,
         "grand_total_spent": db.query(func.sum(Bundle.amount_spent)).scalar() or 0.0,
     }
     if request.headers.get("HX-Request") == "true":

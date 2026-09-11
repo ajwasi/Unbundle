@@ -130,6 +130,12 @@ def _backup_context(db: Session, backup_error: str | None = None) -> dict:
 
 @router.get("", response_class=HTMLResponse)
 def settings_page(request: Request, db: Session = Depends(get_db)):
+    # Each _*_context() below runs its own small query against `credential`
+    # (a handful of rows, total, ever — one per source) rather than sharing
+    # one bulk fetch. Deliberately not consolidated: this table's whole size
+    # makes combining them save nothing measurable, and each context function
+    # stays independently readable/testable and reusable by its own
+    # save/disconnect routes below, which only ever need their one source.
     cred = _humble_credential(db)
     context = {
         "humble_status": cred.status if cred else STATUS_NOT_CONFIGURED,

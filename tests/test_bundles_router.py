@@ -86,6 +86,18 @@ def test_list_bundles_category_filter(authed_client, make_bundle):
     assert "Game Bundle" not in resp.text
 
 
+def test_list_bundles_category_dropdown_lists_real_categories_only(authed_client, make_bundle):
+    # Regression guard: the dropdown's option list is now derived from
+    # category_breakdown (see list_bundles) instead of its own separate
+    # query — confirms that still excludes an uncategorized bundle's
+    # "(none)" substitution rather than offering it as a filterable value.
+    make_bundle(gamekey="GK1", order=make_order(category="subscriptionplan"))
+    make_bundle(gamekey="GK2", order=make_order(category=""))
+    resp = authed_client.get("/bundles")
+    assert 'value="subscriptionplan"' in resp.text
+    assert 'value="(none)"' not in resp.text
+
+
 def test_list_bundles_min_items_filter(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(name="Big Bundle", subproducts=[make_subproduct(f"Item {i}") for i in range(5)]))
     make_bundle(gamekey="GK2", order=make_order(name="Small Bundle", subproducts=[make_subproduct("Only Item")]))

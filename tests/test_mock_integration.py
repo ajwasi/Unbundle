@@ -62,6 +62,24 @@ async def test_humble_sync_against_mock_server_populates_the_curated_bundles(dem
 
 
 @pytest.mark.asyncio
+async def test_humble_sync_twice_updates_in_place_instead_of_duplicating(demo_mode, db):
+    # Regression guard for refresh_library's bulk-prefetch upsert (see
+    # sync/refresh.py): a second refresh against the same data must find and
+    # update the same Bundle/BundleEntitlement rows via the prefetched dicts,
+    # not miss them and violate gamekey/uq_entitlement's unique constraints
+    # trying to re-insert.
+    _seed_humble_credential(db)
+    await refresh.refresh_library(db, _NOOP_LOG)
+    first_entitlement_count = db.query(BundleEntitlement).count()
+
+    count = await refresh.refresh_library(db, _NOOP_LOG)
+
+    assert count == 14
+    assert db.query(Bundle).count() == 14
+    assert db.query(BundleEntitlement).count() == first_entitlement_count
+
+
+@pytest.mark.asyncio
 async def test_steam_cross_check_against_mock_server_distinguishes_owned_from_unredeemed(demo_mode, db):
     _seed_humble_credential(db)
     await refresh.refresh_library(db, _NOOP_LOG)

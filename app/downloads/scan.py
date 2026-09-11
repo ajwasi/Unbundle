@@ -88,17 +88,19 @@ def commit_matches(db: Session, result: ScanResult) -> int:
     time was never observed by the app, and stamping "now" would misrepresent
     history that doesn't exist.
     """
+    # One bulk fetch (bounded by the distinct bundles matched, not the file
+    # count) instead of a query per matched entry — a first-time scan of an
+    # existing library can match hundreds of files at once.
+    gamekeys = {entry["gamekey"] for entry in result.matched}
+    existing = {
+        (d.gamekey, d.item_name, d.original_filename): d
+        for d in db.query(Download).filter(Download.gamekey.in_(gamekeys)).all()
+    }
+
     committed = 0
     for entry in result.matched:
-        row = (
-            db.query(Download)
-            .filter(
-                Download.gamekey == entry["gamekey"],
-                Download.item_name == entry["item_name"],
-                Download.original_filename == entry["original_filename"],
-            )
-            .one_or_none()
-        )
+        key = (entry["gamekey"], entry["item_name"], entry["original_filename"])
+        row = existing.get(key)
         if row is not None and row.status == STATUS_COMPLETED:
             continue
         if row is None:
@@ -108,6 +110,7 @@ def commit_matches(db: Session, result: ScanResult) -> int:
                 original_filename=entry["original_filename"],
             )
             db.add(row)
+            existing[key] = row
         row.bundle_name = entry["bundle_name"]
         row.subproduct_index = entry["subproduct_index"]
         row.file_format = entry["file_format"]
