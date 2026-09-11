@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Humble Tracker{% endblock %}</title>
+  <title>{% block title %}Unbundle{% endblock %}</title>
   <script>
     // Inline and blocking, before the stylesheet, so an explicit saved theme
     // wins over the OS preference from the very first paint — no flash of the
@@ -31,7 +31,7 @@
   <div class="app-shell">
     <nav class="sidebar">
       <div class="brand">
-        <span>🎁 Humble Tracker</span>
+        <span>🎁 Unbundle</span>
         {% if not request.state.identity_label %}
         <button type="button" id="theme-toggle" aria-label="Toggle dark mode"></button>
         {% endif %}

@@ -42,9 +42,9 @@ from app.models.download_job import DownloadJob
 from app.models.sync_run import STATUS_SUCCESS, SyncRun
 from app.version import is_update_available
 
-METER_NAME = "humble_tracker"
+METER_NAME = "unbundle"
 
-_resource = Resource.create({"service.name": "humble-tracker"})
+_resource = Resource.create({"service.name": "unbundle"})
 _reader = PrometheusMetricReader()
 _provider = MeterProvider(metric_readers=[_reader], resource=_resource)
 metrics.set_meter_provider(_provider)
@@ -53,7 +53,7 @@ meter = metrics.get_meter(METER_NAME)
 
 # Real push counter — see module docstring for why this one isn't observable.
 rate_limit_rejections_total = meter.create_counter(
-    "humble_tracker.rate_limit.rejections",
+    "unbundle.rate_limit.rejections",
     description="Requests rejected by a rate limiter, by which one",
 )
 
@@ -138,38 +138,38 @@ def _last_sync_timestamp(options):
 
 
 meter.create_observable_gauge(
-    "humble_tracker.bundles.count",
+    "unbundle.bundles.count",
     callbacks=[_bundle_count],
     description="Number of bundles currently in the library",
 )
 meter.create_observable_gauge(
-    "humble_tracker.downloads.files",
+    "unbundle.downloads.files",
     callbacks=[_download_file_counts],
     description="Downloadable files tracked, by status",
 )
 meter.create_observable_gauge(
-    "humble_tracker.downloads.jobs",
+    "unbundle.downloads.jobs",
     callbacks=[_download_job_counts],
     description="Download jobs tracked, by status",
 )
 meter.create_observable_gauge(
-    "humble_tracker.entitlements.unredeemed",
+    "unbundle.entitlements.unredeemed",
     callbacks=[_unredeemed_key_counts],
     description="Third-party keys confirmed not redeemed on the matching platform",
 )
 meter.create_observable_gauge(
-    "humble_tracker.connector.status",
+    "unbundle.connector.status",
     callbacks=[_connector_status],
     description="Whether each connector's stored credential is currently valid (1) or not (0)",
 )
 meter.create_observable_gauge(
-    "humble_tracker.sync.last_success_timestamp",
+    "unbundle.sync.last_success_timestamp",
     unit="s",
     callbacks=[_last_sync_timestamp],
     description="Unix timestamp of the last successful library sync",
 )
 meter.create_observable_gauge(
-    "humble_tracker.update_available",
+    "unbundle.update_available",
     callbacks=[_update_available],
     description="Whether a newer commit than the running version exists on GitHub's main branch (1) or not (0)",
 )

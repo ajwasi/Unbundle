@@ -37,7 +37,7 @@ def test_home_bundle_tile_image_has_a_fallback_for_a_broken_cover_image(authed_c
     bundles = [_bundle(category="games", name="Game One")]
     with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):
         resp = authed_client.get("/")
-    assert 'onerror="humbleTrackerImgFallback(this)"' in resp.text
+    assert 'onerror="unbundleImgFallback(this)"' in resp.text
 
 
 def test_home_shows_empty_state_for_category_with_no_bundles(authed_client):

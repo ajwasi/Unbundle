@@ -13,12 +13,12 @@ from fastapi import FastAPI, Request
 
 from mock_api.data_loader import gog_games, humble_gamekeys, humble_orders, steam_data
 
-app = FastAPI(title="Humble Tracker Mock API")
+app = FastAPI(title="Unbundle Mock API")
 
 
 @app.get("/")
 def root():
-    return {"status": "ok", "service": "humble-tracker-mock-api"}
+    return {"status": "ok", "service": "unbundle-mock-api"}
 
 
 # --- Humble --------------------------------------------------------------

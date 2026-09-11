@@ -22,7 +22,7 @@ def test_login_success_sets_session_cookie_and_redirects(client):
     resp = client.post("/login", data={"password": "test-password", "next": "/"}, follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/"
-    assert "humble_tracker_session" in resp.cookies
+    assert "unbundle_session" in resp.cookies
 
 
 def test_login_session_cookie_not_secure_by_default(client):
@@ -173,7 +173,7 @@ def test_setup_success_sets_password_and_logs_in(client, db, monkeypatch):
     )
     assert resp.status_code == 303
     assert resp.headers["location"] == "/"
-    assert "humble_tracker_session" in resp.cookies
+    assert "unbundle_session" in resp.cookies
     assert check_app_password("fresh-password", db) is True
 
 
@@ -278,7 +278,7 @@ def test_oidc_callback_success_sets_session_cookie(client, db):
         mock_build.return_value.authorize_access_token = AsyncMock(return_value={"userinfo": {"sub": "user1"}})
         resp = client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
     assert resp.status_code == 303
-    assert "humble_tracker_session" in resp.cookies
+    assert "unbundle_session" in resp.cookies
 
 
 def test_oidc_callback_stores_identity_with_only_sub_when_no_email_claim(client, db):
@@ -288,7 +288,7 @@ def test_oidc_callback_stores_identity_with_only_sub_when_no_email_claim(client,
     with patch("app.routers.auth.build_oauth_client") as mock_build:
         mock_build.return_value.authorize_access_token = AsyncMock(return_value={"userinfo": {"sub": "user1"}})
         resp = client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
-    payload = decode_session_token(resp.cookies["humble_tracker_session"])
+    payload = decode_session_token(resp.cookies["unbundle_session"])
     assert payload["identity"] == {"sub": "user1"}
 
 
@@ -300,7 +300,7 @@ def test_oidc_callback_stores_identity_with_email_in_session(client, db):
     with patch("app.routers.auth.build_oauth_client") as mock_build:
         mock_build.return_value.authorize_access_token = AsyncMock(return_value={"userinfo": userinfo})
         resp = client.get("/auth/oidc/callback?code=abc&state=xyz", follow_redirects=False)
-    payload = decode_session_token(resp.cookies["humble_tracker_session"])
+    payload = decode_session_token(resp.cookies["unbundle_session"])
     assert payload["identity"]["email"] == "person@example.com"
     assert payload["identity"]["name"] == "Person Example"
 

@@ -1,4 +1,4 @@
-# Humble Tracker
+# Unbundle
 
 Self-hosted web UI for [humble-cli](https://github.com/smbl64/humble-cli): browse your
 Humble Bundle library, download and track where every file ends up, cross-reference
@@ -49,7 +49,7 @@ Docker-based, no external services required beyond the ones you choose to connec
   (no release/tag process exists yet, so this is the honest "what's actually
   running"), with a periodic background check against GitHub's `main` branch
   surfacing an "Update available" link when it's out of date, plus a matching
-  `humble_tracker_update_available` metric for your own alerting.
+  `unbundle_update_available` metric for your own alerting.
 
 ## Quick start
 
@@ -237,13 +237,13 @@ carries three kinds of data:
 - HTTP request count/duration/response size per route, via automatic FastAPI
   instrumentation (`http_server_*`).
 - App-specific gauges, computed fresh from the database on every scrape (no
-  persisted duplicate state to drift out of sync): `humble_tracker_bundles_count`,
-  `humble_tracker_downloads_files`/`humble_tracker_downloads_jobs` (by status),
-  `humble_tracker_entitlements_unredeemed` (by platform — the app's core "did I
+  persisted duplicate state to drift out of sync): `unbundle_bundles_count`,
+  `unbundle_downloads_files`/`unbundle_downloads_jobs` (by status),
+  `unbundle_entitlements_unredeemed` (by platform — the app's core "did I
   actually redeem this key" purpose, now graphable over time),
-  `humble_tracker_connector_status` (1/0 per source), and
-  `humble_tracker_sync_last_success_timestamp`.
-- `humble_tracker_rate_limit_rejections_total` (by which limiter) and Python's own
+  `unbundle_connector_status` (1/0 per source), and
+  `unbundle_sync_last_success_timestamp`.
+- `unbundle_rate_limit_rejections_total` (by which limiter) and Python's own
   process/GC metrics, both via `prometheus_client`'s standard collectors.
 
 **Try it turnkey**: `docker compose --profile observability up` starts Prometheus (already
@@ -258,7 +258,7 @@ Scraping from a Prometheus that lives *outside* this Compose network instead:
 
 ```yaml
 scrape_configs:
-  - job_name: humble-tracker
+  - job_name: unbundle
     static_configs:
       - targets: ["<host>:8010"]
     # Only needed if METRICS_TOKEN is set:
@@ -267,7 +267,7 @@ scrape_configs:
 ```
 
 From there, build panels/alerts against the metric names above — e.g. an alert on
-`humble_tracker_connector_status{source="humble"} == 0` catches a broken Humble session
+`unbundle_connector_status{source="humble"} == 0` catches a broken Humble session
 before you'd otherwise notice.
 
 ## Local development
@@ -344,3 +344,22 @@ HTTP/session involved.
   only see `SCAN_ROOT` (a read-only Docker volume — see `.env.example`) and its
   subdirectories, never an arbitrary path — point it at wherever your existing library
   actually lives.
+
+## Acknowledgments
+
+Unbundle is a web UI, not a reimplementation — it exists on top of tools and
+research it didn't create:
+
+- **[humble-cli](https://github.com/smbl64/humble-cli)** (by [smbl64](https://github.com/smbl64))
+  is what actually downloads files from Humble Bundle; this app shells out to it for
+  every download and mirrors its own session-cookie-based auth flow (see Quick start
+  above). `app/connectors/humble_connector.py`'s direct API calls are also modeled on
+  humble-cli's own source, since Humble's API itself is undocumented.
+- **[GOG API Docs](https://gogapidocs.readthedocs.io/)** is the community
+  reverse-engineering effort `app/connectors/gog_connector.py` is built against — GOG
+  has no official public API or self-service key, so every request shape, endpoint,
+  and the OAuth2 flow's quirks (see that file's module docstring) come from this
+  project's documentation, not from GOG.
+
+Both projects deal with undocumented, unofficial surfaces that can change without
+notice — see Security notes above.

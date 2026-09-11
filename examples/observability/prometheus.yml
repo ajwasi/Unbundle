@@ -3,7 +3,7 @@
 # deliberate: inside that same Compose network, Prometheus reaches the app via
 # its service name and *container* port, not the host-mapped one.
 scrape_configs:
-  - job_name: humble-tracker
+  - job_name: unbundle
     static_configs:
       - targets: ["app:8000"]
     # Uncomment if METRICS_TOKEN is set in .env:

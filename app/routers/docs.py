@@ -21,7 +21,7 @@ from fastapi.responses import HTMLResponse
 router = APIRouter()
 
 _THEME_DETECT_JS = """
-function humbleTrackerDocsTheme() {
+function unbundleDocsTheme() {
   var saved = localStorage.getItem("theme");
   if (saved === "light" || saved === "dark") return saved;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -67,14 +67,14 @@ _REDOC_DARK_THEME = {
 
 @router.get("/docs", include_in_schema=False, response_class=HTMLResponse)
 def custom_swagger_ui_html() -> HTMLResponse:
-    resp = get_swagger_ui_html(openapi_url="/openapi.json", title="Humble Tracker — Swagger UI")
+    resp = get_swagger_ui_html(openapi_url="/openapi.json", title="Unbundle — Swagger UI")
     html = resp.body.decode("utf-8").replace("</head>", _SWAGGER_DARK_CSS + "</head>")
     return HTMLResponse(html)
 
 
 @router.get("/redoc", include_in_schema=False, response_class=HTMLResponse)
 def custom_redoc_html() -> HTMLResponse:
-    resp = get_redoc_html(openapi_url="/openapi.json", title="Humble Tracker — ReDoc")
+    resp = get_redoc_html(openapi_url="/openapi.json", title="Unbundle — ReDoc")
     # json.dumps() twice: once to produce the JSON string the "theme" attribute
     # itself expects, again to safely embed that string as a JS string literal
     # (JSON string syntax is a strict subset of JS string syntax, so this is
@@ -84,7 +84,7 @@ def custom_redoc_html() -> HTMLResponse:
     theme_script = f"""
 <script>
 {_THEME_DETECT_JS}
-if (humbleTrackerDocsTheme() === "dark") {{
+if (unbundleDocsTheme() === "dark") {{
   document.body.style.background = "#17150f";
   var el = document.querySelector("redoc");
   if (el) el.setAttribute("theme", {theme_js_literal});

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.credential import SOURCE_APP_AUTH, Credential
 
-SESSION_COOKIE_NAME = "humble_tracker_session"
+SESSION_COOKIE_NAME = "unbundle_session"
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30  # 30 days
 PBKDF2_ITERATIONS = 200_000
 
@@ -32,6 +32,13 @@ PBKDF2_ITERATIONS = 200_000
 # wouldn't add on its own anyway — and a *random* salt would need its own
 # persisted storage with no natural home (Fernet's key must be reproducible
 # from settings.app_secret_key alone on every call, with no other state).
+#
+# Deliberately NOT renamed to "unbundle" alongside the app's other branding:
+# this exact byte string is baked into the derived key for every credential
+# already encrypted under it. Changing it would silently make every existing
+# installation's stored Humble/Steam/GOG credentials and password hash
+# permanently undecryptable on upgrade — it's an internal KDF input, not
+# user-visible, so the old name costs nothing to leave here indefinitely.
 _CREDENTIAL_KEY_SALT = b"humble-tracker:credential-encryption:v1"
 CREDENTIAL_KDF_ITERATIONS = 200_000
 
