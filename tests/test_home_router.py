@@ -156,6 +156,39 @@ def test_compare_shows_owned_vs_new_items(authed_client, make_bundle):
     assert "New to you" in resp.text
 
 
+def test_compare_gives_every_tier_table_the_same_alignment_class(authed_client, make_bundle):
+    # Regression: each tier renders its own <table>, auto-sized independently
+    # by default — Type/Value/Status only line up across tiers if every one
+    # of them shares the same fixed column-width class.
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Owned Item", machine_name="owned")]))
+
+    detail = StorefrontBundleDetail(
+        name="For-Sale Bundle",
+        msrp_total=50.0,
+        items=[StorefrontItem(machine_name="owned", name="Owned Item", content_type="ebook", msrp_amount=10.0)],
+        tiers=[
+            StorefrontTier(
+                identifier="tier1",
+                label="Pay $5 to unlock!",
+                price_amount=5.0,
+                is_bta=False,
+                items=[StorefrontItem(machine_name="owned", name="Owned Item", content_type="ebook", msrp_amount=10.0)],
+            ),
+            StorefrontTier(
+                identifier="tier2",
+                label="Pay $10 or more to also unlock!",
+                price_amount=10.0,
+                is_bta=False,
+                items=[StorefrontItem(machine_name="new_item", name="A Much Longer Item Name Here", content_type="ebook", msrp_amount=20.0)],
+            ),
+        ],
+    )
+    with patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=detail)):
+        resp = authed_client.get("/storefront/compare?url=https://www.humblebundle.com/books/x")
+
+    assert resp.text.count('class="compare-table"') == 2
+
+
 def test_compare_shows_avg_paid_for_owned_items_not_msrp(authed_client, make_bundle):
     make_bundle(
         gamekey="GK1",
