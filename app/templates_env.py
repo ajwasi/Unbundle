@@ -2,16 +2,17 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
-from app.version import get_version, is_update_available
+from app.version import get_version, is_update_available, latest_tag
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 # app_version is computed once (the process's own version never changes at runtime);
-# is_update_available is registered as the function itself, not its current result —
-# its answer changes as the background check loop re-runs, so it must be called
-# fresh on every render, not baked in at import time.
+# is_update_available/latest_tag are registered as the functions themselves, not
+# their current results — both change as the background check loop re-runs, so
+# they must be called fresh on every render, not baked in at import time.
 templates.env.globals["app_version"] = get_version()
 templates.env.globals["is_update_available"] = is_update_available
+templates.env.globals["latest_version_tag"] = latest_tag
 
 
 def human_size(num_bytes: int) -> str:

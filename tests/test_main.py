@@ -24,6 +24,27 @@ def test_responses_are_gzip_compressed_above_the_size_threshold(authed_client):
     assert resp.headers.get("content-encoding") == "gzip"
 
 
+def test_update_available_link_points_at_the_latest_tag_not_main(authed_client, monkeypatch):
+    import app.version as version_module
+
+    monkeypatch.setattr(version_module, "_update_available", True)
+    monkeypatch.setattr(version_module, "_latest_tag", "v1.3.0")
+
+    resp = authed_client.get("/")
+    assert "Update available" in resp.text
+    assert "...v1.3.0" in resp.text
+    assert "...main" not in resp.text
+
+
+def test_no_update_link_shown_when_already_current(authed_client, monkeypatch):
+    import app.version as version_module
+
+    monkeypatch.setattr(version_module, "_update_available", False)
+
+    resp = authed_client.get("/")
+    assert "Update available" not in resp.text
+
+
 def test_no_auth_warning_when_oidc_enabled_instead(db, monkeypatch):
     from app.models.credential import SOURCE_OIDC, STATUS_OK, Credential
     from app.security import encrypt_json
