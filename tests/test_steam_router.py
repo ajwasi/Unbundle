@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from app.models.bundle import Bundle
@@ -32,6 +33,23 @@ def test_steam_page_shows_games_and_stats(authed_client, db):
     assert "Half-Life 2" in resp.text
     assert "1 game(s) owned" in resp.text
     assert "2.0 hour(s)" in resp.text
+
+
+def test_steam_page_shows_never_refreshed_with_no_games(authed_client, db):
+    _connect_steam(db)
+    resp = authed_client.get("/steam")
+    assert "Never refreshed" in resp.text
+
+
+def test_steam_page_shows_last_refreshed_time(authed_client, db):
+    _connect_steam(db)
+    fetched_at = datetime.utcnow() - timedelta(hours=2)
+    db.add(SteamGame(appid=220, name="Half-Life 2", playtime_forever_minutes=120, img_icon_url="", fetched_at=fetched_at))
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    assert "Last refreshed" in resp.text
+    assert "2 hours ago" in resp.text
 
 
 def test_steam_page_shows_never_redeemed_section(authed_client, db):

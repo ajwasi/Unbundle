@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
@@ -52,3 +53,27 @@ def format_category(value: str) -> str:
 
 
 templates.env.filters["format_category"] = format_category
+
+
+def time_since(value: datetime | None) -> str:
+    """Renders a per-row/-page "last pulled from Humble/Steam/GOG" timestamp
+    (all stored as naive UTC via datetime.utcnow(), see e.g. Bundle.fetched_at)
+    as a short relative string. Callers pair this with a title="" attribute
+    showing the exact timestamp for anyone who wants precision.
+    """
+    if value is None:
+        return "never"
+    seconds = (datetime.utcnow() - value).total_seconds()
+    if seconds < 60:
+        return "just now"
+    minutes = int(seconds // 60)
+    if minutes < 60:
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    hours = int(minutes // 60)
+    if hours < 24:
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    days = int(hours // 24)
+    return f"{days} day{'s' if days != 1 else ''} ago"
+
+
+templates.env.filters["time_since"] = time_since

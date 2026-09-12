@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.connectors.humble_connector import order_page_url
@@ -75,6 +76,7 @@ def _context(db: Session) -> dict:
         "game_count": len(games),
         "checked_entitlement_count": checked_count,
         "unredeemed": _unredeemed_rows(db),
+        "last_synced": db.query(func.max(GogGame.fetched_at)).scalar(),
     }
 
 

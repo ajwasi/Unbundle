@@ -12,9 +12,11 @@ def _reset_caches():
     # Module-level TTL caches must not leak between tests.
     storefront._listing_cache = None
     storefront._detail_cache = {}
+    storefront._listing_fetched_at = None
     yield
     storefront._listing_cache = None
     storefront._detail_cache = {}
+    storefront._listing_fetched_at = None
 
 
 def _listing_html(products_by_category: dict) -> str:
@@ -52,6 +54,31 @@ def _product(
     if end_date is not None:
         product["end_date|datetime"] = end_date
     return product
+
+
+def test_last_fetched_at_is_none_before_any_fetch():
+    assert storefront.last_fetched_at() is None
+
+
+@pytest.mark.asyncio
+async def test_last_fetched_at_is_set_after_a_real_fetch():
+    html = _listing_html({"games": [], "books": [], "software": []})
+    resp = httpx.Response(200, text=html, request=httpx.Request("GET", "https://x"))
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
+        await storefront.fetch_current_bundles()
+    assert storefront.last_fetched_at() is not None
+
+
+@pytest.mark.asyncio
+async def test_last_fetched_at_unchanged_on_a_cache_hit():
+    html = _listing_html({"games": [], "books": [], "software": []})
+    resp = httpx.Response(200, text=html, request=httpx.Request("GET", "https://x"))
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)) as mock_get:
+        await storefront.fetch_current_bundles()
+        first = storefront.last_fetched_at()
+        await storefront.fetch_current_bundles()  # within TTL — cache hit, no real fetch
+        assert mock_get.call_count == 1
+    assert storefront.last_fetched_at() == first
 
 
 @pytest.mark.asyncio

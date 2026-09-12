@@ -91,6 +91,18 @@ class StorefrontBundleDetail:
 
 _listing_cache: tuple[float, list[StorefrontBundle]] | None = None
 _detail_cache: dict[str, tuple[float, StorefrontBundleDetail]] = {}
+# Wall-clock companion to _listing_cache's monotonic timestamp (monotonic time
+# isn't meaningful to show a user) — set alongside it, purely for the "last
+# pulled" display on the Home page; never read for TTL/cache-expiry logic.
+_listing_fetched_at: datetime | None = None
+
+
+def last_fetched_at() -> datetime | None:
+    """When the storefront listing was last actually fetched (not merely
+    requested — a cache hit doesn't move this). None before the first fetch
+    of this process's lifetime.
+    """
+    return _listing_fetched_at
 
 
 def _parse_datetime(raw: str | None) -> datetime | None:
@@ -103,7 +115,7 @@ def _parse_datetime(raw: str | None) -> datetime | None:
 
 
 async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
-    global _listing_cache
+    global _listing_cache, _listing_fetched_at
     if _listing_cache and not force and time.monotonic() - _listing_cache[0] < LISTING_TTL_SECONDS:
         return _listing_cache[1]
 
@@ -137,6 +149,7 @@ async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
                 )
 
     _listing_cache = (time.monotonic(), bundles)
+    _listing_fetched_at = datetime.utcnow()
     return bundles
 
 

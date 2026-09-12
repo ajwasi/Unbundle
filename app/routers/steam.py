@@ -74,6 +74,7 @@ def _context(db: Session) -> dict:
         "total_playtime_hours": round(sum(g.playtime_forever_minutes for g in games) / 60, 1),
         "checked_entitlement_count": checked_count,
         "unredeemed": _unredeemed_rows(db),
+        "last_synced": db.query(func.max(SteamGame.fetched_at)).scalar(),
     }
 
 

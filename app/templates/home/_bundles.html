@@ -1,4 +1,7 @@
 <div id="storefront-bundles">
+  <p class="muted">
+    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% else %}Not refreshed yet{% endif %}
+  </p>
   {% for key, label in category_labels %}
   {% set items = by_category.get(key, []) %}
   <div class="card">
