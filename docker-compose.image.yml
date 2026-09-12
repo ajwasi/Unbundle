@@ -29,6 +29,11 @@ services:
     volumes:
       - ./data:/data
       - ${SCAN_ROOT:-./scan-root}:/scan-root:ro
+      # To scan more than one location, mount each as its own path here and
+      # list all of them (comma-separated, matching these exact container
+      # paths) in .env's SCAN_ROOTS — see docker-compose.yml's own copy of
+      # this comment and README's "Scanning multiple folders" section.
+      # - ${SCAN_ROOT_COMICS:-./scan-root-comics}:/scan-root-comics:ro
     environment:
       - FORWARDED_ALLOW_IPS=*
       # DATABASE_URL/DATA_DIR/DOWNLOADS_DIR: app/config.py's own Settings defaults

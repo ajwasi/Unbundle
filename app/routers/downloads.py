@@ -26,6 +26,15 @@ from app.templates_env import templates
 
 router = APIRouter(prefix="/downloads")
 
+# A scan of a large, long-lived library can turn up thousands of matched
+# and/or ambiguous rows (confirmed live: 7000+ matched, 4000+ ambiguous
+# against one real folder) — rendering all of them in one response makes for
+# a multi-megabyte page that's genuinely slow to load and scroll, separate
+# from whether the commit mechanism itself works. Commit still always acts
+# on the full re-scanned result (see scan_commit below), never just this
+# displayed slice — only what's *shown* in the preview is capped.
+_SCAN_PREVIEW_LIMIT = 200
+
 
 def _destination_rows(db: Session) -> list[dict]:
     tags_by_id = {t.id: t.name for t in db.query(Tag).all()}
@@ -74,7 +83,7 @@ def downloads_page(
     q: str = "",
     db: Session = Depends(get_db),
 ):
-    context: dict = {"active_jobs": worker.get_active_jobs(db)}
+    context: dict = {"active_jobs": worker.get_active_jobs(db), "scan_roots": _scan_root_choices()}
     context.update(_history_context(db, status, file_format, q))
     context.update(_destinations_context(db))
     context.update(_concurrency_context(db))
@@ -140,14 +149,31 @@ def save_concurrency(request: Request, concurrency: str = Form(default=""), db: 
     return templates.TemplateResponse(request, "downloads/_concurrency_form.html", _concurrency_context(db))
 
 
-def _resolve_scan_folder(folder: str) -> Path | None:
-    """folder-scan can only ever see settings.scan_root_dir and its
-    subdirectories — never an arbitrary path from the request. In Docker
-    that directory is a dedicated, admin-chosen, read-only mount
-    (docker-compose.yml's SCAN_ROOT), so this is a real containment
-    boundary: whatever isn't mounted there is genuinely unreachable to this
-    feature, regardless of what a request submits — not just a convention
-    this code happens to follow.
+def _scan_root_choices() -> list[dict]:
+    """[{"index": i, "label": ...}] for every configured scan root, in the
+    order scan_root_list() returns them — the form's root_index submits the
+    index, never the path itself, so there's no request-controlled string
+    anywhere near path resolution (see _resolve_scan_folder). label is just
+    the mount point's own last path segment (e.g. "/scan-root-2" -> "scan-
+    root-2"); name it meaningfully in docker-compose.yml's volumes: if you
+    want a nicer label here.
+    """
+    return [{"index": i, "label": root.name or str(root)} for i, root in enumerate(settings.scan_root_list())]
+
+
+def _resolve_scan_folder(root_index: int, folder: str) -> Path | None:
+    """folder-scan can only ever see one of settings.scan_root_list()'s
+    configured roots and its subdirectories — never an arbitrary path from
+    the request, and never a root the deployer didn't configure either:
+    root_index is bounds-checked against that fixed, server-side list, not
+    a path the request supplies. In Docker each configured root is a
+    dedicated, admin-chosen, read-only mount (docker-compose.yml's
+    SCAN_ROOT/SCAN_ROOTS), so this is a real containment boundary: whatever
+    isn't mounted at one of these exact paths is genuinely unreachable to
+    this feature, regardless of what a request submits — not just a
+    convention this code happens to follow. An empty folder means "the
+    root itself" — scanning a whole configured root is a deliberate,
+    common choice once there's more than one to pick from.
 
     Inlined here (rather than reusing paths.resolve_within(), which does
     the same is_relative_to() check) so the containment check sits in the
@@ -155,12 +181,13 @@ def _resolve_scan_folder(folder: str) -> Path | None:
     left CodeQL's path-injection query still flagging the result as
     tainted, even though the helper is unconditionally safe.
     """
-    folder = folder.strip()
-    if not folder:
+    roots = settings.scan_root_list()
+    if not (0 <= root_index < len(roots)):
         return None
-    root = settings.scan_root_dir.resolve()
+    folder = folder.strip()
+    root = roots[root_index].resolve()
     try:
-        candidate = (root / folder).resolve()
+        candidate = (root / folder).resolve() if folder else root
     except (OSError, ValueError):
         return None
     if not candidate.is_relative_to(root):
@@ -169,29 +196,28 @@ def _resolve_scan_folder(folder: str) -> Path | None:
 
 
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def scan_preview(request: Request, folder: str = Form(default=""), db: Session = Depends(get_db)):
+def scan_preview(request: Request, root_index: int = Form(default=0), folder: str = Form(default=""), db: Session = Depends(get_db)):
     folder = folder.strip()
-    root = _resolve_scan_folder(folder)
-    if root is None:
-        return templates.TemplateResponse(
-            request, "downloads/_scan_result.html", {"error": f'"{folder}" is not a directory this app can see.', "folder": folder}
-        )
-    result = scan_folder(root, build_expected_index(db))
-    return templates.TemplateResponse(request, "downloads/_scan_result.html", {"folder": folder, "result": result})
+    resolved = _resolve_scan_folder(root_index, folder)
+    context = {"root_index": root_index, "folder": folder, "preview_limit": _SCAN_PREVIEW_LIMIT}
+    if resolved is None:
+        context["error"] = f'"{folder or "/"}" is not a directory this app can see.'
+        return templates.TemplateResponse(request, "downloads/_scan_result.html", context)
+    context["result"] = scan_folder(resolved, build_expected_index(db))
+    return templates.TemplateResponse(request, "downloads/_scan_result.html", context)
 
 
 @router.post("/scan/commit", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def scan_commit(request: Request, folder: str = Form(default=""), db: Session = Depends(get_db)):
+def scan_commit(request: Request, root_index: int = Form(default=0), folder: str = Form(default=""), db: Session = Depends(get_db)):
     folder = folder.strip()
-    root = _resolve_scan_folder(folder)
-    if root is None:
-        return templates.TemplateResponse(
-            request, "downloads/_scan_result.html", {"error": f'"{folder}" is not a directory this app can see.', "folder": folder}
-        )
+    resolved = _resolve_scan_folder(root_index, folder)
+    context = {"root_index": root_index, "folder": folder, "preview_limit": _SCAN_PREVIEW_LIMIT}
+    if resolved is None:
+        context["error"] = f'"{folder or "/"}" is not a directory this app can see.'
+        return templates.TemplateResponse(request, "downloads/_scan_result.html", context)
     # Re-scan rather than trusting a client-submitted match list — cheap, and
     # never commits anything the server hasn't independently verified itself.
-    result = scan_folder(root, build_expected_index(db))
-    committed = commit_matches(db, result)
-    return templates.TemplateResponse(
-        request, "downloads/_scan_result.html", {"folder": folder, "result": result, "committed": committed}
-    )
+    result = scan_folder(resolved, build_expected_index(db))
+    context["result"] = result
+    context["committed"] = commit_matches(db, result)
+    return templates.TemplateResponse(request, "downloads/_scan_result.html", context)

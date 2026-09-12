@@ -261,7 +261,34 @@ the mount itself, just moves files onto it.
 some other way): point it at a folder and it matches filenames against every item in
 your library, previews what it found (flagging anything ambiguous — the same filename
 matching more than one item — for manual review rather than guessing), and only marks
-files as downloaded once you commit. It never moves or re-downloads anything.
+files as downloaded once you commit. It never moves or re-downloads anything. On a
+large, long-lived library the preview can turn up thousands of rows — only the first
+200 are actually displayed for either list, but committing always acts on the full
+result, not just what's shown.
+
+### Scanning multiple folders
+
+By default there's one scan root (`SCAN_ROOT`/`SCAN_ROOT_DIR`). To scan more than one
+location — separate NAS shares that can't share a common parent directory, for
+instance — mount each as its own path in `docker-compose.yml`'s `volumes:` (see that
+file's own comment on `SCAN_ROOT`) and list all of them, comma-separated, in `.env`'s
+`SCAN_ROOTS`:
+
+```bash
+# docker-compose.yml
+volumes:
+  - ${SCAN_ROOT:-./scan-root}:/scan-root:ro
+  - ${SCAN_ROOT_COMICS:-./scan-root-comics}:/scan-root-comics:ro
+```
+```bash
+# .env
+SCAN_ROOTS=/scan-root,/scan-root-comics
+```
+
+The scan form then shows a dropdown to pick which root to scan — its label is just
+that mount's own last path segment (`/scan-root-comics` → "scan-root-comics"), so name
+the container-side path meaningfully. Leaving `SCAN_ROOTS` blank keeps today's
+single-root behavior exactly as before.
 
 ## Reverse proxy / HTTPS
 

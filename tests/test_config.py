@@ -6,8 +6,9 @@ otherwise write a stray .secret_key file into the real repo checkout.
 """
 
 import os
+from pathlib import Path
 
-from app.config import DEFAULT_SECRET_KEY, SECRET_KEY_FILENAME, _resolve_secret_key
+from app.config import DEFAULT_SECRET_KEY, SECRET_KEY_FILENAME, Settings, _resolve_secret_key
 
 
 def test_resolve_secret_key_returns_explicit_value_unchanged(tmp_path):
@@ -49,3 +50,18 @@ def test_resolve_secret_key_persisted_file_is_owner_only_on_posix(tmp_path):
     _resolve_secret_key(DEFAULT_SECRET_KEY, tmp_path)
     mode = (tmp_path / SECRET_KEY_FILENAME).stat().st_mode
     assert mode & 0o777 == 0o600
+
+
+def test_scan_root_list_defaults_to_the_single_scan_root_dir():
+    settings = Settings(scan_root_dir=Path("/scan-root"), scan_roots="")
+    assert settings.scan_root_list() == [Path("/scan-root")]
+
+
+def test_scan_root_list_parses_comma_separated_roots():
+    settings = Settings(scan_roots="/scan-root,/scan-root-comics")
+    assert settings.scan_root_list() == [Path("/scan-root"), Path("/scan-root-comics")]
+
+
+def test_scan_root_list_strips_whitespace_and_skips_empty_entries():
+    settings = Settings(scan_roots=" /scan-root , , /scan-root-comics ")
+    assert settings.scan_root_list() == [Path("/scan-root"), Path("/scan-root-comics")]

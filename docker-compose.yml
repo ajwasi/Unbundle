@@ -10,6 +10,13 @@ services:
       # wherever your existing library actually lives; read-only since
       # scanning only ever reads filenames/sizes, never writes here.
       - ${SCAN_ROOT:-./scan-root}:/scan-root:ro
+      # To scan more than one location (e.g. separate shares that can't share
+      # a common parent directory), mount each as its own path here — name it
+      # meaningfully, it becomes that root's label on the scan form — and
+      # list all of them (comma-separated, matching these exact container
+      # paths) in .env's SCAN_ROOTS. See README's "Scanning multiple
+      # folders" section. Example:
+      # - ${SCAN_ROOT_COMICS:-./scan-root-comics}:/scan-root-comics:ro
     environment:
       # Trusts X-Forwarded-* from anywhere on the Compose network — safe *because*
       # the accompanying guidance (README's "Reverse proxy / HTTPS" section) is to

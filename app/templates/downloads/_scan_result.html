@@ -9,10 +9,13 @@
 </p>
 
 {% if result.matched %}
+{% if result.matched|length > preview_limit %}
+<p class="muted">Showing the first {{ preview_limit }} of {{ result.matched|length }} matches — committing still acts on all of them.</p>
+{% endif %}
 <table class="scan-matched-table">
   <thead><tr><th>File</th><th>Bundle</th><th>Item</th><th>Format</th><th>Found at</th></tr></thead>
   <tbody>
-    {% for m in result.matched %}
+    {% for m in result.matched[:preview_limit] %}
     <tr>
       <td>{{ m.original_filename }}{% if m.size_mismatch %} <span class="badge badge-pending" title="Humble's reported size for this item doesn't match the file found — sizes are known to be occasionally unreliable, this may still be correct.">size differs</span>{% endif %}</td>
       <td><a href="/bundles/{{ m.gamekey }}">{{ m.bundle_name }}</a></td>
@@ -26,6 +29,7 @@
 {% if committed is not defined %}
 <form hx-post="/downloads/scan/commit" hx-target="#scan-result" hx-swap="innerHTML" style="margin-top: 0.75rem;">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <input type="hidden" name="root_index" value="{{ root_index }}">
   <input type="hidden" name="folder" value="{{ folder }}">
   <button type="submit">Commit {{ result.matched|length }} match(es)</button>
 </form>
@@ -34,10 +38,13 @@
 
 {% if result.ambiguous %}
 <p class="muted" style="margin-top: 0.75rem;"><strong>Ambiguous (never auto-committed)</strong> — the same filename matches more than one library item:</p>
+{% if result.ambiguous|length > preview_limit %}
+<p class="muted">Showing the first {{ preview_limit }} of {{ result.ambiguous|length }} ambiguous matches.</p>
+{% endif %}
 <table class="scan-ambiguous-table">
   <thead><tr><th>File</th><th>Found at</th><th>Candidates</th></tr></thead>
   <tbody>
-    {% for a in result.ambiguous %}
+    {% for a in result.ambiguous[:preview_limit] %}
     <tr>
       <td>{{ a.filename }}</td>
       <td class="path-cell">{{ a.found_path }}</td>
