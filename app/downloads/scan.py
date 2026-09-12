@@ -49,9 +49,31 @@ class ScanResult:
     matched: list[dict] = field(default_factory=list)
     ambiguous: list[dict] = field(default_factory=list)
     unmatched_count: int = 0
+    already_downloaded_count: int = 0
 
 
-def scan_folder(root: Path, index: dict[str, list[dict]]) -> ScanResult:
+def build_completed_keys(db: Session) -> set[tuple[str, str, str]]:
+    """(gamekey, item_name, original_filename) for every already-completed
+    Download row. scan_folder excludes these from `matched` so a file
+    already tracked — from a real download, or committed by an earlier scan
+    — doesn't keep occupying a slot in the (preview-limited) matched list.
+    Without this, committing the first page of a large scan would never
+    make room for the next page: the same already-tracked entries would
+    just keep re-appearing at the front on every re-scan.
+    """
+    return {
+        (gamekey, item_name, original_filename)
+        for gamekey, item_name, original_filename in db.query(
+            Download.gamekey, Download.item_name, Download.original_filename
+        ).filter(Download.status == STATUS_COMPLETED)
+    }
+
+
+def scan_folder(
+    root: Path,
+    index: dict[str, list[dict]],
+    completed_keys: set[tuple[str, str, str]] = frozenset(),
+) -> ScanResult:
     # root is already confirmed contained within settings.scan_root_dir by
     # the router's _resolve_scan_folder() before this is ever called.
     result = ScanResult()
@@ -63,6 +85,10 @@ def scan_folder(root: Path, index: dict[str, list[dict]]) -> ScanResult:
             result.unmatched_count += 1
         elif len(candidates) == 1:
             entry = dict(candidates[0])
+            key = (entry["gamekey"], entry["item_name"], entry["original_filename"])
+            if key in completed_keys:
+                result.already_downloaded_count += 1
+                continue
             entry["found_path"] = str(path)
             entry["actual_size_bytes"] = path.stat().st_size
             expected = entry["expected_size_bytes"]

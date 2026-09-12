@@ -78,6 +78,41 @@ def test_scan_folder_matches_files_in_subdirectories(db, make_bundle, tmp_path):
     assert len(result.matched) == 1
 
 
+def test_scan_folder_excludes_a_file_already_tracked_as_completed(db, make_bundle, tmp_path):
+    """A duplicate copy of an already-completed item (e.g. it lives in both
+    the app's own downloads folder and a separate legacy library folder that
+    still has the raw, un-renamed filename) must not keep re-appearing in
+    `matched` on every future scan — it's already tracked, nothing to do.
+    """
+    bundle = _seed(make_bundle, "GK1", "Cool Book", "book.epub", size=5)
+    db.add(
+        Download(
+            gamekey=bundle.gamekey,
+            item_name="Cool Book",
+            original_filename="book.epub",
+            status=STATUS_COMPLETED,
+            current_location_path="/elsewhere/book.epub",
+        )
+    )
+    db.commit()
+    (tmp_path / "book.epub").write_bytes(b"x" * 5)
+
+    result = scan.scan_folder(tmp_path, scan.build_expected_index(db), scan.build_completed_keys(db))
+
+    assert result.matched == []
+    assert result.already_downloaded_count == 1
+
+
+def test_scan_folder_with_no_completed_keys_arg_matches_as_before(db, make_bundle, tmp_path):
+    _seed(make_bundle, "GK1", "Cool Book", "book.epub", size=5)
+    (tmp_path / "book.epub").write_bytes(b"x" * 5)
+
+    result = scan.scan_folder(tmp_path, scan.build_expected_index(db))
+
+    assert len(result.matched) == 1
+    assert result.already_downloaded_count == 0
+
+
 def test_commit_matches_creates_a_completed_download_row(db, make_bundle, tmp_path):
     bundle = _seed(make_bundle, "GK1", "Cool Book", "book.epub", size=5)
     (tmp_path / "book.epub").write_bytes(b"x" * 5)

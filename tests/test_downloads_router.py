@@ -395,10 +395,23 @@ def test_scan_at_scale_750_matched_750_ambiguous_750_unmatched(authed_client, db
     assert "Marked 3 item(s) as downloaded" in commit_resp.text
     assert db.query(Download).count() == 3
 
+    # The committed 3 must drop out of the matched list entirely (renamed on
+    # disk, so they no longer match by filename) — this is what makes the
+    # *next* page of matches show up automatically, without a manual
+    # "Preview" click, and with fresh, immediately-selectable checkboxes.
+    assert f"{n - 3} match(es), {n} ambiguous, {n + 3} file(s) not in your library" in commit_resp.text
+    assert commit_resp.text.count('class="scan-item-check"') == 200
+    committed_names = {f"matched_{i}.epub" for i in range(3)}
+    assert not any(name in commit_resp.text for name in committed_names)
+
     # Committing with nothing selected still covers the full, untruncated result.
     commit_all_resp = authed_client.post("/downloads/scan/commit", data={"folder": ""})
     assert f"Marked {n - 3} item(s) as downloaded" in commit_all_resp.text
     assert db.query(Download).count() == n
+    # Nothing left to review — the matched list is now empty. All n matches
+    # ended up renamed away (underscore->space), so they now count as
+    # unmatched rather than reappearing — n original strays + n renamed.
+    assert f"0 match(es), {n} ambiguous, {n * 2} file(s) not in your library" in commit_all_resp.text
 
 
 def test_scan_preview_truncates_display_but_commit_still_covers_everything(authed_client, db, make_bundle, tmp_path, monkeypatch):

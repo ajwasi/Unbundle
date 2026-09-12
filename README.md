@@ -273,7 +273,10 @@ never touches disk). On a large, long-lived library the preview can turn up thou
 of rows — only the first 200 are actually displayed for either list. Check specific
 rows to commit just those, or leave everything unchecked and commit to act on the full
 result, not just what's shown — the "select all" checkbox only ever selects the rows
-currently on screen, never the rest of a truncated list.
+currently on screen, never the rest of a truncated list. Committing removes those
+entries from the matched list (they're now tracked, so there's nothing left to review),
+which is what surfaces the next page automatically — no extra step needed to work
+through a scan with thousands of matches a couple hundred at a time.
 
 ### Scanning multiple folders
 
