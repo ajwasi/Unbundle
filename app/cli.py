@@ -11,14 +11,21 @@ to the running container or the host running this app directly:
 `set-password` stores a DB-side password override (see security.py: check_app_password)
 that takes precedence over APP_PASSWORD, without needing to edit env vars or restart.
 `rotate-secret-key` re-encrypts every stored credential from the currently-configured
-APP_SECRET_KEY onto a new one you provide — necessary after a suspected leak, since
-every Credential.encrypted_payload is Fernet-derived from that one key and simply
-changing it (without this) leaves every stored credential permanently undecryptable.
+APP_SECRET_KEY onto a new one — necessary after a suspected leak, since every
+Credential.encrypted_payload is Fernet-derived from that one key and simply changing
+it (without this) leaves every stored credential permanently undecryptable. If the
+current key is one app/config.py auto-generated (no APP_SECRET_KEY was ever
+explicitly set), this mints a fresh random one and updates that same file in
+place, so a restart is all that's needed. Otherwise it asks you to type a new
+value, since only you know where that one is configured.
 """
 
 import getpass
+import os
+import secrets
 import sys
 
+from app.config import SECRET_KEY_FILENAME, settings
 from app.db import SessionLocal
 from app.models.credential import SOURCE_APP_AUTH, SOURCE_OIDC, STATUS_NOT_CONFIGURED, STATUS_OK, Credential
 from app.security import decrypt_json, encrypt_json, hash_password
@@ -125,24 +132,39 @@ def _count_stored_credentials() -> int:
 
 
 def rotate_secret_key() -> None:
-    new_key = getpass.getpass("New APP_SECRET_KEY: ")
-    if not new_key:
-        print("Refusing to rotate to an empty key.")
-        sys.exit(1)
-    confirm = getpass.getpass("Confirm new APP_SECRET_KEY: ")
-    if new_key != confirm:
-        print("Keys did not match.")
-        sys.exit(1)
+    key_path = settings.data_dir / SECRET_KEY_FILENAME
+    using_generated_key = key_path.is_file() and key_path.read_text(encoding="utf-8").strip() == settings.app_secret_key
+
+    if using_generated_key:
+        # Already a random value nobody typed or has to remember — mint a
+        # fresh one instead of prompting for input, and update the same file
+        # so the very next boot picks it up with nothing else to configure.
+        new_key = secrets.token_hex(32)
+    else:
+        new_key = getpass.getpass("New APP_SECRET_KEY: ")
+        if not new_key:
+            print("Refusing to rotate to an empty key.")
+            sys.exit(1)
+        confirm = getpass.getpass("Confirm new APP_SECRET_KEY: ")
+        if new_key != confirm:
+            print("Keys did not match.")
+            sys.exit(1)
 
     _rotate_secret_key(new_key)
     print(f"Re-encrypted {_count_stored_credentials()} stored credential(s) under the new key.")
-    print()
-    print("Do this now, in this exact order:")
-    print("  1. Set APP_SECRET_KEY to the value you just entered (env var / .env / compose file).")
-    print("  2. Restart the app.")
-    print("Until step 1 is done, what was just re-encrypted will NOT decrypt under the still-")
-    print("running old key — this command prepares the migration, it can't change the running")
-    print("environment for you.")
+
+    if using_generated_key:
+        key_path.write_text(new_key, encoding="utf-8")
+        os.chmod(key_path, 0o600)
+        print(f"Updated the auto-generated key at {key_path}. Just restart the app — no env var to set.")
+    else:
+        print()
+        print("Do this now, in this exact order:")
+        print("  1. Set APP_SECRET_KEY to the value you just entered (env var / .env / compose file).")
+        print("  2. Restart the app.")
+        print("Until step 1 is done, what was just re-encrypted will NOT decrypt under the still-")
+        print("running old key — this command prepares the migration, it can't change the running")
+        print("environment for you.")
 
 
 COMMANDS = {"disable-oidc": disable_oidc, "set-password": set_password, "rotate-secret-key": rotate_secret_key}

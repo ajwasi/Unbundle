@@ -9,7 +9,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import backup, version
-from app.config import DEFAULT_SECRET_KEY, settings
+from app.config import settings
 from app.db import SessionLocal
 from app.deps import AuthMiddleware
 from app.downloads import worker
@@ -22,21 +22,17 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 
 def _startup_warnings() -> list[str]:
-    """Both checks mirror the exact conditions that make this app's data
-    genuinely unprotected — see deps.py's AuthMiddleware and security.py's
-    Fernet key derivation. Printed loudly on every boot rather than only
-    documented, since neither failure mode is otherwise visible anywhere
-    (the app starts and looks fully configured either way).
+    """Mirrors the exact condition that makes this app's data genuinely
+    unprotected — see deps.py's AuthMiddleware. Printed loudly on every boot
+    rather than only documented, since this failure mode is otherwise
+    invisible (the app starts and looks fully configured either way).
+
+    APP_SECRET_KEY itself no longer needs a check here: app/config.py now
+    auto-generates and persists a real random one whenever nothing was
+    explicitly configured, so by the time this ever runs, settings.app_secret_key
+    can never still be the public DEFAULT_SECRET_KEY placeholder.
     """
     warnings = []
-    if settings.app_secret_key == DEFAULT_SECRET_KEY:
-        warnings.append(
-            "APP_SECRET_KEY is left at its default value. Every stored credential "
-            "(Humble, Steam, GOG, OIDC) is encrypted with a key derived from this — "
-            "and the default is public, sitting in this project's own source on "
-            "GitHub. Anyone who gets the database file can decrypt them. Set a real "
-            "random value before connecting any real account."
-        )
     db = SessionLocal()
     try:
         if not is_auth_configured(db):

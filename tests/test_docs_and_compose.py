@@ -62,10 +62,48 @@ def test_compose_app_service_exposes_the_documented_port():
     assert "8010:8000" in app["ports"]
 
 
-def test_compose_app_service_mounts_data_volume_and_env_file():
+def test_compose_app_service_mounts_data_volume():
     app = _load_yaml("docker-compose.yml")["services"]["app"]
     assert "./data:/data" in app["volumes"]
-    assert ".env" in app["env_file"]
+
+
+def test_compose_app_service_has_no_env_file_dependency():
+    # env_file requires its referenced file to actually exist or Compose
+    # refuses to start the service at all — fatal for a Portainer "web
+    # editor" stack, which has no real .env file sitting next to the compose
+    # file. Regression-locks the fix: real .env files still work fine, since
+    # Compose auto-loads one for ${VAR} substitution regardless of env_file.
+    app = _load_yaml("docker-compose.yml")["services"]["app"]
+    assert "env_file" not in app
+
+
+def test_compose_app_service_bakes_in_docker_correct_path_defaults():
+    # app/config.py's own Settings defaults for these are relative paths
+    # meant for local, non-Docker development (e.g. "sqlite:///./data/
+    # humble.db", resolving to /app/data/humble.db in the container — a
+    # directory nothing ever creates, only /data does). Without an explicit
+    # override the app crashes at `alembic upgrade head` before it even
+    # starts — confirmed live, not theoretical. These must be correct with
+    # zero environment configuration at all, not just when a real .env
+    # happens to be present.
+    app = _load_yaml("docker-compose.yml")["services"]["app"]
+    env = app["environment"]
+    assert any(e.startswith("DATABASE_URL=") and "sqlite:////data/humble.db" in e for e in env)
+    assert any(e.startswith("DATA_DIR=") and "/data" in e for e in env)
+    assert any(e.startswith("DOWNLOADS_DIR=") and "/data/downloads" in e for e in env)
+
+
+def test_compose_app_service_secrets_are_passthrough_not_hardcoded():
+    # Bare (no "=value") entries pass through whatever a real .env file,
+    # Portainer's own "Environment variables" stack UI, or the shell already
+    # provides — and omit the variable entirely if none of those set it, so
+    # app/config.py's own insecure-default-plus-loud-startup-warning
+    # behavior still applies correctly. Must never gain a hardcoded value
+    # here, which would either bake in a real secret or silently override
+    # whatever the deployer actually configured.
+    app = _load_yaml("docker-compose.yml")["services"]["app"]
+    for name in ("APP_SECRET_KEY", "APP_PASSWORD"):
+        assert name in app["environment"]
 
 
 def test_compose_app_service_trusts_proxy_headers_from_the_compose_network():
@@ -164,6 +202,32 @@ def test_image_compose_app_service_matches_the_base_files_port_and_data_mount():
     base_app = _load_yaml("docker-compose.yml")["services"]["app"]
     assert image_app["ports"] == base_app["ports"]
     assert "./data:/data" in image_app["volumes"]
+
+
+def test_image_compose_app_service_has_no_env_file_dependency():
+    # Same reasoning as the base file's own version of this test — this is
+    # precisely the file a Portainer "web editor" stack (no real .env
+    # present) would use, so it matters most here.
+    app = _load_yaml("docker-compose.image.yml")["services"]["app"]
+    assert "env_file" not in app
+
+
+def test_image_compose_app_service_bakes_in_docker_correct_path_defaults():
+    # Same reasoning as the base file's own version of this test — confirmed
+    # live: without this, `alembic upgrade head` crashes on startup with no
+    # environment configuration at all (app/config.py's own DATABASE_URL
+    # default is a relative path meant for local dev, not this container).
+    app = _load_yaml("docker-compose.image.yml")["services"]["app"]
+    env = app["environment"]
+    assert any(e.startswith("DATABASE_URL=") and "sqlite:////data/humble.db" in e for e in env)
+    assert any(e.startswith("DATA_DIR=") and "/data" in e for e in env)
+    assert any(e.startswith("DOWNLOADS_DIR=") and "/data/downloads" in e for e in env)
+
+
+def test_image_compose_app_service_secrets_are_passthrough_not_hardcoded():
+    app = _load_yaml("docker-compose.image.yml")["services"]["app"]
+    for name in ("APP_SECRET_KEY", "APP_PASSWORD"):
+        assert name in app["environment"]
 
 
 def test_image_compose_has_no_demo_profile_service():

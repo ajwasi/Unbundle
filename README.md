@@ -55,7 +55,8 @@ Docker-based, no external services required beyond the ones you choose to connec
 
 ```bash
 cp .env.example .env
-# edit .env: set APP_SECRET_KEY and APP_PASSWORD to real random values
+# edit .env: set APP_PASSWORD to a real value (APP_SECRET_KEY can be left
+# blank — see Security notes below)
 docker compose up --build
 ```
 
@@ -130,32 +131,46 @@ ghcr.io` on every host that pulls it — go to the package's page on GitHub
 visibility to Public, so a plain `docker compose pull` works with no
 authentication.
 
+**Deploying as a Portainer stack (no `.env` file needed):** pasting
+`docker-compose.image.yml` into Portainer's stack editor works without a
+real `.env` file sitting next to it — this app's compose files don't rely
+on `env_file` for anything. Set `APP_SECRET_KEY` and `APP_PASSWORD` (and
+`DATABASE_URL` if you want Postgres instead of the SQLite default) directly
+in Portainer's own **Environment variables** section on the stack instead;
+everything else already has a container-correct default baked into the
+compose file itself, so a stack with zero environment variables set still
+starts correctly rather than crashing on `alembic upgrade head`.
+
 ## Security notes
 
 This app defaults to safe behavior but will tell you loudly if you haven't finished
 configuring it — check container logs on startup, and watch for a banner across the
 top of every page:
 
-- **Set a real `APP_SECRET_KEY`.** It encrypts every stored credential (Humble cookie,
-  Steam key, GOG token, OIDC client secret) at rest via Fernet, keyed off this value
-  through PBKDF2 (200k rounds) rather than a fast hash — but that only helps if the
-  value itself isn't the placeholder default or something guessable. Leaving it
-  unset/default logs a startup warning and is the one thing worth getting right before
-  exposing this beyond your own machine.
+- **`APP_SECRET_KEY` encrypts every stored credential** (Humble cookie, Steam key, GOG
+  token, OIDC client secret) at rest via Fernet, keyed off this value through PBKDF2
+  (200k rounds) rather than a fast hash. You don't need to set this yourself: leave it
+  unset and the app generates a real random value the first time it boots, saving it to
+  `<DATA_DIR>/.secret_key` (`./data/.secret_key` by default) so later restarts reuse the
+  same one — the container logs this exactly once, the first time it happens. Set it
+  explicitly only if you'd rather manage the value yourself (env var / `.env` / compose
+  file); an explicit value always wins over the auto-generated one.
 - **First launch always requires setting a password.** Every request redirects to a
   one-time `/setup` screen until either a password is set there (or via
   `set-password`/`APP_PASSWORD`, see below) or OIDC is configured — there's no way to
-  run this app wide open. The startup warning and site-wide banner from earlier
-  versions of this app still exist as a defense-in-depth fallback but shouldn't
-  normally fire.
+  run this app wide open.
 - **Rotating `APP_SECRET_KEY` after a suspected leak** requires re-encrypting every
   stored credential first, or they become permanently undecryptable the moment the key
   changes:
   ```bash
   docker exec -it <container> python -m app.cli rotate-secret-key
   ```
-  Follow the order it prints exactly (re-encrypt, *then* update the env var and
-  restart) — doing it the other way around locks out every stored credential.
+  If you're using the auto-generated key (the default), this mints a fresh random one,
+  re-encrypts everything under it, and updates `<DATA_DIR>/.secret_key` in place — just
+  restart the app afterward, nothing else to configure. If you set `APP_SECRET_KEY`
+  yourself, it instead prompts you for a new value and re-encrypts under that — follow
+  the order it prints exactly (re-encrypt, *then* update the env var and restart), since
+  doing it the other way around locks out every stored credential.
 - **Locked out?** `docker exec -it <container> python -m app.cli disable-oidc` turns
   off SSO-only mode so password login works again; `python -m app.cli set-password`
   sets a new password directly in the database, no restart needed.
@@ -187,12 +202,20 @@ the same list a moment later. Backups land in `./data/backups/` and use the same
 atomic `sqlite3` backup API (safe against a live, in-use database) as the manual
 approach below.
 
-One thing worth getting right regardless of how a backup was made: **back up
-`APP_SECRET_KEY` alongside the database, not just the database.** Every stored
+One thing worth getting right regardless of how a backup was made: **the secret key
+needs to travel with the database, not just the database itself.** Every stored
 credential is encrypted with a key derived from it (see Security notes above) — a
 `.db` file restored without the matching secret key lists your bundles fine but can't
 decrypt any saved Humble/Steam/GOG/OIDC credentials; you'd have to reconnect
 everything from scratch.
+
+If you're using the auto-generated key (no `APP_SECRET_KEY` set explicitly — see
+Security notes), it already lives at `./data/.secret_key`, right next to
+`./data/humble.db` — a manual backup of the whole `./data` directory (see below)
+covers both automatically. The in-app Backups card above only backs up the database
+file itself, not `.secret_key`, so if you rely on that card alone, also back up
+`./data/.secret_key` separately (or set `APP_SECRET_KEY` explicitly and back up
+*that* value instead, wherever you've configured it).
 
 `./data/humble.db` (and `./data/backups/`) are ordinary files on the host — a plain
 bind mount, not a Docker-managed volume — so any external file-backup tool works too,
