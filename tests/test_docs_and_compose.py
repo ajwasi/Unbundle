@@ -63,8 +63,19 @@ def test_compose_app_service_exposes_the_documented_port():
 
 
 def test_compose_app_service_mounts_data_volume():
+    # DATA_DIR_HOST (not the bare default) so a Portainer stack can override
+    # it with an absolute host path — see docker-compose.yml's own comment on
+    # why the bare relative "./data" default is a real data-loss trap there.
     app = _load_yaml("docker-compose.yml")["services"]["app"]
-    assert "./data:/data" in app["volumes"]
+    assert "${DATA_DIR_HOST:-./data}:/data" in app["volumes"]
+
+
+def test_data_dir_host_is_documented_in_readme():
+    # Regression lock for the Portainer relative-bind-mount data-loss trap:
+    # DATA_DIR_HOST must be discoverable from the README, not just the
+    # compose file's own comment, since that's what a Portainer user actually
+    # reads before filling in the stack's Environment variables section.
+    assert "DATA_DIR_HOST" in _readme_text()
 
 
 def test_compose_app_service_has_no_env_file_dependency():
@@ -201,7 +212,7 @@ def test_image_compose_app_service_matches_the_base_files_port_and_data_mount():
     image_app = _load_yaml("docker-compose.image.yml")["services"]["app"]
     base_app = _load_yaml("docker-compose.yml")["services"]["app"]
     assert image_app["ports"] == base_app["ports"]
-    assert "./data:/data" in image_app["volumes"]
+    assert "${DATA_DIR_HOST:-./data}:/data" in image_app["volumes"]
 
 
 def test_image_compose_app_service_has_no_env_file_dependency():

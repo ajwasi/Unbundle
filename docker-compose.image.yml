@@ -27,7 +27,12 @@ services:
     ports:
       - "8010:8000"
     volumes:
-      - ./data:/data
+      # See docker-compose.yml's own comment on DATA_DIR_HOST: the default
+      # "./data" is a real data-loss trap in Portainer specifically, since a
+      # redeployed stack's relative paths can resolve against a brand-new
+      # internal directory rather than the host path you actually meant —
+      # set DATA_DIR_HOST to an absolute host path to avoid it.
+      - ${DATA_DIR_HOST:-./data}:/data
       - ${SCAN_ROOT:-./scan-root}:/scan-root:ro
       # To scan more than one location, mount each as its own path here and
       # list all of them (comma-separated, matching these exact container
