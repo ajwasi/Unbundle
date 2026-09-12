@@ -9,7 +9,7 @@
 </p>
 
 {% if result.matched %}
-<table>
+<table class="scan-matched-table">
   <thead><tr><th>File</th><th>Bundle</th><th>Item</th><th>Format</th><th>Found at</th></tr></thead>
   <tbody>
     {% for m in result.matched %}
@@ -34,7 +34,7 @@
 
 {% if result.ambiguous %}
 <p class="muted" style="margin-top: 0.75rem;"><strong>Ambiguous (never auto-committed)</strong> — the same filename matches more than one library item:</p>
-<table>
+<table class="scan-ambiguous-table">
   <thead><tr><th>File</th><th>Found at</th><th>Candidates</th></tr></thead>
   <tbody>
     {% for a in result.ambiguous %}

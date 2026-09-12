@@ -197,6 +197,29 @@ def test_scan_preview_does_not_write_any_download_rows(authed_client, db, make_b
     assert db.query(Download).count() == 0
 
 
+def test_scan_preview_matched_table_uses_fixed_column_widths(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    # Regression guard: without table-layout:fixed, a long bundle name wraps
+    # onto several lines and every other short-content cell in that row ends
+    # up vertically centered in the resulting empty space (reported live —
+    # see app.css's own comment on .scan-matched-table for the full story).
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
+    (tmp_path / "book.epub").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": str(tmp_path)})
+    assert 'class="scan-matched-table"' in resp.text
+
+
+def test_scan_preview_ambiguous_table_uses_fixed_column_widths(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Book One", "machine_name": "book-one", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
+    make_bundle(gamekey="GK2", order=make_order(subproducts=[{"human_name": "Book Two", "machine_name": "book-two", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
+    (tmp_path / "book.epub").write_bytes(b"x" * 10)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": str(tmp_path)})
+    assert 'class="scan-ambiguous-table"' in resp.text
+
+
 def test_scan_commit_creates_download_rows(authed_client, db, make_bundle, tmp_path, monkeypatch):
     monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
     make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
