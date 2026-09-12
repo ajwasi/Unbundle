@@ -38,11 +38,15 @@ services:
       # DATABASE_URL/DATA_DIR/DOWNLOADS_DIR: app/config.py's own Settings defaults
       # for these are relative paths meant for local, non-Docker development
       # (e.g. "sqlite:///./data/humble.db", resolving to /app/data/humble.db here
-      # — a directory nothing ever creates in this image, only /data does). Baked
-      # in directly here rather than left to .env alone, so the container is
-      # correct out of the box even with no .env file at all — e.g. a Portainer
-      # stack, where env_file's required companion file doesn't exist and setting
-      # these instead comes from Portainer's own "Environment variables" UI.
+      # — a directory nothing ever creates in this image, only /data does). The
+      # Dockerfile itself now also bakes in these same Docker-correct values as
+      # image-level ENV defaults (so a deployer's own hand-written compose file,
+      # not just this one, gets a working database even if it forgets these) —
+      # kept here too as the documented, explicit interface for anyone who wants
+      # to override them, and so this file is correct out of the box even with no
+      # .env file at all — e.g. a Portainer stack, where env_file's required
+      # companion file doesn't exist and setting these instead comes from
+      # Portainer's own "Environment variables" UI.
       - DATABASE_URL=${DATABASE_URL:-sqlite:////data/humble.db}
       - DATA_DIR=${DATA_DIR:-/data}
       - DOWNLOADS_DIR=${DOWNLOADS_DIR:-/data/downloads}

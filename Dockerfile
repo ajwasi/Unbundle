@@ -82,6 +82,22 @@ COPY app/ ./app/
 COPY mock_api/ ./mock_api/
 COPY --from=version /app/VERSION ./VERSION
 
+# app/config.py's own Settings defaults for these three are relative paths
+# meant for local, non-Docker development (e.g. "sqlite:///./data/humble.db",
+# resolving to /app/data/humble.db here — a directory nothing ever creates,
+# only /data does). docker-compose.yml/docker-compose.image.yml already pass
+# in Docker-correct values explicitly, but baking the same defaults in here
+# too means a deployer's *own* hand-written compose file — one that mounts
+# /data but never thought to set these — still gets a working, persistent
+# database instead of silently writing to the container's throwaway layer
+# every time it's recreated (confirmed live: a real deployment lost its
+# database this way, one that mounted a named volume at /data correctly, but
+# never set these). ENV here is only ever a default — any compose file or
+# `docker run -e` that sets the same name explicitly still wins.
+ENV DATABASE_URL=sqlite:////data/humble.db
+ENV DATA_DIR=/data
+ENV DOWNLOADS_DIR=/data/downloads
+
 RUN mkdir -p /data
 VOLUME /data
 EXPOSE 8000

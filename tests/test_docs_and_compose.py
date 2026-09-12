@@ -104,6 +104,21 @@ def test_compose_app_service_bakes_in_docker_correct_path_defaults():
     assert any(e.startswith("DOWNLOADS_DIR=") and "/data/downloads" in e for e in env)
 
 
+def test_dockerfile_bakes_in_the_same_docker_correct_path_defaults():
+    # Regression lock for a real data-loss report: a deployer's own
+    # hand-written compose file (not this repo's) mounted a named volume at
+    # /data correctly, but never set DATABASE_URL/DATA_DIR — so the app fell
+    # back to app/config.py's relative defaults, wrote its database into the
+    # container's own throwaway layer instead of the mounted volume, and lost
+    # everything on every redeploy. These three must be baked into the image
+    # itself as ENV defaults, not rely solely on docker-compose.yml's own
+    # explicit values, so *any* compose file gets a working database.
+    text = _dockerfile_text()
+    assert "ENV DATABASE_URL=sqlite:////data/humble.db" in text
+    assert "ENV DATA_DIR=/data" in text
+    assert "ENV DOWNLOADS_DIR=/data/downloads" in text
+
+
 def test_compose_app_service_secrets_are_passthrough_not_hardcoded():
     # Bare (no "=value") entries pass through whatever a real .env file,
     # Portainer's own "Environment variables" stack UI, or the shell already
