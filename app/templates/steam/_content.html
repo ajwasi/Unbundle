@@ -49,10 +49,11 @@
     <h2>Owned Games ({{ game_count }})</h2>
     {% if games %}
     <table>
-      <thead><tr><th>Name</th><th>Playtime</th></tr></thead>
+      <thead><tr><th></th><th>Name</th><th>Playtime</th></tr></thead>
       <tbody>
         {% for g in games %}
         <tr>
+          <td>{% if g.icon_url %}<img class="owned-item-icon" src="{{ g.icon_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
           <td>{{ g.name }}</td>
           <td>{{ (g.playtime_forever_minutes / 60) | round(1) }} hrs</td>
         </tr>

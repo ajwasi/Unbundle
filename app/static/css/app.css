@@ -557,6 +557,18 @@ th a { text-decoration: none; color: var(--text); }
   opacity: 0.4;
 }
 
+/* Small square thumbnail for a row in the Steam/GOG "Owned" tables — a
+   broken/missing image just removes itself via onerror rather than needing
+   its own fallback graphic (unlike the much larger bundle-tile cover above,
+   a missing 32px icon isn't visually disruptive left blank). */
+.owned-item-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
 .countdown-timer {
   /* Overlaid on the tile image rather than a full-width strip above it — a
      fixed dark/white treatment regardless of light/dark theme, since this

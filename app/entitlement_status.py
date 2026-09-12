@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.connectors.gog_connector import CONTENT_TYPE_GAME
 from app.models.gog_game import GogGame
 from app.models.steam_game import SteamGame
 
@@ -36,5 +37,10 @@ def owned_title_sets(db: Session) -> tuple[set[str], set[str]]:
     sync/gog_sync.py's own docstring on how rare a real gog_id actually is).
     """
     steam_titles = {name.strip().casefold() for (name,) in db.query(SteamGame.name).all()}
-    gog_titles = {title.strip().casefold() for (title,) in db.query(GogGame.title).all()}
+    # GogGame now also holds movies (see its own docstring) — only games are a
+    # plausible "you might already own this" match for a Steam/Humble game key.
+    gog_titles = {
+        title.strip().casefold()
+        for (title,) in db.query(GogGame.title).filter(GogGame.content_type == CONTENT_TYPE_GAME).all()
+    }
     return steam_titles, gog_titles

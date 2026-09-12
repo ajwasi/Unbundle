@@ -34,6 +34,8 @@ environment, only the real 200/302/400 auth-stage responses noted above/below):
 - GET /account/getFilteredProducts returns {"products": [...], "page":,
   "totalPages":, ...} with each product carrying isGame/isMovie booleans and
   a protocol-relative "image" URL (needs "https:" prefixed to be usable).
+  Every product is kept (not just isGame ones) — _content_type() below
+  labels each "game"/"movie"/"other" rather than discarding non-games.
 """
 
 import re
@@ -69,11 +71,25 @@ def _api_base() -> str:
     return f"{settings.mock_api_base_url}/gog" if settings.demo_mode else API_BASE
 
 
+CONTENT_TYPE_GAME = "game"
+CONTENT_TYPE_MOVIE = "movie"
+CONTENT_TYPE_OTHER = "other"
+
+
 class GogGameData:
-    def __init__(self, product_id: int, title: str, image_url: str):
+    def __init__(self, product_id: int, title: str, image_url: str, content_type: str = CONTENT_TYPE_GAME):
         self.product_id = product_id
         self.title = title
         self.image_url = image_url
+        self.content_type = content_type
+
+
+def _content_type(product: dict) -> str:
+    if product.get("isGame"):
+        return CONTENT_TYPE_GAME
+    if product.get("isMovie"):
+        return CONTENT_TYPE_MOVIE
+    return CONTENT_TYPE_OTHER
 
 
 class GogAuthError(Exception):
@@ -163,14 +179,13 @@ async def fetch_owned_games(access_token: str) -> list[GogGameData]:
             data = resp.json()
             total_pages = int(data.get("totalPages") or 1)
             for p in data.get("products") or []:
-                if not p.get("isGame", True):
-                    continue  # movies/other media share this endpoint — games only
                 image = p.get("image") or ""
                 games.append(
                     GogGameData(
                         product_id=p["id"],
                         title=p.get("title") or f"Product {p['id']}",
                         image_url=f"https:{image}" if image.startswith("//") else image,
+                        content_type=_content_type(p),
                     )
                 )
             page += 1

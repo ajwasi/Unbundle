@@ -133,22 +133,30 @@ async def test_refresh_access_token_raises_on_rejected_token():
 
 
 @pytest.mark.asyncio
-async def test_fetch_owned_games_parses_real_shape_and_filters_to_games():
+async def test_fetch_owned_games_parses_real_shape_and_tags_content_type():
     page_response = {
         "page": 1,
         "totalPages": 1,
         "products": [
             {"id": 1207660413, "title": "Shadowrun Returns", "image": "//images-2.gog.com/abc", "isGame": True},
             {"id": 999, "title": "Some Movie", "image": "", "isGame": False, "isMovie": True},
+            {"id": 42, "title": "Something Else", "image": "", "isGame": False, "isMovie": False},
         ],
     }
     resp = _resp(page_response)
     with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
         games = await gog_connector.fetch_owned_games("AT")
-    assert len(games) == 1
-    assert games[0].product_id == 1207660413
-    assert games[0].title == "Shadowrun Returns"
-    assert games[0].image_url == "https://images-2.gog.com/abc"
+    # Movies (and anything else) are kept now, not discarded — see
+    # GogGame's own docstring on why.
+    assert len(games) == 3
+    game = next(g for g in games if g.product_id == 1207660413)
+    assert game.title == "Shadowrun Returns"
+    assert game.image_url == "https://images-2.gog.com/abc"
+    assert game.content_type == gog_connector.CONTENT_TYPE_GAME
+    movie = next(g for g in games if g.product_id == 999)
+    assert movie.content_type == gog_connector.CONTENT_TYPE_MOVIE
+    other = next(g for g in games if g.product_id == 42)
+    assert other.content_type == gog_connector.CONTENT_TYPE_OTHER
 
 
 @pytest.mark.asyncio

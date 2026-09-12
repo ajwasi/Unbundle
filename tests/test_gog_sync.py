@@ -97,7 +97,7 @@ async def test_refresh_gog_library_triggers_entitlement_matching(db):
 
 def test_match_entitlements_marks_owned_true_when_product_id_present(db):
     ent = _seed_bundle_and_entitlement(db, gog_id="1207660413")
-    db.add(GogGame(product_id=1207660413, title="Shadowrun Returns", image_url=""))
+    db.add(GogGame(product_id=1207660413, title="Shadowrun Returns", image_url="", content_type="game"))
     db.commit()
 
     updated = gog_sync.match_entitlements_to_gog(db)
@@ -105,6 +105,20 @@ def test_match_entitlements_marks_owned_true_when_product_id_present(db):
     assert updated == 1
     db.refresh(ent)
     assert ent.gog_owned is True
+
+
+def test_match_entitlements_does_not_match_a_movie(db):
+    # GogGame now holds movies too (see its own docstring) — a Humble-granted
+    # GOG key is always for a game, so a coincidentally-titled movie must
+    # never register as a match.
+    ent = _seed_bundle_and_entitlement(db, gog_id="999")
+    db.add(GogGame(product_id=999, title="Some Movie", image_url="", content_type="movie"))
+    db.commit()
+
+    gog_sync.match_entitlements_to_gog(db)
+
+    db.refresh(ent)
+    assert ent.gog_owned is False
 
 
 def test_match_entitlements_marks_owned_false_when_absent_from_library(db):
@@ -121,7 +135,7 @@ def test_match_entitlements_falls_back_to_name_match_when_no_gog_id(db):
     ent = _seed_bundle_and_entitlement(
         db, gog_id=None, key_name="Liberated", raw_json=json.dumps({"key_type": "gog"})
     )
-    db.add(GogGame(product_id=1780442795, title="Liberated", image_url=""))
+    db.add(GogGame(product_id=1780442795, title="Liberated", image_url="", content_type="game"))
     db.commit()
 
     updated = gog_sync.match_entitlements_to_gog(db)
@@ -135,7 +149,7 @@ def test_match_entitlements_name_match_is_case_insensitive(db):
     ent = _seed_bundle_and_entitlement(
         db, gog_id=None, key_name="liberated", raw_json=json.dumps({"key_type": "gog"})
     )
-    db.add(GogGame(product_id=1780442795, title="Liberated", image_url=""))
+    db.add(GogGame(product_id=1780442795, title="Liberated", image_url="", content_type="game"))
     db.commit()
 
     gog_sync.match_entitlements_to_gog(db)
@@ -160,7 +174,7 @@ def test_match_entitlements_does_not_name_match_non_gog_key_types(db):
     ent = _seed_bundle_and_entitlement(
         db, gog_id=None, key_name="Liberated", raw_json=json.dumps({"key_type": "origin"})
     )
-    db.add(GogGame(product_id=1780442795, title="Liberated", image_url=""))
+    db.add(GogGame(product_id=1780442795, title="Liberated", image_url="", content_type="game"))
     db.commit()
 
     updated = gog_sync.match_entitlements_to_gog(db)

@@ -13,6 +13,26 @@ def _connect_steam(db):
     db.commit()
 
 
+def test_steam_game_icon_url_builds_the_real_cdn_path():
+    game = SteamGame(appid=220, name="Half-Life 2", playtime_forever_minutes=0, img_icon_url="abc123")
+    assert game.icon_url == "https://media.steampowered.com/steamcommunity/public/images/apps/220/abc123.jpg"
+
+
+def test_steam_game_icon_url_blank_when_no_icon_hash():
+    game = SteamGame(appid=220, name="Half-Life 2", playtime_forever_minutes=0, img_icon_url="")
+    assert game.icon_url == ""
+
+
+def test_steam_page_shows_games(authed_client, db):
+    _connect_steam(db)
+    db.add(SteamGame(appid=220, name="Half-Life 2", playtime_forever_minutes=120, img_icon_url="abc123"))
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    assert 'class="owned-item-icon"' in resp.text
+    assert "apps/220/abc123.jpg" in resp.text
+
+
 def test_steam_page_requires_auth(client):
     resp = client.get("/steam", follow_redirects=False)
     assert resp.status_code == 303
@@ -107,7 +127,7 @@ def test_steam_page_flags_a_key_owned_on_gog(authed_client, db):
     from app.models.gog_game import GogGame
 
     _connect_steam(db)
-    db.add(GogGame(product_id=1, title="Unredeemed Game - Steam", image_url=""))
+    db.add(GogGame(product_id=1, title="Unredeemed Game - Steam", image_url="", content_type="game"))
     db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
     db.commit()

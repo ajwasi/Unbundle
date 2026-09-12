@@ -11,6 +11,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.connectors import gog_connector
+from app.connectors.gog_connector import CONTENT_TYPE_GAME
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import SOURCE_GOG, STATUS_ERROR, STATUS_OK, Credential
 from app.models.gog_game import GogGame
@@ -42,8 +43,12 @@ def match_entitlements_to_gog(db: Session) -> int:
     worse than an honest "not yet checked", the same philosophy already
     applied to un-appid'd Steam combo keys.
     """
-    owned_ids = {g.product_id for g in db.query(GogGame.product_id).all()}
-    owned_titles = {g.title.strip().casefold() for g in db.query(GogGame.title).all()}
+    # Movies share this table now (see GogGame's own docstring) — only games
+    # are plausible matches for a Humble-granted GOG key, so exclude them here
+    # rather than let a coincidentally-titled movie register a false match.
+    owned_games = db.query(GogGame.product_id, GogGame.title).filter(GogGame.content_type == CONTENT_TYPE_GAME).all()
+    owned_ids = {product_id for product_id, _ in owned_games}
+    owned_titles = {title.strip().casefold() for _, title in owned_games}
 
     matched = 0
     for row in db.query(BundleEntitlement).all():
@@ -89,7 +94,8 @@ def save_refresh_token(db: Session, refresh_token: str) -> None:
 
 
 async def refresh_gog_library(db: Session) -> int:
-    """Returns the number of games fetched. Raises NotConnectedError or
+    """Returns the number of products fetched (games and movies both — see
+    GogGame's own docstring). Raises NotConnectedError or
     gog_connector.GogAuthError — caller surfaces the message."""
     payload = get_gog_credential(db)
     if not payload:
@@ -109,7 +115,7 @@ async def refresh_gog_library(db: Session) -> int:
     db.query(GogGame).delete()
     now = datetime.utcnow()
     for g in games:
-        db.add(GogGame(product_id=g.product_id, title=g.title, image_url=g.image_url, fetched_at=now))
+        db.add(GogGame(product_id=g.product_id, title=g.title, image_url=g.image_url, content_type=g.content_type, fetched_at=now))
     db.commit()
 
     _set_credential_status(db, STATUS_OK, None)

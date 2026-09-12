@@ -28,12 +28,22 @@ def test_parse_expiration_prefers_expiration_date_over_expiry_date():
 
 def test_owned_title_sets_returns_casefolded_names_from_each_library(db):
     db.add(SteamGame(appid=1, name="Half-Life 2", playtime_forever_minutes=0, img_icon_url=""))
-    db.add(GogGame(product_id=1, title="Shadowrun Returns", image_url=""))
+    db.add(GogGame(product_id=1, title="Shadowrun Returns", image_url="", content_type="game"))
     db.commit()
 
     steam_titles, gog_titles = owned_title_sets(db)
     assert steam_titles == {"half-life 2"}
     assert gog_titles == {"shadowrun returns"}
+
+
+def test_owned_title_sets_excludes_gog_movies(db):
+    # GogGame now holds movies too — only games are a plausible "you might
+    # already own this" match for a Steam/Humble game key.
+    db.add(GogGame(product_id=1, title="Some Movie", image_url="", content_type="movie"))
+    db.commit()
+
+    _, gog_titles = owned_title_sets(db)
+    assert gog_titles == set()
 
 
 def test_owned_title_sets_empty_when_nothing_synced(db):
