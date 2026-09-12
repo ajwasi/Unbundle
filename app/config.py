@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     # that container, so local/non-Docker runs need to override this to a
     # real directory to use the scan feature at all.
     scan_root_dir: Path = Path("/scan-root")
+    # Optional. Comma-separated container-absolute paths, for scanning more
+    # than one mounted location (e.g. separate NAS shares that can't share a
+    # common parent directory) — each one needs its own volume mount in
+    # docker-compose.yml, same as scan_root_dir's own SCAN_ROOT. Leave blank
+    # (the default) to keep the single-root behavior scan_root_dir has always
+    # had; see README's "Scanning multiple folders" section.
+    scan_roots: str = ""
 
     humble_cli_path: str = "/usr/local/bin/humble-cli"
     # In the container this resolves under $HOME=/root (the Dockerfile runs as root and
@@ -67,6 +74,20 @@ class Settings(BaseSettings):
     def ensure_dirs(self) -> None:
         for d in (self.data_dir, self.downloads_dir, self.data_dir / "backups"):
             d.mkdir(parents=True, exist_ok=True)
+
+    def scan_root_list(self) -> list[Path]:
+        """Every directory the folder-scan feature is allowed to see, in the
+        order they should be offered — SCAN_ROOTS (comma-separated) if set,
+        else just the single scan_root_dir, unchanged from before this
+        setting existed. Each entry is a real containment boundary the same
+        way scan_root_dir always was: whatever isn't mounted at one of these
+        exact paths is genuinely unreachable to this feature, regardless of
+        what a request submits — see routers/downloads.py's
+        _resolve_scan_folder for where that's actually enforced.
+        """
+        if self.scan_roots.strip():
+            return [Path(p.strip()) for p in self.scan_roots.split(",") if p.strip()]
+        return [self.scan_root_dir]
 
 
 def _resolve_secret_key(configured: str, data_dir: Path) -> str:

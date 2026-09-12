@@ -246,6 +246,77 @@ def test_scan_allows_a_subdirectory_of_the_configured_root(authed_client, db, ma
     assert "book.epub" in resp.text
 
 
+def test_scan_with_blank_folder_scans_the_whole_root(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
+    (tmp_path / "book.epub").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": "", "root_index": 0})
+    assert resp.status_code == 200
+    assert "book.epub" in resp.text
+
+
+def test_scan_targets_the_selected_root_when_multiple_are_configured(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    root0, root1 = tmp_path / "root0", tmp_path / "root1"
+    root0.mkdir()
+    root1.mkdir()
+    monkeypatch.setattr("app.config.settings.scan_roots", f"{root0},{root1}")
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
+    (root1 / "book.epub").write_bytes(b"x" * 5)  # only in the second root
+
+    resp_root0 = authed_client.post("/downloads/scan", data={"folder": "", "root_index": 0})
+    assert "book.epub" not in resp_root0.text
+
+    resp_root1 = authed_client.post("/downloads/scan", data={"folder": "", "root_index": 1})
+    assert "book.epub" in resp_root1.text
+
+
+def test_scan_rejects_an_out_of_bounds_root_index(authed_client, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    resp = authed_client.post("/downloads/scan", data={"folder": "", "root_index": 5})
+    assert resp.status_code == 200
+    assert "not a directory" in resp.text
+
+
+def test_scan_form_shows_a_root_dropdown_only_when_multiple_roots_configured(authed_client, tmp_path, monkeypatch):
+    root0, root1 = tmp_path / "root0", tmp_path / "comics-library"
+    root0.mkdir()
+    root1.mkdir()
+    monkeypatch.setattr("app.config.settings.scan_roots", f"{root0},{root1}")
+
+    resp = authed_client.get("/downloads")
+    assert 'select name="root_index"' in resp.text
+    assert "comics-library" in resp.text
+
+
+def test_scan_form_has_no_dropdown_with_a_single_root(authed_client, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    monkeypatch.setattr("app.config.settings.scan_roots", "")
+
+    resp = authed_client.get("/downloads")
+    assert 'select name="root_index"' not in resp.text
+
+
+def test_scan_preview_truncates_display_but_commit_still_covers_everything(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    monkeypatch.setattr("app.routers.downloads._SCAN_PREVIEW_LIMIT", 2)
+    for i in range(3):
+        make_bundle(
+            gamekey=f"GK{i}",
+            order=make_order(subproducts=[{"human_name": f"Book {i}", "machine_name": f"book{i}", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": f"https://dl.humble.com/book{i}.epub"}}]}]}]),
+        )
+        (tmp_path / f"book{i}.epub").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": ""})
+    assert "Showing the first 2 of 3 matches" in resp.text
+    shown = sum(1 for i in range(3) if f"book{i}.epub" in resp.text)
+    assert shown == 2
+
+    commit_resp = authed_client.post("/downloads/scan/commit", data={"folder": ""})
+    assert "Marked 3 item(s) as downloaded" in commit_resp.text
+    assert db.query(Download).count() == 3
+
+
 def test_scan_rejects_a_path_outside_the_configured_root(authed_client, tmp_path, monkeypatch):
     root = tmp_path / "scan-root"
     root.mkdir()

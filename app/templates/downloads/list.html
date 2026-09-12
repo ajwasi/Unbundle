@@ -57,7 +57,16 @@
   </p>
   <form hx-post="/downloads/scan" hx-target="#scan-result" hx-swap="innerHTML" style="display: flex; gap: 0.75rem;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-    <input type="text" name="folder" placeholder="/path/to/folder" required style="flex: 1;">
+    {% if scan_roots|length > 1 %}
+    <select name="root_index" style="flex: 0 0 auto;">
+      {% for r in scan_roots %}
+      <option value="{{ r.index }}">{{ r.label }}</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <input type="hidden" name="root_index" value="0">
+    {% endif %}
+    <input type="text" name="folder" placeholder="subfolder (optional — blank scans the whole root)" style="flex: 1;">
     <button type="submit" class="secondary">Preview</button>
   </form>
   <div id="scan-result" style="margin-top: 0.75rem;"></div>
