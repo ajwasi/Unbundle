@@ -495,6 +495,22 @@ th a { text-decoration: none; color: var(--text); }
 .scan-ambiguous-table th:nth-child(2), .scan-ambiguous-table td:nth-child(2) { width: 30%; }
 .scan-ambiguous-table th:nth-child(3), .scan-ambiguous-table td:nth-child(3) { width: 50%; }
 
+/* Steam/GOG "Never Redeemed" tables — same long-bundle-name wrapping concern
+   as the scan-results tables above, now with six columns instead of four. */
+.unredeemed-table { table-layout: fixed; }
+.unredeemed-table th, .unredeemed-table td { vertical-align: top; }
+.unredeemed-table th:nth-child(1), .unredeemed-table td:nth-child(1) { width: 18%; overflow-wrap: anywhere; }
+.unredeemed-table th:nth-child(2), .unredeemed-table td:nth-child(2) { width: 20%; }
+.unredeemed-table th:nth-child(3), .unredeemed-table td:nth-child(3) { width: 10%; }
+.unredeemed-table th:nth-child(4), .unredeemed-table td:nth-child(4) { width: 16%; }
+.unredeemed-table th:nth-child(5), .unredeemed-table td:nth-child(5) { width: 18%; }
+.unredeemed-table th:nth-child(6), .unredeemed-table td:nth-child(6) { width: 18%; }
+
+/* An entitlement past its expiration_date — a background tint (not just the
+   text-level badge already used on the bundle detail page) so it's visible
+   at a glance across a whole table of rows, not just on hover/read. */
+.row-expired { background: color-mix(in srgb, var(--error) 12%, transparent); }
+
 .bundle-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

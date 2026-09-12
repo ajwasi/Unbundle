@@ -12,14 +12,27 @@
     <h2>Never Redeemed on GOG ({{ unredeemed|length }})</h2>
     <p class="muted">GOG keys granted by your bundles that don't match anything in your GOG library.</p>
     {% if unredeemed %}
-    <table>
-      <thead><tr><th>Key</th><th>From Bundle</th><th>Revealed on Humble</th><th></th></tr></thead>
+    <table class="unredeemed-table">
+      <thead><tr><th>Key</th><th>From Bundle</th><th>Revealed on Humble</th><th>Expires</th><th>Possibly owned</th><th></th></tr></thead>
       <tbody>
         {% for row in unredeemed %}
-        <tr>
+        <tr class="{{ 'row-expired' if row.is_expired else '' }}">
           <td>{{ row.key_name }}</td>
           <td><a href="/bundles/{{ row.gamekey }}">{{ row.bundle_name }}</a></td>
           <td>{{ "Yes" if row.redeemed_on_humble else "No" }}</td>
+          <td>
+            {% if row.expires_at %}
+            {{ row.expires_at.strftime('%Y-%m-%d') }}
+            <span class="muted">({{ "expired" if row.is_expired else "in " ~ row.days_until_expired ~ "d" }})</span>
+            {% else %}
+            <span class="muted">&mdash;</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.owned_as_different_gog_listing %}<span class="badge badge-pending">GOG (different listing)</span>{% endif %}
+            {% if row.owned_on_steam %}<span class="badge badge-pending">Steam</span>{% endif %}
+            {% if not row.owned_as_different_gog_listing and not row.owned_on_steam %}<span class="muted">&mdash;</span>{% endif %}
+          </td>
           <td><a href="{{ row.redeem_url }}" target="_blank" rel="noopener">Redeem on Humble Bundle &rarr;</a></td>
         </tr>
         {% endfor %}

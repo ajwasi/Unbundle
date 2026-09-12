@@ -28,13 +28,17 @@ Docker-based, no external services required beyond the ones you choose to connec
   Catalog to see what in a for-sale bundle you don't already own.
 - **Steam** — connect a Steam Web API key + SteamID, sync your real library, and see
   which Humble-granted Steam keys are unredeemed, with a direct link to redeem them
-  on humblebundle.com.
+  on humblebundle.com. Each unredeemed row also flags whether you might already own
+  the same game under a different Steam listing (a re-release/edition with a
+  different App ID) or on GOG instead, plus the key's expiration date if it has
+  one — an expired row is highlighted so it's obvious at a glance.
 - **GOG** — same idea for GOG, with an important caveat: GOG's OAuth requires a
   manual paste-the-redirect-URL flow (no public API/callback registration exists), and
   very few Humble bundles grant GOG keys at all — matched by title against your synced
   GOG library (Humble's API essentially never provides a GOG product ID to match on
   directly, unlike Steam) — see the GOG card in Settings for specifics before expecting
-  much here.
+  much here. Its unredeemed table gets the same different-listing/owned-on-Steam and
+  expiration treatment as the Steam page.
 - **Auth** — a one-time setup screen on first launch requires setting a password
   before the app is usable at all, or OIDC/SSO (Authentik, Keycloak, etc.) configured
   from Settings afterward, with password login optionally turned off once SSO is

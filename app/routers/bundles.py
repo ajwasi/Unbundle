@@ -12,6 +12,7 @@ from app.connectors.humble_connector import order_page_url, parse_bundle
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.downloads import worker
+from app.entitlement_status import parse_expiration
 from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.download import STATUS_COMPLETED as FILE_COMPLETED, STATUS_FAILED as FILE_FAILED, Download
@@ -344,23 +345,6 @@ def _extract_redeem_link(raw: dict) -> str | None:
     return url if url.startswith(("http://", "https://")) else None
 
 
-def _days_until_expired(raw: dict) -> int | None:
-    """Computed live from expiration_date rather than trusting raw_json's own
-    num_days_until_expired, which is just a snapshot from whenever this
-    bundle was last synced and only gets staler with time. No timezone marker
-    on Humble's own value — treated as UTC, same assumption already made for
-    storefront listings' end_date.
-    """
-    raw_date = raw.get("expiration_date") or raw.get("expiry_date")
-    if not raw_date:
-        return None
-    try:
-        expires_at = datetime.fromisoformat(raw_date).replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
-    return (expires_at - datetime.now(timezone.utc)).days
-
-
 def _entitlement_rows(gamekey: str, entitlements: list[BundleEntitlement]) -> list[dict]:
     """key_type isn't its own persisted column (raw_json already has it, same
     "re-derive at render time" choice made for downloads) — used to pick which
@@ -384,6 +368,7 @@ def _entitlement_rows(gamekey: str, entitlements: list[BundleEntitlement]) -> li
         elif key_type == "gog":
             ownership_platform, owned = "GOG", e.gog_owned
 
+        expires_at = parse_expiration(raw)
         rows.append(
             {
                 "key_name": e.key_name,
@@ -393,7 +378,7 @@ def _entitlement_rows(gamekey: str, entitlements: list[BundleEntitlement]) -> li
                 "owned": owned,
                 "redeem_url": order_page_url(gamekey),
                 "external_redeem_url": _extract_redeem_link(raw) if e.redeemed_on_humble else None,
-                "days_until_expired": _days_until_expired(raw),
+                "days_until_expired": (expires_at - datetime.now(timezone.utc)).days if expires_at else None,
             }
         )
     return rows
