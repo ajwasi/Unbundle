@@ -60,6 +60,83 @@ def test_gog_page_shows_name_matched_unredeemed_rows_too(authed_client, db):
     assert "Never Redeemed on GOG (1)" in resp.text
 
 
+def test_gog_page_flags_a_key_owned_under_a_different_gog_listing(authed_client, db):
+    # gog_owned=False on the entitlement is a miss against its own recorded
+    # gog_id (2) — but the same title (case-insensitive) is separately owned
+    # under a *different* product_id (1), e.g. a re-release/edition.
+    _connect_gog(db)
+    db.add(GogGame(product_id=1, title="unredeemed - gog", image_url=""))
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed - GOG", gog_id="2", gog_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "GOG (different listing)" in resp.text
+
+
+def test_gog_page_flags_a_key_owned_on_steam(authed_client, db):
+    from app.models.steam_game import SteamGame
+
+    _connect_gog(db)
+    db.add(SteamGame(appid=220, name="Unredeemed - GOG", playtime_forever_minutes=0, img_icon_url=""))
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed - GOG", gog_id=None, gog_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert 'class="badge badge-pending">Steam<' in resp.text
+
+
+def test_gog_page_shows_no_ownership_hint_when_not_owned_anywhere(authed_client, db):
+    _connect_gog(db)
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed - GOG", gog_id=None, gog_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "badge-pending" not in resp.text
+
+
+def test_gog_page_shows_expiration_date_and_highlights_expired_row(authed_client, db):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    _connect_gog(db)
+    past = (datetime.now(timezone.utc) - timedelta(days=3)).replace(microsecond=0).isoformat().replace("+00:00", "")
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed - GOG",
+            gog_id=None, gog_owned=False, raw_json=json.dumps({"expiration_date": past}),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "(expired)" in resp.text
+    assert 'class="row-expired"' in resp.text
+
+
+def test_gog_page_shows_days_remaining_for_future_expiration(authed_client, db):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    _connect_gog(db)
+    future = (datetime.now(timezone.utc) + timedelta(days=10)).replace(microsecond=0).isoformat().replace("+00:00", "")
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed - GOG",
+            gog_id=None, gog_owned=False, raw_json=json.dumps({"expiration_date": future}),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "in 9d" in resp.text or "in 10d" in resp.text
+    assert 'class="row-expired"' not in resp.text
+
+
 def test_refresh_gog_triggers_sync_and_rerenders(authed_client, db):
     _connect_gog(db)
     from app.connectors.gog_connector import GogGameData

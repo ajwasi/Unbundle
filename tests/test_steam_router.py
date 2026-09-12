@@ -71,6 +71,93 @@ def test_steam_page_excludes_unmatched_entitlements_from_never_redeemed(authed_c
     assert "Never Redeemed on Steam (0)" in resp.text
 
 
+def test_steam_page_flags_a_key_owned_under_a_different_steam_listing(authed_client, db):
+    # steam_owned=False on the entitlement's own recorded appid (220) is an
+    # exact-appid miss — but the same title (case-insensitive) is separately
+    # owned under a *different* appid (999), e.g. a re-release/edition.
+    _connect_steam(db)
+    db.add(SteamGame(appid=999, name="unredeemed game - steam", playtime_forever_minutes=0, img_icon_url=""))
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    assert "Steam (different listing)" in resp.text
+
+
+def test_steam_page_flags_a_key_owned_on_gog(authed_client, db):
+    from app.models.gog_game import GogGame
+
+    _connect_steam(db)
+    db.add(GogGame(product_id=1, title="Unredeemed Game - Steam", image_url=""))
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    assert 'class="badge badge-pending">GOG<' in resp.text
+
+
+def test_steam_page_shows_no_ownership_hint_when_not_owned_anywhere(authed_client, db):
+    _connect_steam(db)
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    assert "badge-pending" not in resp.text
+
+
+def test_steam_page_shows_expiration_date_and_highlights_expired_row(authed_client, db):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    _connect_steam(db)
+    past = (datetime.now(timezone.utc) - timedelta(days=3)).replace(microsecond=0).isoformat().replace("+00:00", "")
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam",
+            steam_app_id="220", steam_owned=False, raw_json=json.dumps({"expiration_date": past}),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    assert "(expired)" in resp.text
+    assert 'class="row-expired"' in resp.text
+
+
+def test_steam_page_shows_days_remaining_for_future_expiration(authed_client, db):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    _connect_steam(db)
+    future = (datetime.now(timezone.utc) + timedelta(days=10)).replace(microsecond=0).isoformat().replace("+00:00", "")
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam",
+            steam_app_id="220", steam_owned=False, raw_json=json.dumps({"expiration_date": future}),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    assert "in 9d" in resp.text or "in 10d" in resp.text
+    assert 'class="row-expired"' not in resp.text
+
+
+def test_steam_page_shows_dash_when_no_expiration_data(authed_client, db):
+    _connect_steam(db)
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    assert 'class="row-expired"' not in resp.text
+
+
 def test_refresh_steam_triggers_sync_and_rerenders(authed_client, db):
     _connect_steam(db)
     from app.connectors.steam_connector import SteamGameData

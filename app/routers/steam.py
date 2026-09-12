@@ -1,3 +1,6 @@
+import json
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func
@@ -6,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.connectors.humble_connector import order_page_url
 from app.csrf import require_csrf
 from app.deps import get_db
+from app.entitlement_status import owned_title_sets, parse_expiration
 from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_STEAM
@@ -26,16 +30,36 @@ def _unredeemed_rows(db: Session) -> list[dict]:
         .order_by(Bundle.name)
         .all()
     )
-    return [
-        {
-            "key_name": ent.key_name,
-            "gamekey": ent.gamekey,
-            "bundle_name": bundle.name,
-            "redeemed_on_humble": ent.redeemed_on_humble,
-            "redeem_url": order_page_url(ent.gamekey),
-        }
-        for ent, bundle in rows
-    ]
+    # steam_owned (the query filter above) is an exact-appid match — these two
+    # sets add a *different*, name-based signal: you might already own a
+    # different edition/re-release of the same game under another Steam appid
+    # (the exact-match check alone can't see that), or the same game entirely
+    # via GOG instead.
+    owned_steam_titles, owned_gog_titles = owned_title_sets(db)
+
+    result = []
+    for ent, bundle in rows:
+        try:
+            raw = json.loads(ent.raw_json) if ent.raw_json else {}
+        except (ValueError, TypeError):
+            raw = {}
+        expires_at = parse_expiration(raw)
+        title = ent.key_name.strip().casefold()
+        result.append(
+            {
+                "key_name": ent.key_name,
+                "gamekey": ent.gamekey,
+                "bundle_name": bundle.name,
+                "redeemed_on_humble": ent.redeemed_on_humble,
+                "redeem_url": order_page_url(ent.gamekey),
+                "owned_as_different_steam_listing": title in owned_steam_titles,
+                "owned_on_gog": title in owned_gog_titles,
+                "expires_at": expires_at,
+                "days_until_expired": (expires_at - datetime.now(timezone.utc)).days if expires_at else None,
+                "is_expired": expires_at is not None and expires_at < datetime.now(timezone.utc),
+            }
+        )
+    return result
 
 
 def _context(db: Session) -> dict:
