@@ -1,0 +1,63 @@
+# Deploy from the published image (ghcr.io/ajwasi/unbundle) instead of
+# building from source — for a homelab/Portainer host that doesn't have this
+# repo checked out. Standalone, not an override fragment layered onto
+# docker-compose.yml: Compose can add or replace keys across -f files but
+# can't delete one, so an override alone couldn't remove that file's
+# `build: .` and reliably force a pull instead.
+#
+# Usage: copy this file (and .env, based on .env.example) to the target host,
+# then `docker compose -f docker-compose.image.yml pull && docker compose
+# -f docker-compose.image.yml up -d`. Combine with docker-compose.postgres.yml
+# via another -f the same way the main compose file does, for Postgres instead
+# of SQLite. That's everything the plain `app` service needs — no other repo
+# files required.
+#
+# The `observability` profile below is the one exception: prometheus/grafana
+# still need *some* config file mounted in, and the paths below point at this
+# repo's examples/observability/ — either also copy that one directory over,
+# or point those two volume lines at your own config instead.
+#
+# No `demo` profile here — mock-api runs from this same image with a
+# different command, but demo mode is a local trial/eval feature, not
+# something a real deployment needs; use docker-compose.yml directly (which
+# builds) if you want to try demo mode from source.
+services:
+  app:
+    image: ghcr.io/ajwasi/unbundle:latest
+    ports:
+      - "8010:8000"
+    volumes:
+      - ./data:/data
+      - ${SCAN_ROOT:-./scan-root}:/scan-root:ro
+    env_file:
+      - .env
+    environment:
+      - FORWARDED_ALLOW_IPS=*
+    restart: unless-stopped
+
+  # Same as docker-compose.yml's own observability profile — these are
+  # already pulled from Docker Hub, not built from this repo, so nothing
+  # about them changes for a no-source deployment.
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    profiles: ["observability"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./examples/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.1
+    profiles: ["observability"]
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./examples/observability/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:

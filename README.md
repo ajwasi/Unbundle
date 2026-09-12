@@ -97,6 +97,39 @@ profiles above still work the same way layered on top. See
 [Backups](#backups) for a caveat and [Local development](#local-development)
 for running against Postgres outside Docker.
 
+### Deploying a published image instead of building from source
+
+`docker compose up --build` above builds the image locally, which needs this
+repo checked out. For a host that shouldn't need the source at all (a
+homelab server, a Portainer stack), pull a released image from GitHub
+Container Registry instead:
+
+```bash
+# copy docker-compose.image.yml and .env (from .env.example) to the host, then:
+docker compose -f docker-compose.image.yml pull
+docker compose -f docker-compose.image.yml up -d
+```
+
+`ghcr.io/ajwasi/unbundle` is built for both `amd64` and `arm64` and published
+by `.github/workflows/docker-publish.yml` whenever a version tag (`vX.Y.Z`)
+is pushed to this repo — pushing to `main` alone doesn't publish anything.
+The full test suite runs first and gates the build: a tag whose tests fail
+never reaches ghcr.io. To cut a release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+That tags both `:latest` and the exact version (`:v1.0.0` and `:1.0.0`), so a
+deployment can pin a specific version instead of always tracking `:latest` if
+it wants to. **One-time step after the very first tag/publish**: a new ghcr.io
+package defaults to private, which would otherwise require `docker login
+ghcr.io` on every host that pulls it — go to the package's page on GitHub
+(under the repo, or your account's Packages tab) → Package settings → change
+visibility to Public, so a plain `docker compose pull` works with no
+authentication.
+
 ## Security notes
 
 This app defaults to safe behavior but will tell you loudly if you haven't finished

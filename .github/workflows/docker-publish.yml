@@ -1,0 +1,82 @@
+name: Publish Docker image
+
+# Runs only on a version tag (e.g. v1.2.3) — pushes to main don't trigger a
+# build, so a release is a deliberate, one-time action rather than every
+# commit landing in ghcr.io. First run also creates the ghcr.io package
+# itself; see README's release section for the one-time step needed after
+# that to make it pullable without authentication.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  IMAGE_NAME: ghcr.io/ajwasi/unbundle
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Gates the publish below on the real test suite — a tag whose tests fail
+  # must never reach ghcr.io as a taggable release. No other CI exists in
+  # this repo yet, so this doubles as the only place the suite runs at all.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # matches the Dockerfile's base image
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" # SQLite only — the suite never touches Postgres, see conftest.py
+
+      - name: Run tests
+        run: pytest
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # amd64 runners can't natively build arm64 without this — the Dockerfile
+      # itself already branches on TARGETARCH (Buildx sets this automatically
+      # per platform) to pull the matching humble-cli binary/checksum.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # GITHUB_REF_NAME is the tag itself (e.g. "v1.2.3") for a tag-triggered
+      # run — stripping the leading "v" gives a plain semver tag (1.2.3) to
+      # pair alongside the "v"-prefixed one, so either form works in a pull.
+      - name: Derive version tags
+        id: version
+        run: |
+          echo "full=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "bare=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.full }}
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.bare }}
