@@ -5,30 +5,28 @@
 <p class="badge badge-ok" style="display: inline-block;">Marked {{ committed }} item(s) as downloaded.</p>
 {% endif %}
 <p class="muted">
-  {{ result.matched|length }} match(es), {{ result.ambiguous|length }} ambiguous, {{ result.unmatched_count }} file(s) not in your library.
+  {{ result.matched|length }} match(es), {{ result.ambiguous|length }} ambiguous, {% if result.already_downloaded_count %}{{ result.already_downloaded_count }} already marked downloaded, {% endif %}{{ result.unmatched_count }} file(s) not in your library.
 </p>
 
 {% if result.matched %}
 {% if result.matched|length > preview_limit %}
-<p class="muted">Showing the first {{ preview_limit }} of {{ result.matched|length }} matches — committing still acts on all of them unless you check specific rows below.</p>
+<p class="muted">Showing the first {{ preview_limit }} of {{ result.matched|length }} matches. Leave every box unchecked and click Commit to include all {{ result.matched|length }} — checking "select all" only selects these {{ preview_limit }} shown, not the rest. Committing removes matched items from this list (they no longer need review), so the next batch shows up automatically once you commit again.</p>
 {% endif %}
-{% if committed is not defined %}
 <form id="scan-commit-form" hx-post="/downloads/scan/commit" hx-target="#scan-result" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <input type="hidden" name="root_index" value="{{ root_index }}">
   <input type="hidden" name="folder" value="{{ folder }}">
-{% endif %}
   <table class="scan-matched-table">
     <thead>
       <tr>
-        <th class="table-lead-col">{% if committed is not defined %}<input type="checkbox" onclick="document.querySelectorAll('#scan-commit-form .scan-item-check').forEach(c => c.checked = this.checked)">{% endif %}</th>
+        <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#scan-commit-form .scan-item-check').forEach(c => c.checked = this.checked)" title="{% if result.matched|length > preview_limit %}Selects only the {{ preview_limit }} rows shown here, not all {{ result.matched|length }} matches{% else %}Select all{% endif %}"></th>
         <th>File</th><th>Bundle</th><th>Item</th><th>Format</th><th>Found at</th>
       </tr>
     </thead>
     <tbody>
       {% for m in result.matched[:preview_limit] %}
       <tr>
-        <td class="table-lead-col">{% if committed is not defined %}<input type="checkbox" class="scan-item-check" name="selected_paths" value="{{ m.found_path }}">{% endif %}</td>
+        <td class="table-lead-col"><input type="checkbox" class="scan-item-check" name="selected_paths" value="{{ m.found_path }}"></td>
         <td>{{ m.original_filename }}{% if m.size_mismatch %} <span class="badge badge-pending" title="Humble's reported size for this item doesn't match the file found — sizes are known to be occasionally unreliable, this may still be correct.">size differs</span>{% endif %}</td>
         <td><a href="/bundles/{{ m.gamekey }}">{{ m.bundle_name }}</a></td>
         <td>{{ m.item_name }}</td>
@@ -38,13 +36,11 @@
       {% endfor %}
     </tbody>
   </table>
-{% if committed is not defined %}
   <div class="toolbar" style="margin-top: 0.75rem;">
     <button type="submit">Commit selected</button>
     <span class="muted">(nothing checked = all {{ result.matched|length }} match(es))</span>
   </div>
 </form>
-{% endif %}
 {% endif %}
 
 {% if result.ambiguous %}

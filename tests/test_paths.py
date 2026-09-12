@@ -5,6 +5,7 @@ import pytest
 
 from app.downloads.paths import (
     PathTraversalError,
+    humanize_filename,
     long_path_safe,
     predict_download_path,
     resolve_within,
@@ -29,6 +30,20 @@ def test_sanitize_does_not_collapse_resulting_double_spaces():
 
 def test_sanitize_leaves_ordinary_names_untouched():
     assert sanitize_dir_name("Ordinary Bundle Name") == "Ordinary Bundle Name"
+
+
+def test_humanize_filename_replaces_underscores_with_spaces():
+    assert humanize_filename("some_book_vol_02.epub") == "some book vol 02.epub"
+
+
+def test_humanize_filename_leaves_extension_and_ordinary_names_untouched():
+    assert humanize_filename("Ordinary Name.epub") == "Ordinary Name.epub"
+
+
+def test_humanize_filename_is_a_pure_substitution_never_collapsing_distinct_names():
+    # Injective by construction (character-for-character swap) — two
+    # differently-numbered files can never end up sharing a humanized name.
+    assert humanize_filename("book_01.epub") != humanize_filename("book_02.epub")
 
 
 def test_predict_download_path_builds_three_level_path():

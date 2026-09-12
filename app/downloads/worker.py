@@ -341,6 +341,22 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
                     # so re-running this would just fail to find it at the old spot.
                     if not row.current_location_path:
                         final_path = abs_path
+                        # humble-cli names the file straight from its download URL, which
+                        # is what check_path/abs_path point at here — humanize it (pure
+                        # underscore->space swap, see paths.humanize_filename) before any
+                        # configured relocation, so the filename a human actually sees is
+                        # legible. Best-effort: a rename failure (e.g. a same-named file
+                        # already sitting there) just leaves the original name in place
+                        # rather than failing an otherwise-successful download.
+                        humanized_name = paths.humanize_filename(abs_path.name)
+                        if humanized_name != abs_path.name:
+                            candidate = abs_path.with_name(humanized_name)
+                            try:
+                                check_path.rename(paths.long_path_safe(candidate))
+                                final_path = candidate
+                                check_path = paths.long_path_safe(candidate)
+                            except OSError:
+                                pass
                         dest_dir = relocate.resolve_destination(
                             db, gamekey, item.machine_name, item.file_format
                         )

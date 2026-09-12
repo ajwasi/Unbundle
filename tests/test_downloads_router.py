@@ -1,7 +1,7 @@
 from app.models.download import STATUS_COMPLETED, STATUS_FAILED, Download
 from app.models.download_destination import DownloadDestination
 from app.models.tag import Tag
-from tests.factories import make_order
+from tests.factories import make_order, make_subproduct
 
 
 def _make_download(db, make_bundle, gamekey="GK1", bundle_name="My Bundle", **overrides):
@@ -321,6 +321,97 @@ def test_scan_form_has_no_dropdown_with_a_single_root(authed_client, tmp_path, m
 
     resp = authed_client.get("/downloads")
     assert 'select name="root_index"' not in resp.text
+
+
+def test_scan_at_scale_750_matched_750_ambiguous_750_unmatched(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    """Real-world scans have turned up thousands of matched/ambiguous rows at
+    once (see _SCAN_PREVIEW_LIMIT's own comment) — this constructs a scan of
+    that shape directly, rather than waiting to hit it against a real
+    library, so regressions in how the preview/commit/select-all UI behaves
+    at scale get caught here. Three groups: N matched (one item each), N
+    ambiguous (each filename shared by two different items so it can't be
+    auto-committed), N stray files matching nothing.
+    """
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    n = 750
+
+    matched_subs = [
+        make_subproduct(
+            human_name=f"Matched Item {i}",
+            machine_name=f"matched{i}",
+            downloads=[{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": f"https://dl.humble.com/matched_{i}.epub"}}]}],
+        )
+        for i in range(n)
+    ]
+    make_bundle(gamekey="MATCHED", order=make_order(name="Matched Bundle", subproducts=matched_subs))
+
+    ambiguous_a = [
+        make_subproduct(
+            human_name=f"Ambiguous A {i}",
+            machine_name=f"ambiga{i}",
+            downloads=[{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": f"https://dl.humble.com/ambig_{i}.epub"}}]}],
+        )
+        for i in range(n)
+    ]
+    ambiguous_b = [
+        make_subproduct(
+            human_name=f"Ambiguous B {i}",
+            machine_name=f"ambigb{i}",
+            downloads=[{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": f"https://dl.humble.com/ambig_{i}.epub"}}]}],
+        )
+        for i in range(n)
+    ]
+    make_bundle(gamekey="AMBIGA", order=make_order(name="Ambiguous Bundle A", subproducts=ambiguous_a))
+    make_bundle(gamekey="AMBIGB", order=make_order(name="Ambiguous Bundle B", subproducts=ambiguous_b))
+
+    for i in range(n):
+        (tmp_path / f"matched_{i}.epub").write_bytes(b"x" * 5)
+        (tmp_path / f"ambig_{i}.epub").write_bytes(b"x" * 5)
+        (tmp_path / f"unmatched_{i}.dat").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": ""})
+    assert resp.status_code == 200
+    assert f"{n} match(es), {n} ambiguous, {n} file(s) not in your library" in resp.text
+
+    # Preview caps what's rendered — a 2250-file scan must not dump every row
+    # into one response.
+    assert f"Showing the first 200 of {n} matches" in resp.text
+    assert f"Showing the first 200 of {n} ambiguous matches" in resp.text
+    assert resp.text.count('class="scan-item-check"') == 200
+
+    # The select-all checkbox only ever toggles the rendered rows — its
+    # tooltip must say so explicitly once truncated, so "select all" can
+    # never be mistaken for "select every match".
+    assert f"Selects only the 200 rows shown here, not all {n} matches" in resp.text
+
+    # Selecting a handful of the *visible* matches and committing must only
+    # commit those, never silently fall back to "commit everything".
+    selected = [f"{tmp_path / f'matched_{i}.epub'}" for i in range(3)]
+    commit_resp = authed_client.post(
+        "/downloads/scan/commit",
+        data={"folder": "", "selected_paths": selected},
+    )
+    assert commit_resp.status_code == 200
+    assert "Marked 3 item(s) as downloaded" in commit_resp.text
+    assert db.query(Download).count() == 3
+
+    # The committed 3 must drop out of the matched list entirely (renamed on
+    # disk, so they no longer match by filename) — this is what makes the
+    # *next* page of matches show up automatically, without a manual
+    # "Preview" click, and with fresh, immediately-selectable checkboxes.
+    assert f"{n - 3} match(es), {n} ambiguous, {n + 3} file(s) not in your library" in commit_resp.text
+    assert commit_resp.text.count('class="scan-item-check"') == 200
+    committed_names = {f"matched_{i}.epub" for i in range(3)}
+    assert not any(name in commit_resp.text for name in committed_names)
+
+    # Committing with nothing selected still covers the full, untruncated result.
+    commit_all_resp = authed_client.post("/downloads/scan/commit", data={"folder": ""})
+    assert f"Marked {n - 3} item(s) as downloaded" in commit_all_resp.text
+    assert db.query(Download).count() == n
+    # Nothing left to review — the matched list is now empty. All n matches
+    # ended up renamed away (underscore->space), so they now count as
+    # unmatched rather than reappearing — n original strays + n renamed.
+    assert f"0 match(es), {n} ambiguous, {n * 2} file(s) not in your library" in commit_all_resp.text
 
 
 def test_scan_preview_truncates_display_but_commit_still_covers_everything(authed_client, db, make_bundle, tmp_path, monkeypatch):

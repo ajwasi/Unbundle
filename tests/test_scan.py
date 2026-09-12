@@ -78,6 +78,41 @@ def test_scan_folder_matches_files_in_subdirectories(db, make_bundle, tmp_path):
     assert len(result.matched) == 1
 
 
+def test_scan_folder_excludes_a_file_already_tracked_as_completed(db, make_bundle, tmp_path):
+    """A duplicate copy of an already-completed item (e.g. it lives in both
+    the app's own downloads folder and a separate legacy library folder that
+    still has the raw, un-renamed filename) must not keep re-appearing in
+    `matched` on every future scan — it's already tracked, nothing to do.
+    """
+    bundle = _seed(make_bundle, "GK1", "Cool Book", "book.epub", size=5)
+    db.add(
+        Download(
+            gamekey=bundle.gamekey,
+            item_name="Cool Book",
+            original_filename="book.epub",
+            status=STATUS_COMPLETED,
+            current_location_path="/elsewhere/book.epub",
+        )
+    )
+    db.commit()
+    (tmp_path / "book.epub").write_bytes(b"x" * 5)
+
+    result = scan.scan_folder(tmp_path, scan.build_expected_index(db), scan.build_completed_keys(db))
+
+    assert result.matched == []
+    assert result.already_downloaded_count == 1
+
+
+def test_scan_folder_with_no_completed_keys_arg_matches_as_before(db, make_bundle, tmp_path):
+    _seed(make_bundle, "GK1", "Cool Book", "book.epub", size=5)
+    (tmp_path / "book.epub").write_bytes(b"x" * 5)
+
+    result = scan.scan_folder(tmp_path, scan.build_expected_index(db))
+
+    assert len(result.matched) == 1
+    assert result.already_downloaded_count == 0
+
+
 def test_commit_matches_creates_a_completed_download_row(db, make_bundle, tmp_path):
     bundle = _seed(make_bundle, "GK1", "Cool Book", "book.epub", size=5)
     (tmp_path / "book.epub").write_bytes(b"x" * 5)
@@ -90,6 +125,31 @@ def test_commit_matches_creates_a_completed_download_row(db, make_bundle, tmp_pa
     assert row.status == STATUS_COMPLETED
     assert row.current_location_path == str(tmp_path / "book.epub")
     assert row.completed_at is None  # real completion time was never observed
+
+
+def test_commit_matches_renames_an_underscore_filename_to_a_readable_one(db, make_bundle, tmp_path):
+    bundle = _seed(make_bundle, "GK1", "Cool Book", "some_book_vol_02.epub", size=5)
+    (tmp_path / "some_book_vol_02.epub").write_bytes(b"x" * 5)
+    result = scan.scan_folder(tmp_path, scan.build_expected_index(db))
+
+    committed = scan.commit_matches(db, result)
+
+    assert committed == 1
+    expected_path = tmp_path / "some book vol 02.epub"
+    assert expected_path.is_file()
+    assert not (tmp_path / "some_book_vol_02.epub").exists()
+    row = db.query(Download).filter(Download.gamekey == bundle.gamekey).one()
+    assert row.current_location_path == str(expected_path)
+
+
+def test_scan_preview_never_renames_files_on_disk(db, make_bundle, tmp_path):
+    _seed(make_bundle, "GK1", "Cool Book", "some_book_vol_02.epub", size=5)
+    (tmp_path / "some_book_vol_02.epub").write_bytes(b"x" * 5)
+
+    scan.scan_folder(tmp_path, scan.build_expected_index(db))  # preview only, no commit
+
+    assert (tmp_path / "some_book_vol_02.epub").exists()
+    assert not (tmp_path / "some book vol 02.epub").exists()
 
 
 def test_commit_matches_skips_a_row_already_completed_instead_of_overwriting_it(db, make_bundle, tmp_path):

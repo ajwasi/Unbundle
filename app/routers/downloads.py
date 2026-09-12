@@ -16,7 +16,7 @@ from app.config import settings
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.downloads import worker
-from app.downloads.scan import build_expected_index, commit_matches, scan_folder
+from app.downloads.scan import build_completed_keys, build_expected_index, commit_matches, scan_folder
 from app.models.bundle import Bundle
 from app.models.download import Download
 from app.models.download_destination import DownloadDestination
@@ -203,7 +203,7 @@ def scan_preview(request: Request, root_index: int = Form(default=0), folder: st
     if resolved is None:
         context["error"] = f'"{folder or "/"}" is not a directory this app can see.'
         return templates.TemplateResponse(request, "downloads/_scan_result.html", context)
-    context["result"] = scan_folder(resolved, build_expected_index(db))
+    context["result"] = scan_folder(resolved, build_expected_index(db), build_completed_keys(db))
     return templates.TemplateResponse(request, "downloads/_scan_result.html", context)
 
 
@@ -228,10 +228,15 @@ def scan_commit(
     # re-scan didn't itself find. Empty selection (nothing checked, or the
     # plain "Commit all" case) means "commit everything", matching the same
     # convention as bundle detail's own item-selection download form.
-    result = scan_folder(resolved, build_expected_index(db))
+    expected_index = build_expected_index(db)
+    result = scan_folder(resolved, expected_index, build_completed_keys(db))
     if selected_paths:
         selected = set(selected_paths)
         result.matched = [m for m in result.matched if m["found_path"] in selected]
-    context["result"] = result
     context["committed"] = commit_matches(db, result)
+    # Re-scan once more now that the just-committed entries have a completed
+    # DB row — scan_folder excludes those, so this naturally surfaces the
+    # next page of matches (if any) ready to select, rather than making the
+    # user click "Preview" again to see anything beyond what was just acted on.
+    context["result"] = scan_folder(resolved, expected_index, build_completed_keys(db))
     return templates.TemplateResponse(request, "downloads/_scan_result.html", context)

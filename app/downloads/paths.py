@@ -25,6 +25,19 @@ def sanitize_dir_name(name: str) -> str:
     return "".join(" " if ch in _INVALID_CHARS or ch == "\n" else ch for ch in name)
 
 
+def humanize_filename(filename: str) -> str:
+    """Humble's own CDN filenames concatenate words with underscores — often
+    encoding volume/part numbering, e.g. "some_book_vol_02.epub" — which reads
+    poorly next to the item folder it sits in (already spaced, from
+    sanitize_dir_name above). A plain underscore->space swap keeps every name
+    unique (pure character substitution, never merges two different original
+    names into the same string) while fixing the readability complaint. This
+    only ever touches the *file's own* basename — original_filename itself
+    (used to match against Humble's own metadata elsewhere) is never changed.
+    """
+    return filename.replace("_", " ")
+
+
 def predict_download_path(bundle_name: str, item_name: str, filename: str) -> Path:
     return Path(sanitize_dir_name(bundle_name)) / sanitize_dir_name(item_name) / filename
 
