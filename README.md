@@ -45,11 +45,13 @@ Docker-based, no external services required beyond the ones you choose to connec
 - **Backups** — automatic daily backups on a schedule you set from Settings (how many
   to keep, what time UTC), a manual "Back up now," one-click download of any existing
   backup, and upload-to-restore for disaster recovery. See Backups below.
-- **Version tracking** — the sidebar shows the running build's short git commit SHA
-  (no release/tag process exists yet, so this is the honest "what's actually
-  running"), with a periodic background check against GitHub's `main` branch
-  surfacing an "Update available" link when it's out of date, plus a matching
-  `unbundle_update_available` metric for your own alerting.
+- **Version tracking** — the sidebar shows the exact release tag (`v1.2.3`) for a
+  published image, or the short git commit SHA for anything else (a plain `main`
+  build, local dev) — see "Deploying a published image" above for how a release is
+  actually tagged. A periodic background check against the highest `vX.Y.Z` tag in
+  this repo surfaces an "Update available" link straight to that tag on GitHub when
+  a newer one exists, plus a matching `unbundle_update_available` metric for your
+  own alerting.
 
 ## Quick start
 

@@ -42,8 +42,15 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 (full history + tags), not the default shallow clone —
+      # the Dockerfile's own version stage runs `git describe --tags
+      # --exact-match HEAD` to bake the exact release tag into the image
+      # (see app/version.py), which needs the tag ref actually present in
+      # this checkout, not just assumed from GITHUB_REF_NAME.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # amd64 runners can't natively build arm64 without this — the Dockerfile
       # itself already branches on TARGETARCH (Buildx sets this automatically

@@ -6,7 +6,13 @@ FROM python:3.12-slim AS version
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY . .
-RUN git rev-parse --short HEAD > VERSION || echo unknown > VERSION
+# The exact tag when this build's HEAD is precisely one (a real release,
+# published by .github/workflows/docker-publish.yml from a pushed vX.Y.Z
+# tag) — falls back to the short commit SHA for anything else (a plain main
+# build), same as app/version.py's own local-dev fallback. 2>/dev/null only
+# on the tag attempt: its failure ("no tag exactly matches") is the expected,
+# common case and not worth alarming the build log with.
+RUN (git describe --tags --exact-match HEAD 2>/dev/null || git rev-parse --short HEAD) > VERSION || echo unknown > VERSION
 
 FROM python:3.12-slim
 WORKDIR /app

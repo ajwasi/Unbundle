@@ -46,9 +46,9 @@
       <a href="/gog" class="{{ 'active' if request.url.path.startswith('/gog') else '' }}">GOG</a>
       <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') else '' }}">Settings</a>
       <div class="version-box">
-        <div class="version-box-number">v{{ app_version }}</div>
+        <div class="version-box-number">{{ app_version }}</div>
         {% if is_update_available() %}
-        <a class="badge badge-pending" href="https://github.com/ajwasi/Unbundle/compare/{{ app_version }}...main" target="_blank" rel="noopener">Update available</a>
+        <a class="badge badge-pending" href="https://github.com/ajwasi/Unbundle/compare/{{ app_version }}...{{ latest_version_tag() }}" target="_blank" rel="noopener">Update available</a>
         {% endif %}
       </div>
     </nav>
