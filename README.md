@@ -130,6 +130,16 @@ ghcr.io` on every host that pulls it — go to the package's page on GitHub
 visibility to Public, so a plain `docker compose pull` works with no
 authentication.
 
+**Deploying as a Portainer stack (no `.env` file needed):** pasting
+`docker-compose.image.yml` into Portainer's stack editor works without a
+real `.env` file sitting next to it — this app's compose files don't rely
+on `env_file` for anything. Set `APP_SECRET_KEY` and `APP_PASSWORD` (and
+`DATABASE_URL` if you want Postgres instead of the SQLite default) directly
+in Portainer's own **Environment variables** section on the stack instead;
+everything else already has a container-correct default baked into the
+compose file itself, so a stack with zero environment variables set still
+starts correctly rather than crashing on `alembic upgrade head`.
+
 ## Security notes
 
 This app defaults to safe behavior but will tell you loudly if you haven't finished
