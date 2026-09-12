@@ -4,7 +4,17 @@ services:
     ports:
       - "8010:8000"
     volumes:
-      - ./data:/data
+      # Everything that makes this app stateful lives under here — the database,
+      # the auto-generated .secret_key, backups, and staged downloads. The
+      # default "./data" is relative to wherever `docker compose` is invoked
+      # from, which is fine for a plain compose CLI deployment, but is a real
+      # data-loss trap in Portainer: a stack's relative paths resolve against
+      # Portainer's own internal stack directory, not a stable host path, so
+      # redeploying (not just updating the image tag) can silently point this
+      # at a brand-new empty folder — everything looks reset to a fresh
+      # install. Set DATA_DIR_HOST to an absolute host path (e.g.
+      # /volume1/docker/unbundle/data on a Synology) to avoid this entirely.
+      - ${DATA_DIR_HOST:-./data}:/data
       # Folder-scan (Downloads page) can only ever see this mount and its
       # subdirectories — never an arbitrary host path. Point SCAN_ROOT at
       # wherever your existing library actually lives; read-only since
@@ -28,11 +38,15 @@ services:
       # DATABASE_URL/DATA_DIR/DOWNLOADS_DIR: app/config.py's own Settings defaults
       # for these are relative paths meant for local, non-Docker development
       # (e.g. "sqlite:///./data/humble.db", resolving to /app/data/humble.db here
-      # — a directory nothing ever creates in this image, only /data does). Baked
-      # in directly here rather than left to .env alone, so the container is
-      # correct out of the box even with no .env file at all — e.g. a Portainer
-      # stack, where env_file's required companion file doesn't exist and setting
-      # these instead comes from Portainer's own "Environment variables" UI.
+      # — a directory nothing ever creates in this image, only /data does). The
+      # Dockerfile itself now also bakes in these same Docker-correct values as
+      # image-level ENV defaults (so a deployer's own hand-written compose file,
+      # not just this one, gets a working database even if it forgets these) —
+      # kept here too as the documented, explicit interface for anyone who wants
+      # to override them, and so this file is correct out of the box even with no
+      # .env file at all — e.g. a Portainer stack, where env_file's required
+      # companion file doesn't exist and setting these instead comes from
+      # Portainer's own "Environment variables" UI.
       - DATABASE_URL=${DATABASE_URL:-sqlite:////data/humble.db}
       - DATA_DIR=${DATA_DIR:-/data}
       - DOWNLOADS_DIR=${DOWNLOADS_DIR:-/data/downloads}

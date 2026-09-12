@@ -147,6 +147,32 @@ everything else already has a container-correct default baked into the
 compose file itself, so a stack with zero environment variables set still
 starts correctly rather than crashing on `alembic upgrade head`.
 
+**Writing your own compose file instead of using this repo's?** As long as
+you mount a volume (named or bind, your choice) at `/data`, you're covered:
+`DATABASE_URL`/`DATA_DIR`/`DOWNLOADS_DIR` are baked into the image itself as
+defaults (see the Dockerfile), not just this repo's own compose files — a
+minimal stack that never sets them still writes its database to `/data`,
+not the container's own throwaway layer. (An earlier version of this image
+didn't do this, and a real deployment lost its whole database on redeploy
+as a result — its stack mounted `/data` correctly but never set those three,
+so the app quietly wrote to `/app/data` inside the container instead.)
+
+**Set `DATA_DIR_HOST` to an absolute path in Portainer.** The volumes:
+section's default (`./data`, relative to wherever compose runs) is fine for
+a plain CLI deployment, but is a real data-loss trap in Portainer: a
+stack's relative paths resolve against Portainer's *own* internal stack
+directory, not a stable host path you control. Redeploying the stack (not
+just bumping the image tag — recreating it, or Portainer regenerating its
+internal directory) can silently point `./data` at a brand-new empty
+folder, which looks exactly like a fresh install: the setup/login screen
+comes back and every bundle, credential, and setting appears gone, even
+though nothing was actually deleted — it's just no longer looking at the
+same folder. Set `DATA_DIR_HOST` (and `SCAN_ROOT`/`SCAN_ROOT_COMICS`/etc.,
+same risk) to an absolute host path instead — e.g.
+`/volume1/docker/unbundle/data` on a Synology — in the stack's Environment
+variables section, so every redeploy keeps pointing at the same real
+folder regardless of what Portainer does internally.
+
 ## Security notes
 
 This app defaults to safe behavior but will tell you loudly if you haven't finished
