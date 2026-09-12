@@ -6,6 +6,7 @@
   {% if gog_status != "not_configured" %}
   <p class="muted">
     {{ game_count }} game(s) owned. {{ checked_entitlement_count }} bundle key(s) checked against this library.
+    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>.{% else %}Never refreshed.{% endif %}
   </p>
 
   <div class="card">

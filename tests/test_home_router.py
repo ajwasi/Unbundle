@@ -33,6 +33,24 @@ def test_home_shows_bundles_grouped_by_category(authed_client):
     assert "Books" in resp.text
 
 
+def test_home_shows_not_refreshed_yet_when_never_fetched(authed_client):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=[])), \
+         patch("app.routers.home.storefront.last_fetched_at", return_value=None):
+        resp = authed_client.get("/")
+    assert "Not refreshed yet" in resp.text
+
+
+def test_home_shows_last_refreshed_time(authed_client):
+    from datetime import datetime, timedelta
+
+    fetched_at = datetime.utcnow() - timedelta(minutes=30)
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=[])), \
+         patch("app.routers.home.storefront.last_fetched_at", return_value=fetched_at):
+        resp = authed_client.get("/")
+    assert "Last refreshed" in resp.text
+    assert "30 minutes ago" in resp.text
+
+
 def test_home_bundle_tile_image_has_a_fallback_for_a_broken_cover_image(authed_client):
     bundles = [_bundle(category="games", name="Game One")]
     with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):

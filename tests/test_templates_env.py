@@ -1,4 +1,6 @@
-from app.templates_env import format_category, human_size
+from datetime import datetime, timedelta
+
+from app.templates_env import format_category, human_size, time_since
 
 
 def test_human_size_bytes():
@@ -47,3 +49,35 @@ def test_format_category_falls_back_to_title_case_for_unknown_values():
 
 def test_format_category_handles_empty_string():
     assert format_category("") == ""
+
+
+def test_time_since_handles_none():
+    assert time_since(None) == "never"
+
+
+def test_time_since_just_now():
+    assert time_since(datetime.utcnow() - timedelta(seconds=30)) == "just now"
+
+
+def test_time_since_minutes():
+    assert time_since(datetime.utcnow() - timedelta(minutes=5)) == "5 minutes ago"
+
+
+def test_time_since_singular_minute():
+    assert time_since(datetime.utcnow() - timedelta(minutes=1)) == "1 minute ago"
+
+
+def test_time_since_hours():
+    assert time_since(datetime.utcnow() - timedelta(hours=4)) == "4 hours ago"
+
+
+def test_time_since_singular_hour():
+    assert time_since(datetime.utcnow() - timedelta(hours=1)) == "1 hour ago"
+
+
+def test_time_since_days():
+    assert time_since(datetime.utcnow() - timedelta(days=3)) == "3 days ago"
+
+
+def test_time_since_singular_day():
+    assert time_since(datetime.utcnow() - timedelta(days=1)) == "1 day ago"

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from app.models.bundle import Bundle
@@ -31,6 +32,23 @@ def test_gog_page_shows_games(authed_client, db):
     resp = authed_client.get("/gog")
     assert "Shadowrun Returns" in resp.text
     assert "1 game(s) owned" in resp.text
+
+
+def test_gog_page_shows_never_refreshed_with_no_games(authed_client, db):
+    _connect_gog(db)
+    resp = authed_client.get("/gog")
+    assert "Never refreshed" in resp.text
+
+
+def test_gog_page_shows_last_refreshed_time(authed_client, db):
+    _connect_gog(db)
+    fetched_at = datetime.utcnow() - timedelta(hours=3)
+    db.add(GogGame(product_id=1, title="Shadowrun Returns", image_url="", fetched_at=fetched_at))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "Last refreshed" in resp.text
+    assert "3 hours ago" in resp.text
 
 
 def test_gog_page_shows_never_redeemed_section(authed_client, db):

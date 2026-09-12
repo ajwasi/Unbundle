@@ -177,6 +177,7 @@ def list_bundles(
         "filtered_total_spent": sum(b.amount_spent for b in bundles),
         "category_breakdown": category_breakdown,
         "grand_total_spent": db.query(func.sum(Bundle.amount_spent)).scalar() or 0.0,
+        "last_synced": db.query(func.max(Bundle.fetched_at)).scalar(),
     }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse(request, "bundles/_table.html", context)

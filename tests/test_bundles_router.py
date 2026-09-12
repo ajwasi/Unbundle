@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from app.models.tag import BundleTag, Tag
@@ -41,6 +42,18 @@ def test_list_bundles_shows_seeded_bundle(authed_client, make_bundle):
     resp = authed_client.get("/bundles")
     assert resp.status_code == 200
     assert "Findable Bundle" in resp.text
+
+
+def test_list_bundles_shows_never_refreshed_with_no_bundles(authed_client):
+    resp = authed_client.get("/bundles")
+    assert "Never refreshed" in resp.text
+
+
+def test_list_bundles_shows_last_refreshed_time(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(name="Findable Bundle"), fetched_at=datetime.utcnow() - timedelta(hours=1))
+    resp = authed_client.get("/bundles")
+    assert "Last refreshed" in resp.text
+    assert "1 hour ago" in resp.text
 
 
 def test_list_bundles_defers_raw_json_column(authed_client, make_bundle, db):

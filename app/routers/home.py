@@ -40,7 +40,11 @@ async def home(request: Request):
     return templates.TemplateResponse(
         request,
         "home/index.html",
-        {"by_category": _grouped(bundles), "category_labels": CATEGORY_LABELS},
+        {
+            "by_category": _grouped(bundles),
+            "category_labels": CATEGORY_LABELS,
+            "last_synced": storefront.last_fetched_at(),
+        },
     )
 
 
@@ -50,7 +54,11 @@ async def refresh_storefront(request: Request):
     return templates.TemplateResponse(
         request,
         "home/_bundles.html",
-        {"by_category": _grouped(bundles), "category_labels": CATEGORY_LABELS},
+        {
+            "by_category": _grouped(bundles),
+            "category_labels": CATEGORY_LABELS,
+            "last_synced": storefront.last_fetched_at(),
+        },
     )
 
 
