@@ -208,7 +208,13 @@ def scan_preview(request: Request, root_index: int = Form(default=0), folder: st
 
 
 @router.post("/scan/commit", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def scan_commit(request: Request, root_index: int = Form(default=0), folder: str = Form(default=""), db: Session = Depends(get_db)):
+def scan_commit(
+    request: Request,
+    root_index: int = Form(default=0),
+    folder: str = Form(default=""),
+    selected_paths: list[str] = Form(default=[]),
+    db: Session = Depends(get_db),
+):
     folder = folder.strip()
     resolved = _resolve_scan_folder(root_index, folder)
     context = {"root_index": root_index, "folder": folder, "preview_limit": _SCAN_PREVIEW_LIMIT}
@@ -217,7 +223,15 @@ def scan_commit(request: Request, root_index: int = Form(default=0), folder: str
         return templates.TemplateResponse(request, "downloads/_scan_result.html", context)
     # Re-scan rather than trusting a client-submitted match list — cheap, and
     # never commits anything the server hasn't independently verified itself.
+    # selected_paths only ever narrows this freshly-verified list down (via
+    # found_path, unique per matched entry); it can never add anything the
+    # re-scan didn't itself find. Empty selection (nothing checked, or the
+    # plain "Commit all" case) means "commit everything", matching the same
+    # convention as bundle detail's own item-selection download form.
     result = scan_folder(resolved, build_expected_index(db))
+    if selected_paths:
+        selected = set(selected_paths)
+        result.matched = [m for m in result.matched if m["found_path"] in selected]
     context["result"] = result
     context["committed"] = commit_matches(db, result)
     return templates.TemplateResponse(request, "downloads/_scan_result.html", context)
