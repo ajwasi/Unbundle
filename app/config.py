@@ -1,13 +1,17 @@
+import os
+import secrets
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Named so main.py's startup check and this default can't silently drift apart.
-# This exact string is public (it's right here, in this project's own source on
-# GitHub) — every stored credential is Fernet-encrypted with a key derived from
-# APP_SECRET_KEY, so leaving it at this default means anyone who gets the
-# database file can decrypt them. See main.py: _startup_warnings().
+# Sentinel meaning "nothing was explicitly configured" — never actually used
+# to encrypt anything at runtime (see _resolve_secret_key below), just the
+# value to compare against. This exact string is public (it's right here, in
+# this project's own source on GitHub), which is precisely why it's only ever
+# a detection sentinel and not a real fallback key.
 DEFAULT_SECRET_KEY = "dev-only-insecure-key-change-me"
+
+SECRET_KEY_FILENAME = ".secret_key"
 
 
 class Settings(BaseSettings):
@@ -65,4 +69,39 @@ class Settings(BaseSettings):
             d.mkdir(parents=True, exist_ok=True)
 
 
+def _resolve_secret_key(configured: str, data_dir: Path) -> str:
+    """An explicitly-configured value always wins outright. Otherwise, rather
+    than silently running on DEFAULT_SECRET_KEY (a value that's public
+    knowledge, sitting right here in this file on GitHub), generate a real
+    random key the first time this ever runs and persist it in the data
+    volume so every later boot reuses the same one — the same approach Gitea
+    and similar self-hosted tools take. This means a deployment with zero
+    secret-key configuration at all is safe by default instead of merely
+    "warned about" — see cli.py's rotate_secret_key() for how rotating this
+    auto-generated key differs from rotating an explicitly-configured one.
+
+    Blank counts as "not configured" the same as the literal placeholder —
+    a real .env file (or a Portainer stack) can easily carry an *empty*
+    APP_SECRET_KEY=  through to here, which must trigger generation exactly
+    like an entirely-unset one, not get treated as "the user chose an empty
+    key."
+    """
+    if configured and configured != DEFAULT_SECRET_KEY:
+        return configured
+
+    key_path = data_dir / SECRET_KEY_FILENAME
+    if key_path.exists():
+        existing = key_path.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+
+    generated = secrets.token_hex(32)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    key_path.write_text(generated, encoding="utf-8")
+    os.chmod(key_path, 0o600)
+    print(f"Generated a new APP_SECRET_KEY and saved it to {key_path} — back this up alongside your data directory.")
+    return generated
+
+
 settings = Settings()
+settings.app_secret_key = _resolve_secret_key(settings.app_secret_key, settings.data_dir)

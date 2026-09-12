@@ -3,9 +3,14 @@ import json
 import pytest
 from cryptography.fernet import Fernet
 
-from app.cli import _count_stored_credentials, _disable_oidc, _rotate_secret_key, _set_password
+from app.cli import _count_stored_credentials, _disable_oidc, _rotate_secret_key, _set_password, rotate_secret_key
+from app.config import SECRET_KEY_FILENAME, settings
 from app.models.credential import SOURCE_APP_AUTH, SOURCE_GOG, SOURCE_OIDC, STATUS_NOT_CONFIGURED, Credential
 from app.security import _derive_key, _derive_key_legacy, check_app_password, decrypt_json, encrypt_json
+
+
+def _refuse_to_prompt(*args, **kwargs):
+    raise AssertionError("rotate_secret_key must not prompt for input when using an auto-generated key")
 
 
 def test_disable_oidc_returns_false_when_not_configured(db):
@@ -125,3 +130,46 @@ def test_rotate_secret_key_migrates_a_pre_upgrade_legacy_format_row_too(db):
     cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one()
     new_key_fernet = Fernet(_derive_key("brand-new-key"))
     assert json.loads(new_key_fernet.decrypt(cred.encrypted_payload)) == {"legacy": True}
+
+
+def test_rotate_secret_key_with_generated_key_mints_a_fresh_one_with_no_prompt(db, monkeypatch, tmp_path):
+    # When the currently-configured key matches what's persisted in
+    # <data_dir>/.secret_key, rotation must behave like the auto-generation
+    # path it's rotating: no prompt, a fresh random value, and the same file
+    # updated in place so the next boot just picks it up.
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    key_path = tmp_path / SECRET_KEY_FILENAME
+    key_path.write_text(settings.app_secret_key, encoding="utf-8")
+    monkeypatch.setattr("getpass.getpass", _refuse_to_prompt)
+
+    db.add(Credential(source=SOURCE_OIDC, encrypted_payload=encrypt_json({"issuer": "x"})))
+    db.commit()
+
+    rotate_secret_key()
+
+    new_key = key_path.read_text(encoding="utf-8").strip()
+    assert new_key and new_key != settings.app_secret_key
+
+    cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one()
+    new_key_fernet = Fernet(_derive_key(new_key))
+    assert json.loads(new_key_fernet.decrypt(cred.encrypted_payload)) == {"issuer": "x"}
+
+
+def test_rotate_secret_key_with_explicit_key_prompts_and_writes_no_file(db, monkeypatch, tmp_path):
+    # No .secret_key file at all here — the currently-configured key must
+    # have come from an explicit setting, so rotation should prompt for a
+    # replacement rather than silently generating one, and never create the
+    # auto-generation file as a side effect.
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    responses = iter(["typed-new-key", "typed-new-key"])
+    monkeypatch.setattr("getpass.getpass", lambda *a, **k: next(responses))
+
+    db.add(Credential(source=SOURCE_OIDC, encrypted_payload=encrypt_json({"issuer": "x"})))
+    db.commit()
+
+    rotate_secret_key()
+
+    cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one()
+    new_key_fernet = Fernet(_derive_key("typed-new-key"))
+    assert json.loads(new_key_fernet.decrypt(cred.encrypted_payload)) == {"issuer": "x"}
+    assert not (tmp_path / SECRET_KEY_FILENAME).exists()
