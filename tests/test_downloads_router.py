@@ -234,6 +234,32 @@ def test_scan_commit_creates_download_rows(authed_client, db, make_bundle, tmp_p
     assert row.current_location_path == str(tmp_path / "book.epub")
 
 
+def test_scan_commit_with_selected_paths_only_commits_those(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Book One", "machine_name": "book-one", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book-one.epub"}}]}]}]))
+    make_bundle(gamekey="GK2", order=make_order(subproducts=[{"human_name": "Book Two", "machine_name": "book-two", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book-two.epub"}}]}]}]))
+    (tmp_path / "book-one.epub").write_bytes(b"x" * 5)
+    (tmp_path / "book-two.epub").write_bytes(b"x" * 5)
+
+    selected = str(tmp_path / "book-one.epub")
+    resp = authed_client.post("/downloads/scan/commit", data={"folder": str(tmp_path), "selected_paths": selected})
+    assert resp.status_code == 200
+    assert "Marked 1 item" in resp.text
+
+    row = db.query(Download).one()
+    assert row.current_location_path == selected
+
+
+def test_scan_commit_matched_table_has_checkbox_column(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
+    (tmp_path / "book.epub").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": str(tmp_path)})
+    assert 'name="selected_paths"' in resp.text
+    assert 'class="scan-item-check"' in resp.text
+
+
 def test_scan_allows_a_subdirectory_of_the_configured_root(authed_client, db, make_bundle, tmp_path, monkeypatch):
     monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
     make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))

@@ -486,11 +486,14 @@ th a { text-decoration: none; color: var(--text); }
 .scan-matched-table, .scan-ambiguous-table { table-layout: fixed; }
 .scan-matched-table th, .scan-matched-table td,
 .scan-ambiguous-table th, .scan-ambiguous-table td { vertical-align: top; }
-.scan-matched-table th:nth-child(1), .scan-matched-table td:nth-child(1) { width: 20%; overflow-wrap: anywhere; }
-.scan-matched-table th:nth-child(2), .scan-matched-table td:nth-child(2) { width: 22%; }
-.scan-matched-table th:nth-child(3), .scan-matched-table td:nth-child(3) { width: 20%; }
-.scan-matched-table th:nth-child(4), .scan-matched-table td:nth-child(4) { width: 8%; }
-.scan-matched-table th:nth-child(5), .scan-matched-table td:nth-child(5) { width: 30%; }
+/* Column 1 is the .table-lead-col checkbox (or its empty placeholder in the
+   post-commit recap) — the real columns below start at nth-child(2), same
+   shift bundle detail's own checkbox tables already use. */
+.scan-matched-table th:nth-child(2), .scan-matched-table td:nth-child(2) { width: 20%; overflow-wrap: anywhere; }
+.scan-matched-table th:nth-child(3), .scan-matched-table td:nth-child(3) { width: 22%; }
+.scan-matched-table th:nth-child(4), .scan-matched-table td:nth-child(4) { width: 20%; }
+.scan-matched-table th:nth-child(5), .scan-matched-table td:nth-child(5) { width: 8%; }
+.scan-matched-table th:nth-child(6), .scan-matched-table td:nth-child(6) { width: 30%; }
 .scan-ambiguous-table th:nth-child(1), .scan-ambiguous-table td:nth-child(1) { width: 20%; overflow-wrap: anywhere; }
 .scan-ambiguous-table th:nth-child(2), .scan-ambiguous-table td:nth-child(2) { width: 30%; }
 .scan-ambiguous-table th:nth-child(3), .scan-ambiguous-table td:nth-child(3) { width: 50%; }
