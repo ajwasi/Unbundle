@@ -268,6 +268,30 @@ async def test_start_download_creates_a_queued_job_row(db, make_bundle):
     assert job.requested_formats == "EPUB"
 
 
+@pytest.mark.asyncio
+async def test_spawned_download_tasks_are_tracked_until_they_finish(db, make_bundle):
+    # Regression guard for the actual cause of an intermittent failure in
+    # test_start_download_never_raises_it_queues_instead: asyncio.create_task()
+    # with its return value stored nowhere is eligible for garbage collection
+    # as soon as nothing references it — confirmed as the real mechanism,
+    # under a busy full-suite run, for a spawned _run_job task getting
+    # collected before its own `finally: _running_job_ids.discard(...)` ran,
+    # leaving that id stuck for whatever test happened to run next. This locks
+    # in that a reference is held in _background_tasks while a job runs and
+    # released (via task.add_done_callback) once it finishes — not just that
+    # the job completes, which the test above already covers.
+    bundle = _seed_bundle(make_bundle)
+    with patch("app.downloads.worker.runner.run_download_job", new=AsyncMock(return_value=(0, "ok"))):
+        await worker.start_download(bundle.gamekey, bundle.name, [1], ["EPUB"])
+        assert len(worker._background_tasks) == 1
+
+        for _ in range(100):  # up to 2s, polled rather than a fixed guess
+            if not worker._background_tasks:
+                break
+            await asyncio.sleep(0.02)
+        assert worker._background_tasks == set()
+
+
 def test_sweep_stale_jobs_marks_running_as_failed(db):
     job = DownloadJob(gamekey="GK1", status=STATUS_RUNNING)
     db.add(job)

@@ -45,6 +45,16 @@ _running_job_ids: set[int] = set()
 # currently running — see _poll_progress. Absent entry == not running yet
 # (still queued) or already finished.
 _progress: dict[int, dict] = {}
+# Holds a strong reference to every spawned _run_job task. asyncio.create_task()
+# with its return value stored nowhere is eligible for garbage collection as
+# soon as nothing else references it — a documented asyncio hazard (see
+# create_task's own docs), not a hypothetical one: confirmed as the real cause
+# of an intermittent test failure (tests/test_downloads_worker.py) where a
+# spawned task got collected mid-flight under a busy full-suite run, before
+# its own `finally: _running_job_ids.discard(...)` had a chance to run,
+# leaving that id stuck there for whatever test ran next. Entries remove
+# themselves via a done-callback once finished.
+_background_tasks: set[asyncio.Task] = set()
 
 
 def _current_concurrency_limit(db: Session) -> int:
@@ -185,7 +195,9 @@ async def try_dispatch_queued_downloads() -> None:
             indices = _parse_indices(next_job.requested_indices)
             formats = _parse_formats(next_job.requested_formats)
             _running_job_ids.add(next_job.id)
-            asyncio.create_task(_run_job(next_job.id, next_job.gamekey, indices, formats))
+            task = asyncio.create_task(_run_job(next_job.id, next_job.gamekey, indices, formats))
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
     finally:
         db.close()
 

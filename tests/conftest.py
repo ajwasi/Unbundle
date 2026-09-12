@@ -128,6 +128,25 @@ def _fresh_downloads_dir():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _fresh_download_worker_state():
+    """app/downloads/worker.py's _running_job_ids/_progress are module-level
+    globals (that file's own docstring explains why — this app is
+    single-process by design) that outlive any single test's isolated DB.
+    Without this, a background _run_job task still in flight from a previous
+    test — one whose `finally: _running_job_ids.discard(job_id)` hasn't run
+    yet by the time the next test starts — leaves a stale entry here, making
+    try_dispatch_queued_downloads() think fewer concurrency slots are free
+    than actually are. Reproduced exactly this way: flaky only under the full
+    suite (leftover state from an earlier test), never in isolation.
+    """
+    from app.downloads import worker
+
+    worker._running_job_ids.clear()
+    worker._progress.clear()
+    yield
+
+
 @pytest.fixture
 def db():
     session = SessionLocal()
