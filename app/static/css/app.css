@@ -476,6 +476,25 @@ th a { text-decoration: none; color: var(--text); }
   overflow-wrap: anywhere;
 }
 
+/* Downloads page's folder-scan results: a long bundle name (or a stacked list
+   of ambiguous-match candidates) wraps onto several lines — with the default
+   table-layout:auto and vertical-align:middle, every *other* short-content
+   cell in that same row then floats centered in all the resulting empty
+   space, which is what actually looked broken, not the wrapping itself.
+   Fixed widths (same fix already used for compare.html's tier tables) plus
+   top alignment makes a wrapped row read like a normal multi-line row. */
+.scan-matched-table, .scan-ambiguous-table { table-layout: fixed; }
+.scan-matched-table th, .scan-matched-table td,
+.scan-ambiguous-table th, .scan-ambiguous-table td { vertical-align: top; }
+.scan-matched-table th:nth-child(1), .scan-matched-table td:nth-child(1) { width: 20%; overflow-wrap: anywhere; }
+.scan-matched-table th:nth-child(2), .scan-matched-table td:nth-child(2) { width: 22%; }
+.scan-matched-table th:nth-child(3), .scan-matched-table td:nth-child(3) { width: 20%; }
+.scan-matched-table th:nth-child(4), .scan-matched-table td:nth-child(4) { width: 8%; }
+.scan-matched-table th:nth-child(5), .scan-matched-table td:nth-child(5) { width: 30%; }
+.scan-ambiguous-table th:nth-child(1), .scan-ambiguous-table td:nth-child(1) { width: 20%; overflow-wrap: anywhere; }
+.scan-ambiguous-table th:nth-child(2), .scan-ambiguous-table td:nth-child(2) { width: 30%; }
+.scan-ambiguous-table th:nth-child(3), .scan-ambiguous-table td:nth-child(3) { width: 50%; }
+
 .bundle-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
