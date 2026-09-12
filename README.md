@@ -239,7 +239,13 @@ requested: what's downloading right now, full history across every bundle, and w
 completed files actually end up.
 
 humble-cli has no per-item output-directory flag — every file always lands at
-`./data/downloads/<bundle>/<item>/<filename>` first. Type/tag-based routing is
+`./data/downloads/<bundle>/<item>/<filename>` first. Humble's own filenames tend to
+concatenate words with underscores (often encoding volume/part numbering, e.g.
+`some_book_vol_02.epub`) — once a download verifies successfully, this app renames it
+in place to swap underscores for spaces (`some book vol 02.epub`), before any
+relocation below. This is a pure character substitution (never merges two differently-
+named files together) and only touches the file's own name on disk — nothing about how
+it's matched against your library changes. Type/tag-based routing is
 therefore a move-after-the-fact: a **Destination** rule (name, comma-separated
 formats, an optional tag, and a target path) says where a completed file should be
 relocated to once it's verified on disk. Precedence, most specific first:
@@ -261,10 +267,13 @@ the mount itself, just moves files onto it.
 some other way): point it at a folder and it matches filenames against every item in
 your library, previews what it found (flagging anything ambiguous — the same filename
 matching more than one item — for manual review rather than guessing), and only marks
-files as downloaded once you commit. It never moves or re-downloads anything. On a
-large, long-lived library the preview can turn up thousands of rows — only the first
-200 are actually displayed for either list, but committing always acts on the full
-result, not just what's shown.
+files as downloaded once you commit — and, like a fresh download, renames an
+underscore-heavy match to a readable one at that point (never during preview, which
+never touches disk). On a large, long-lived library the preview can turn up thousands
+of rows — only the first 200 are actually displayed for either list. Check specific
+rows to commit just those, or leave everything unchecked and commit to act on the full
+result, not just what's shown — the "select all" checkbox only ever selects the rows
+currently on screen, never the rest of a truncated list.
 
 ### Scanning multiple folders
 

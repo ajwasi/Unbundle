@@ -10,7 +10,7 @@
 
 {% if result.matched %}
 {% if result.matched|length > preview_limit %}
-<p class="muted">Showing the first {{ preview_limit }} of {{ result.matched|length }} matches — committing still acts on all of them unless you check specific rows below.</p>
+<p class="muted">Showing the first {{ preview_limit }} of {{ result.matched|length }} matches. Leave every box unchecked and click Commit to include all {{ result.matched|length }} — checking "select all" only selects these {{ preview_limit }} shown, not the rest.</p>
 {% endif %}
 {% if committed is not defined %}
 <form id="scan-commit-form" hx-post="/downloads/scan/commit" hx-target="#scan-result" hx-swap="innerHTML">
@@ -21,7 +21,7 @@
   <table class="scan-matched-table">
     <thead>
       <tr>
-        <th class="table-lead-col">{% if committed is not defined %}<input type="checkbox" onclick="document.querySelectorAll('#scan-commit-form .scan-item-check').forEach(c => c.checked = this.checked)">{% endif %}</th>
+        <th class="table-lead-col">{% if committed is not defined %}<input type="checkbox" onclick="document.querySelectorAll('#scan-commit-form .scan-item-check').forEach(c => c.checked = this.checked)" title="{% if result.matched|length > preview_limit %}Selects only the {{ preview_limit }} rows shown here, not all {{ result.matched|length }} matches{% else %}Select all{% endif %}">{% endif %}</th>
         <th>File</th><th>Bundle</th><th>Item</th><th>Format</th><th>Found at</th>
       </tr>
     </thead>

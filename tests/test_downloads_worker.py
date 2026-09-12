@@ -61,6 +61,33 @@ async def test_run_job_marks_completed_when_file_exists_and_nonempty(db, make_bu
 
 
 @pytest.mark.asyncio
+async def test_run_job_renames_an_underscore_filename_to_a_readable_one(db, make_bundle):
+    bundle = _seed_bundle(make_bundle, filename="some_book_vol_02.epub", size=999)
+    target = _predicted_path(bundle.name, "Cool Book", "some_book_vol_02.epub")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"x" * 999)
+
+    job = DownloadJob(gamekey=bundle.gamekey, bundle_name=bundle.name)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    with patch("app.downloads.worker.runner.run_download_job", new=AsyncMock(return_value=(0, "ok"))):
+        await worker._run_job(job.id, bundle.gamekey, None, None)
+
+    renamed = target.with_name("some book vol 02.epub")
+    assert renamed.is_file()
+    assert not target.exists()
+
+    row = db.query(Download).filter(Download.gamekey == bundle.gamekey).one()
+    assert row.status == STATUS_COMPLETED
+    assert row.current_location_path == str(renamed)
+    # original_download_path still records the raw, as-downloaded name —
+    # only the file's own resting name (and current_location_path) change.
+    assert "some_book_vol_02.epub" in row.original_download_path
+
+
+@pytest.mark.asyncio
 async def test_run_job_marks_failed_when_file_missing(db, make_bundle):
     bundle = _seed_bundle(make_bundle)
     job = DownloadJob(gamekey=bundle.gamekey, bundle_name=bundle.name)

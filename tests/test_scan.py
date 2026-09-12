@@ -92,6 +92,31 @@ def test_commit_matches_creates_a_completed_download_row(db, make_bundle, tmp_pa
     assert row.completed_at is None  # real completion time was never observed
 
 
+def test_commit_matches_renames_an_underscore_filename_to_a_readable_one(db, make_bundle, tmp_path):
+    bundle = _seed(make_bundle, "GK1", "Cool Book", "some_book_vol_02.epub", size=5)
+    (tmp_path / "some_book_vol_02.epub").write_bytes(b"x" * 5)
+    result = scan.scan_folder(tmp_path, scan.build_expected_index(db))
+
+    committed = scan.commit_matches(db, result)
+
+    assert committed == 1
+    expected_path = tmp_path / "some book vol 02.epub"
+    assert expected_path.is_file()
+    assert not (tmp_path / "some_book_vol_02.epub").exists()
+    row = db.query(Download).filter(Download.gamekey == bundle.gamekey).one()
+    assert row.current_location_path == str(expected_path)
+
+
+def test_scan_preview_never_renames_files_on_disk(db, make_bundle, tmp_path):
+    _seed(make_bundle, "GK1", "Cool Book", "some_book_vol_02.epub", size=5)
+    (tmp_path / "some_book_vol_02.epub").write_bytes(b"x" * 5)
+
+    scan.scan_folder(tmp_path, scan.build_expected_index(db))  # preview only, no commit
+
+    assert (tmp_path / "some_book_vol_02.epub").exists()
+    assert not (tmp_path / "some book vol 02.epub").exists()
+
+
 def test_commit_matches_skips_a_row_already_completed_instead_of_overwriting_it(db, make_bundle, tmp_path):
     """A row already tracked as completed (e.g. from a real download that was
     then relocated) must not have its location clobbered by a scan that
