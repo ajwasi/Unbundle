@@ -180,6 +180,14 @@ def test_image_compose_observability_services_are_behind_a_profile_not_started_b
         assert "observability" in services[name]["profiles"]
 
 
+def test_publish_workflow_gates_the_image_build_on_tests_passing():
+    # A tag whose tests fail must never publish an image under that tag — locks
+    # in the `needs: test` dependency so a future edit can't silently drop it.
+    jobs = _load_yaml(".github/workflows/docker-publish.yml")["jobs"]
+    assert "test" in jobs
+    assert jobs["build-and-push"]["needs"] == "test"
+
+
 def test_image_compose_image_matches_the_tag_the_publish_workflow_pushes():
     # Regression-locks the two sources of truth this file already exists to
     # catch drift between: the compose file's own image reference, and the

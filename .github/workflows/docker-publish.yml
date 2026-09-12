@@ -18,7 +18,28 @@ permissions:
   packages: write
 
 jobs:
+  # Gates the publish below on the real test suite — a tag whose tests fail
+  # must never reach ghcr.io as a taggable release. No other CI exists in
+  # this repo yet, so this doubles as the only place the suite runs at all.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # matches the Dockerfile's base image
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" # SQLite only — the suite never touches Postgres, see conftest.py
+
+      - name: Run tests
+        run: pytest
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

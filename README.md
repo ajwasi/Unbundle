@@ -113,7 +113,8 @@ docker compose -f docker-compose.image.yml up -d
 `ghcr.io/ajwasi/unbundle` is built for both `amd64` and `arm64` and published
 by `.github/workflows/docker-publish.yml` whenever a version tag (`vX.Y.Z`)
 is pushed to this repo — pushing to `main` alone doesn't publish anything.
-To cut a release:
+The full test suite runs first and gates the build: a tag whose tests fail
+never reaches ghcr.io. To cut a release:
 
 ```bash
 git tag v1.0.0
