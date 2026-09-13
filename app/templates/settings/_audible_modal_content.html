@@ -1,0 +1,40 @@
+{% if audible_pending %}
+<div hx-get="/settings/audible/login/status" hx-target="#audible-modal-content" hx-swap="innerHTML" hx-trigger="every 2s">
+  {% if audible_pending.kind == "captcha" %}
+  <p class="muted">Amazon wants a CAPTCHA solved to continue:</p>
+  <img src="{{ audible_pending.prompt }}" alt="CAPTCHA image" style="max-width: 300px; display: block; margin-bottom: 0.5rem;">
+  {% elif audible_pending.kind == "otp" %}
+  <p class="muted">Amazon sent a one-time code to your usual 2FA method — enter it below:</p>
+  {% elif audible_pending.kind == "cvf" %}
+  <p class="muted">Amazon sent a verification code by mail or SMS — enter it below:</p>
+  {% elif audible_pending.kind == "approval" %}
+  <p class="muted">Amazon sent an approval request to your phone or email — approve it there, then click below.</p>
+  {% endif %}
+  <form hx-post="/settings/audible/login/answer" hx-target="#audible-modal-content" hx-swap="innerHTML" style="display: flex; gap: 0.5rem; max-width: 480px;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    {% if audible_pending.kind == "approval" %}
+    <input type="hidden" name="answer" value="approved">
+    <button type="submit">I've approved it</button>
+    {% else %}
+    <input type="text" name="answer"
+           placeholder="{{ 'CAPTCHA answer' if audible_pending.kind == 'captcha' else 'Verification code' }}"
+           autocomplete="off" style="flex: 1;">
+    <button type="submit">Submit</button>
+    {% endif %}
+  </form>
+</div>
+{% elif just_connected %}
+<p>Connected to Audible.</p>
+<form method="dialog"><button type="submit" class="secondary">Close</button></form>
+{% else %}
+{% if audible_error %}<p style="color: var(--error);">{{ audible_error }}</p>{% endif %}
+<form hx-post="/settings/audible/login" hx-target="#audible-modal-content" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-width: 320px;">
+    <input type="text" name="username" placeholder="Amazon email or phone" autocomplete="off">
+    <input type="password" name="password" placeholder="Amazon password" autocomplete="off">
+    <input type="text" name="locale" placeholder="Marketplace (e.g. us, uk, de)" value="us">
+    <button type="submit">Connect</button>
+  </div>
+</form>
+{% endif %}

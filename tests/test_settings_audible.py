@@ -33,6 +33,34 @@ def test_settings_page_shows_audible_card(authed_client):
     assert 'name="password"' in resp.text
 
 
+def test_settings_page_renders_the_login_dialog(authed_client):
+    # The login/CAPTCHA/OTP/CVF flow lives in a floating <dialog>, opened
+    # from a plain button in the card rather than replacing the card's own
+    # content inline.
+    resp = authed_client.get("/settings")
+    assert '<dialog id="audible-login-modal">' in resp.text
+    assert 'id="audible-modal-content"' in resp.text
+    assert "showModal()" in resp.text
+
+
+def test_audible_actions_oob_update_the_card_behind_the_modal(authed_client, db):
+    # Every state-changing Audible route's response carries an out-of-band
+    # fragment for the card (status badge, Connect/Disconnect) alongside the
+    # modal's own content, so the two never go out of sync.
+    resp = authed_client.post("/settings/audible/login", data={"username": "", "password": ""})
+    assert 'id="audible-card-body" hx-swap-oob="true"' in resp.text
+
+
+def test_completed_login_shows_confirmation_in_the_modal(authed_client, db):
+    with patch("audible.Authenticator.from_login") as mock_from_login:
+        mock_from_login.return_value.to_dict.return_value = {"access_token": "AT", "locale_code": "us"}
+        authed_client.post("/settings/audible/login", data={"username": "me@example.com", "password": "hunter2"})
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+
+        resp = authed_client.get("/settings/audible/login/status")
+    assert "Connected to Audible" in resp.text
+
+
 def test_start_login_rejects_blank_credentials(authed_client, db):
     resp = authed_client.post("/settings/audible/login", data={"username": "", "password": ""})
     assert "required" in resp.text.lower()

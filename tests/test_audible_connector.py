@@ -87,6 +87,55 @@ def test_otp_prompt_has_no_url():
         audible_connector.answer_login("000000")
 
 
+def test_cvf_prompt_has_no_url():
+    # Regression guard: a real account hit exactly this path in production —
+    # from_login must always be given all four callbacks (captcha, otp, cvf,
+    # approval), or audible falls back to its own console input() default,
+    # which raises "EOF when reading a line" with no attached terminal.
+    def fake_from_login(username, password, locale, cvf_callback=None, **kwargs):
+        return cvf_callback()
+
+    with patch("audible.Authenticator.from_login", side_effect=fake_from_login):
+        audible_connector.start_login("user", "pass", "us")
+        assert _wait_until(lambda: audible_connector.login_status() is not None)
+        prompt = audible_connector.login_status()
+        assert prompt.kind == "cvf"
+        assert prompt.prompt == ""
+        audible_connector.answer_login("123456")
+
+
+def test_approval_prompt_completes_on_any_answer():
+    def fake_from_login(username, password, locale, approval_callback=None, **kwargs):
+        approval_callback()
+        return "fake-authenticator"
+
+    with patch("audible.Authenticator.from_login", side_effect=fake_from_login):
+        audible_connector.start_login("user", "pass", "us")
+        assert _wait_until(lambda: audible_connector.login_status() is not None)
+        prompt = audible_connector.login_status()
+        assert prompt.kind == "approval"
+
+        audible_connector.answer_login("approved")
+
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+        auth, error = audible_connector.login_result()
+        assert auth == "fake-authenticator"
+        assert error is None
+
+
+def test_start_login_always_passes_all_four_callbacks():
+    # The actual bug: an earlier version only passed captcha_callback/
+    # otp_callback, so any account needing a CVF or approval step fell
+    # through to audible's own input()-based default inside this container.
+    with patch("audible.Authenticator.from_login", return_value="fake-auth") as mock_from_login:
+        audible_connector.start_login("user", "pass", "us")
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+
+    kwargs = mock_from_login.call_args.kwargs
+    for name in ("captcha_callback", "otp_callback", "cvf_callback", "approval_callback"):
+        assert kwargs.get(name) is not None, f"{name} was not passed to from_login"
+
+
 def test_login_failure_surfaces_as_an_error_not_a_result():
     with patch("audible.Authenticator.from_login", side_effect=ValueError("bad credentials")):
         audible_connector.start_login("user", "wrong-pass", "us")

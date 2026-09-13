@@ -379,6 +379,20 @@ def disconnect_gog(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "settings/_gog_form.html", _gog_context(db))
 
 
+def _audible_response(request: Request, db: Session, error: str | None = None, just_connected: bool = False):
+    """Every Audible settings route (login start/answer/status, disconnect)
+    renders this same response: an out-of-band update to the card behind the
+    modal (status badge, Connect/Disconnect buttons) plus the modal's own
+    content (login form, a pending CAPTCHA/OTP/CVF/approval prompt, or a
+    "Connected" confirmation) — see _audible_response.html. One shared
+    response shape means every action stays consistent regardless of which
+    of the two ever triggered it.
+    """
+    context = _audible_context(db, error)
+    context["just_connected"] = just_connected
+    return templates.TemplateResponse(request, "settings/_audible_response.html", context)
+
+
 @router.post("/audible/login", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def start_audible_login(
     request: Request,
@@ -399,17 +413,18 @@ def start_audible_login(
         except audible_connector.AudibleLoginError as exc:
             error = str(exc)
 
-    return templates.TemplateResponse(request, "settings/_audible_form.html", _audible_context(db, error))
+    return _audible_response(request, db, error)
 
 
 @router.get("/audible/login/status", response_class=HTMLResponse)
 def audible_login_status(request: Request, db: Session = Depends(get_db)):
-    """Polled every 2s by _audible_form.html while a login is in progress —
-    same "poll a running background job" pattern
+    """Polled every 2s by _audible_modal_content.html while a login is in
+    progress — same "poll a running background job" pattern
     bundles/_refresh_status.html already uses. Once login_result() has an
     answer, persists it (success or failure) and clears the pending state so
     this only ever fires once per login attempt.
     """
+    just_connected = False
     result = audible_connector.login_result()
     if result is not None:
         auth, error = result
@@ -418,6 +433,7 @@ def audible_login_status(request: Request, db: Session = Depends(get_db)):
             cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one()
             cred.status = STATUS_OK
             cred.last_error = None
+            just_connected = True
         else:
             cred = _get_or_create_audible_credential(db)
             cred.status = STATUS_ERROR
@@ -425,13 +441,13 @@ def audible_login_status(request: Request, db: Session = Depends(get_db)):
         db.commit()
         audible_connector.clear_pending()
 
-    return templates.TemplateResponse(request, "settings/_audible_form.html", _audible_context(db))
+    return _audible_response(request, db, just_connected=just_connected)
 
 
 @router.post("/audible/login/answer", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def answer_audible_login(request: Request, answer: str = Form(""), db: Session = Depends(get_db)):
     audible_connector.answer_login(answer.strip())
-    return templates.TemplateResponse(request, "settings/_audible_form.html", _audible_context(db))
+    return _audible_response(request, db)
 
 
 @router.post("/audible/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
@@ -441,7 +457,7 @@ def disconnect_audible(request: Request, db: Session = Depends(get_db)):
         db.delete(cred)
         db.commit()
     audible_connector.clear_pending()
-    return templates.TemplateResponse(request, "settings/_audible_form.html", _audible_context(db))
+    return _audible_response(request, db)
 
 
 @router.post("/backups/config", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
