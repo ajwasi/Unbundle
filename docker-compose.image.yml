@@ -12,10 +12,10 @@
 # of SQLite. That's everything the plain `app` service needs — no other repo
 # files required.
 #
-# The `observability` profile below is the one exception: prometheus/grafana
-# still need *some* config file mounted in, and the paths below point at this
-# repo's examples/observability/ — either also copy that one directory over,
-# or point those two volume lines at your own config instead.
+# The `observability` profile below is the one exception: prometheus/grafana/
+# tempo still need *some* config file mounted in, and the paths below point
+# at this repo's examples/observability/ — either also copy that one
+# directory over, or point those volume lines at your own config instead.
 #
 # No `demo` profile here — mock-api runs from this same image with a
 # different command, but demo mode is a local trial/eval feature, not
@@ -65,6 +65,9 @@ services:
       - APP_PASSWORD
       - METRICS_TOKEN
       - BEHIND_HTTPS_PROXY
+      # Opt-in (empty/unset = tracing disabled). See docker-compose.yml's own
+      # copy of this comment and README's "Observability" section.
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318/v1/traces
     restart: unless-stopped
 
   # Same as docker-compose.yml's own observability profile — these are
@@ -88,8 +91,19 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./examples/observability/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - ./examples/observability/grafana-datasource-tempo.yml:/etc/grafana/provisioning/datasources/tempo.yml:ro
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.9.1
+    profiles: ["observability"]
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./examples/observability/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
     restart: unless-stopped
 
 volumes:
   prometheus-data:
   grafana-data:
+  tempo-data:

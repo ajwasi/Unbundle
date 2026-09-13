@@ -382,12 +382,13 @@ carries three kinds of data:
   process/GC metrics, both via `prometheus_client`'s standard collectors.
 
 **Try it turnkey**: `docker compose --profile observability up` starts Prometheus (already
-scraping the app — `examples/observability/prometheus.yml`) and Grafana (already pointed at
-that Prometheus as a data source — `examples/observability/grafana-datasource.yml`) alongside
-the app itself, all on the same Compose network. Neither starts with a plain `docker compose
-up`. Prometheus: http://localhost:9090, Grafana: http://localhost:3000 (default login
-`admin`/`admin`, changed on first login). If `METRICS_TOKEN` is set in `.env`, uncomment the
-`authorization` block in `examples/observability/prometheus.yml` first.
+scraping the app — `examples/observability/prometheus.yml`), Tempo (see Tracing below), and
+Grafana (already pointed at both as data sources — `examples/observability/grafana-datasource.yml`
+and `-tempo.yml`) alongside the app itself, all on the same Compose network. None of these
+start with a plain `docker compose up`. Prometheus: http://localhost:9090, Grafana:
+http://localhost:3000 (default login `admin`/`admin`, changed on first login). If
+`METRICS_TOKEN` is set in `.env`, uncomment the `authorization` block in
+`examples/observability/prometheus.yml` first.
 
 Scraping from a Prometheus that lives *outside* this Compose network instead:
 
@@ -404,6 +405,30 @@ scrape_configs:
 From there, build panels/alerts against the metric names above — e.g. an alert on
 `unbundle_connector_status{source="humble"} == 0` catches a broken Humble session
 before you'd otherwise notice.
+
+### Tracing
+
+Off by default — set `OTEL_EXPORTER_OTLP_ENDPOINT` (empty/unset disables it entirely, with
+no attempt ever made to reach a collector) to send OTLP/HTTP spans covering:
+
+- Every HTTP request, via the same automatic FastAPI instrumentation the metrics above use.
+- Every outbound call this app makes to Humble/Steam/GOG/Audible, via automatic `httpx`
+  instrumentation — these show up as child spans under the request that triggered them
+  (e.g. a bundle sync's request span containing the Humble API calls it made), so a slow
+  or failing sync can be traced to exactly which outbound call is responsible.
+
+**Try it turnkey**: uncomment `OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318/v1/traces` in
+`docker-compose.yml`'s `app` service, then `docker compose --profile observability up` — this
+also starts Grafana Tempo (`examples/observability/tempo.yml`), already provisioned as a
+Grafana data source. Open Grafana's Explore view, pick the Tempo data source, and search for
+traces after clicking around the app for a bit.
+
+Pointing at a collector that lives *outside* this Compose network instead (a self-hosted
+Jaeger, an OTel Collector, Grafana Cloud, etc.) — no code changes, just `.env`:
+
+```
+OTEL_EXPORTER_OTLP_ENDPOINT=http://<your-collector>:4318/v1/traces
+```
 
 ## Local development
 

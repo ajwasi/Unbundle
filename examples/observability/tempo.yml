@@ -1,0 +1,22 @@
+# Minimal single-binary Tempo config — mounted read-only into the tempo
+# service by the "observability" profile in the repo root's
+# docker-compose.yml. Local-disk storage only (no S3/GCS), matching this
+# project's other observability examples: enough to try tracing end-to-end
+# on a homelab box, not a production-scale trace backend.
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal

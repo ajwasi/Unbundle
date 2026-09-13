@@ -1,0 +1,11 @@
+# Grafana's datasource-provisioning format — mounted into
+# /etc/grafana/provisioning/datasources/ so Tempo is already configured as a
+# data source on first boot, no manual UI setup needed. Query it from
+# Grafana's Explore view once the app is sending traces (OTEL_EXPORTER_OTLP_ENDPOINT
+# set — see docker-compose.yml and README's "Observability" section).
+apiVersion: 1
+datasources:
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
