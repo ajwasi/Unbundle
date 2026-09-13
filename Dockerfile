@@ -20,12 +20,22 @@ WORKDIR /app
 # Explicit on purpose: Go's os.UserHomeDir() (what humble-cli uses to find
 # ~/.humble-cli-key) requires $HOME to be set and does NOT fall back to
 # /etc/passwd if it's missing — unverified whether python:3.12-slim's default
-# root shell environment actually exports HOME to a non-interactive `sh -c`
-# CMD, since Docker Desktop isn't installed on the dev machine this was
-# written on to test directly. Setting it removes that ambiguity; this must
-# stay in sync with app.config.Settings.humble_cli_key_path's default
-# (Path.home()), which resolves via the same variable.
-ENV HOME=/root
+# shell environment reliably exports HOME to a non-interactive `sh -c` CMD,
+# since Docker Desktop isn't installed on the dev machine this was written on
+# to test directly. Setting it removes that ambiguity; this must stay in sync
+# with app.config.Settings.humble_cli_key_path's default (Path.home()), which
+# resolves via the same variable, and with the appuser home dir created below
+# (gosu preserves the environment, including this, when it drops to appuser).
+ENV HOME=/home/appuser
+
+# The unprivileged user the app actually runs as (see docker-entrypoint.sh) —
+# everything from `alembic upgrade head` through uvicorn and every humble-cli
+# invocation runs as this user, never root. 1000:1000 matches the "first
+# regular user" UID/GID convention most bind-mount and NFS/CIFS setups
+# already assume (this repo's own README CIFS-mount example sets
+# uid=1000,gid=1000 explicitly), minimizing the chance of a permission
+# mismatch against a host directory that isn't world-writable.
+RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -m -d /home/appuser -s /usr/sbin/nologin appuser
 
 ARG HUMBLE_CLI_VERSION=v0.23.2
 ARG TARGETARCH
@@ -38,8 +48,11 @@ ARG TARGETARCH
 ARG HUMBLE_CLI_SHA256_AMD64=026f2b9a5c4594a51e66ef3d249e28dead50f2494e931738c7ea84e8ac44660a
 ARG HUMBLE_CLI_SHA256_ARM64=870b5fad2376a4a58b69b1cd55776a159a9a66b559dea5c252cb29812b83f694
 
+# gosu (not su/sudo — both need a PAM/TTY setup this minimal image doesn't
+# have, and su in particular re-execs a full login shell) is what
+# docker-entrypoint.sh uses to drop from root to appuser for the real process.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && apt-get install -y --no-install-recommends ca-certificates curl gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # curl is kept in the final image on purpose: build-time binary fetch AND a future
@@ -101,6 +114,14 @@ ENV DOWNLOADS_DIR=/data/downloads
 RUN mkdir -p /data
 VOLUME /data
 EXPOSE 8000
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Still starts as root (the image's default with no USER instruction) — the
+# entrypoint's whole job is fixing /data's ownership before dropping to
+# appuser for everything after, see its own comment for why that first root
+# moment is unavoidable rather than a missed hardening step.
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Single process only — app/downloads/worker.py's in-process job queue (phase 3) and
 # the htmx-polling status reads share in-memory state that a second uvicorn worker

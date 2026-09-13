@@ -99,6 +99,17 @@ def test_list_bundles_category_filter(authed_client, make_bundle):
     assert "Game Bundle" not in resp.text
 
 
+def test_list_bundles_escapes_an_unrecognized_category_value(authed_client, make_bundle):
+    # format_category's fallback for a value outside its known mapping is a
+    # plain, unsanitized title-cased string — the template must still
+    # autoescape it (never blanket |safe the whole expression), since
+    # category ultimately comes from Humble's own API response.
+    make_bundle(gamekey="GK1", order=make_order(category="<script>alert(1)</script>"))
+    resp = authed_client.get("/bundles")
+    assert "<script>alert(1)</script>" not in resp.text
+    assert "&lt;script&gt;" in resp.text
+
+
 def test_list_bundles_category_dropdown_lists_real_categories_only(authed_client, make_bundle):
     # Regression guard: the dropdown's option list is now derived from
     # category_breakdown (see list_bundles) instead of its own separate

@@ -31,7 +31,10 @@
       {% for b in rows %}
       <tr>
         <td><a href="/bundles/{{ b.gamekey }}">{{ b.name }}</a></td>
-        <td>{{ (b.category | format_category or "&mdash;") | safe }}</td>
+        {# See bundles/_table.html's own comment on this exact pattern — |safe
+           must stay scoped to the literal dash only, not format_category's
+           unsanitized fallback for an unrecognized category value. #}
+        <td>{{ b.category | format_category or ("&mdash;" | safe) }}</td>
         <td>{{ (b.purchased_at.strftime("%Y-%m-%d") if b.purchased_at else "&mdash;") | safe }}</td>
         <td>${{ "%.2f"|format(b.amount_spent) }}</td>
       </tr>

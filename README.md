@@ -428,10 +428,20 @@ happen together, not in separate steps).
 **Do not point `HUMBLE_CLI_KEY_PATH` (or the `humble_cli_key_path` setting) at your real
 home directory during local development** — it defaults to `~/.humble-cli-key`, the exact
 path the real `humble-cli` binary itself hardcodes, and this app writes to it whenever a
-session key is saved. In Docker this correctly resolves to `/root/.humble-cli-key` (the
-container runs as root, with `HOME=/root` set explicitly in the Dockerfile); outside
-Docker, override it to a scratch path so it never overwrites a real credential file
-already on the machine.
+session key is saved. In Docker this correctly resolves to `/home/appuser/.humble-cli-key`
+(the app runs as an unprivileged `appuser`, with `HOME=/home/appuser` set explicitly in
+the Dockerfile — see docker-entrypoint.sh for how the container still starts as root just
+long enough to fix `/data`'s ownership before dropping to that user); outside Docker,
+override it to a scratch path so it never overwrites a real credential file already on
+the machine.
+
+**Runs as a non-root user (UID/GID 1000).** If you mount a NAS/network share for
+`SCAN_ROOT` and it enforces its own permissions (e.g. a CIFS/NFS mount with a `uid=`/`gid=`
+option), make sure UID 1000 can actually read it — the container itself doesn't need
+write access there (folder-scan only ever reads filenames/sizes), only read. `/data`
+needs no manual attention: docker-entrypoint.sh fixes its ownership automatically on
+every start, whether it's a fresh volume or one created by an older, root-run version of
+this image.
 
 ## Architecture
 

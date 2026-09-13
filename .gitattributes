@@ -1,0 +1,4 @@
+# Shell scripts must keep LF line endings regardless of a contributor's or
+# CI runner's platform/autocrlf setting — a CRLF shebang line (#!/bin/sh\r)
+# fails to exec at all inside the Linux container this actually runs in.
+*.sh text eol=lf

@@ -12,6 +12,26 @@ def test_warns_when_no_auth_configured(db, monkeypatch):
     assert any("no authentication" in w.lower() for w in warnings)
 
 
+def test_security_headers_present_on_an_authenticated_page(authed_client):
+    resp = authed_client.get("/downloads")
+    assert resp.headers.get("x-frame-options") == "DENY"
+    assert resp.headers.get("content-security-policy") == "frame-ancestors 'none'"
+    assert resp.headers.get("x-content-type-options") == "nosniff"
+    assert resp.headers.get("referrer-policy") == "same-origin"
+
+
+def test_security_headers_present_on_the_login_page(client):
+    # Must apply regardless of auth state — the login/setup pages are exactly
+    # where a clickjacking overlay would be most useful to an attacker.
+    resp = client.get("/login")
+    assert resp.headers.get("x-frame-options") == "DENY"
+
+
+def test_security_headers_present_on_a_static_file(client):
+    resp = client.get("/static/css/app.css")
+    assert resp.headers.get("x-frame-options") == "DENY"
+
+
 def test_responses_are_gzip_compressed_above_the_size_threshold(authed_client):
     # GZipMiddleware's default 500-byte floor — the full /downloads page (base
     # layout + sidebar + cards) is comfortably over that regardless of seeded
