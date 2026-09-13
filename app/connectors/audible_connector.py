@@ -5,68 +5,38 @@ here to cross-reference). Wraps the `audible` package
 (https://audible.readthedocs.io, PyPI: audible==0.12.0), which reimplements
 Amazon's private device-registration API — there is no public Audible API.
 
-Every method signature referenced below was confirmed directly against the
-installed package via introspection (inspect.signature / reading
-audible/auth.py and audible/client.py), not just its docs.
+**Login is external-browser + paste-URL, the same shape as GOG's
+(gog_connector.py's LOGIN_URL + extract_code() + a paste-back form) — not
+because this app chose that UX, but because it's the only one that still
+works.** An earlier version of this connector submitted the user's Amazon
+username/password itself (audible.Authenticator.from_login(), with inline
+CAPTCHA/OTP/CVF/approval callbacks bridged through a background thread —
+see git history on this file for that whole implementation and its
+diagnostic trail). Real-account testing eventually traced every remaining
+failure to one root cause: Amazon now puts an AWS WAF JavaScript challenge
+in front of this login path, and a plain HTTP client cannot solve it — the
+"CVF" page audible's login() thought it was showing was actually the WAF
+challenge's non-JS fallback ("JavaScript Is Disabled ... something went
+wrong"). This is a known, upstream-acknowledged dead end, not something
+fixable here: see mkb79/Audible#732 ("New Amazon WAF CAPTCHA Prompt During
+Login"), closed *not planned* — a headless HTTP client cannot pass a JS
+challenge, full stop.
 
-The login flow is a genuinely different shape from every other connector
-here: Authenticator.from_login(...) is a **synchronous, blocking** call —
-whenever Amazon demands one of four possible extra verification steps
-(CAPTCHA, a 2FA/OTP code, a CVF code sent by mail/SMS, or an "approval
-alert" push notification the user must acknowledge elsewhere — confirmed by
-reading audible/login.py's own from_login implementation, which checks for
-all four independently), it invokes the corresponding callback *inline* and
-blocks until that callback returns. All four must be supplied — leaving any
-one as None makes audible fall back to its own console-based default
-(builtin input()), which raises a bare "EOF when reading a line" the moment
-it runs with no attached terminal, i.e. always, inside this container
-(confirmed live: an early version of this file only wired up captcha/otp and
-hit exactly this on a real account whose login happened to need a CVF
-step). An HTTP request/response cycle can't pause mid-request waiting for a
-second request from the browser either way, so this module bridges the gap
-with a background thread (from_login does real blocking network I/O plus
-the inline callback waits below, so it must never run on the event loop)
-and a queue.Queue() the pending callback blocks on until
-routers/settings.py's answer-submission route calls answer_login(). Single
-pending login at a time, module-level state — the same "no multi-tenant
-complexity" assumption already used throughout this single-user app (e.g.
-ratelimit.py's per-process counters).
+`audible` ships a second login mode built for exactly this:
+Authenticator.from_login_external(locale, login_url_callback). Instead of
+this app ever touching Amazon credentials, it hands the user a real Amazon
+OAuth URL; they open it in their own actual browser (which passes the WAF
+challenge the same way any normal Amazon browsing does), log in, land on a
+mostly-blank Amazon page whose URL contains
+`openid.oa2.authorization_code=...`, and paste that URL back here.
 
-A real account also hit "The read operation timed out". Two rounds of this:
-first traced to audible/login.py's own httpx.Client() (no timeout override,
-so httpx's tight 5-second default applies) — patched, but the *same* error
-persisted at the *same* point against the same real account. Root cause
-actually goes one level deeper: once the interactive captcha/otp/cvf/approval
-part succeeds, from_login() moves on to registering a "device" with Amazon
-(audible/register.py's own POST to .../auth/register, plus a couple of bare
-calls in audible/auth.py) — and those don't go through httpx.Client at all,
-they call the bare module-level httpx.post()/httpx.get() convenience
-functions, which patching httpx.Client does nothing to. Both httpx.Client
-*and* httpx.post/httpx.get are patched now, for the same reason and the same
-duration — see _LOGIN_HTTP_TIMEOUT_SECONDS below, restored in a finally
-block regardless of outcome, exactly like httpx.Client.
-
-Separately, the same account reaches the CVF prompt but never receives a
-code by email or SMS. cvf_callback() takes zero arguments (confirmed via
-inspect.signature), so there's no supported way to see what Amazon actually
-told the user at that point through the callback itself. start_login()'s
-_run() temporarily wraps audible.login.get_soup() (the function login()
-already calls on every page it fetches) to log the raw response's
-status/headers/page text whenever that page is a CVF one, without changing
-what get_soup() returns or otherwise touching the real login flow. This is
-how the actual root cause was found on a real account: the GET to
-/ap/cvf/request came back HTTP 200, but its cvf-page-content div contained
-Amazon's own generic "JavaScript Is Disabled ... something went wrong on
-our end" filler — not a real code-entry form. check_for_cvf() only checks
-that the div exists at all, so login() proceeds as if a code was requested
-even though Amazon's own CVF endpoint errored server-side and never sent
-one — consistent with a soft anti-automation response (the per-attempt
-"arb" token in that URL suggests fraud-scoring, not a hard block), which
-may or may not clear up on a retry. Remove this diagnostic once the
-underlying cause is fully understood and (if possible) worked around.
+from_login_external() is still a **synchronous** call — login_url_callback
+blocks until it returns, exactly like the old captcha/otp/cvf/approval
+callbacks did — so this module keeps the same background-thread +
+queue.Queue() bridge as before (single pending login at a time,
+module-level state), just with one prompt instead of four.
 """
 
-import logging
 import queue
 import threading
 from dataclasses import dataclass
@@ -74,22 +44,17 @@ from dataclasses import dataclass
 import audible
 import httpx
 
-logger = logging.getLogger(__name__)
-
-# Neither audible/login.py's httpx.Client() nor audible/register.py's and
-# auth.py's bare httpx.post()/httpx.get() calls override httpx's own tight
-# default timeout (5 seconds per connect/read/write) — and from_login()
-# exposes no way to pass a custom one through any of them (confirmed via
-# inspect.signature — no timeout param exists anywhere in the public API).
-# The only way to give a real, possibly-slower homelab network path enough
-# time is to patch all three in underneath it. Confirmed safe to patch
-# globally (not scoped to a specific audible submodule) rather than
-# something narrower: this app's every other connector uses
-# httpx.AsyncClient exclusively — nothing else here ever constructs a sync
-# httpx.Client or calls the bare httpx.post/httpx.get module functions — so
-# this can't affect unrelated in-flight requests, and all three are restored
-# immediately after from_login() returns either way (see start_login's
-# _run()).
+# Confirmed via audible/auth.py: from_login_external() calls the same
+# shared register_() device-registration function from_login() did (a real
+# POST to .../auth/register, plus bare httpx.post()/httpx.get() calls in
+# audible/auth.py — neither goes through httpx.Client), which is what
+# actually needed this patch before. Nothing here calls audible.login's
+# CVF/CAPTCHA page-parsing code anymore, but the registration step after a
+# successful paste-back is unchanged, so this timeout patch still applies.
+# Restored in a finally block regardless of outcome. Confirmed safe to patch
+# globally: this app's every other connector uses httpx.AsyncClient
+# exclusively — nothing else here ever constructs a sync httpx.Client or
+# calls the bare httpx.post/httpx.get module functions.
 _LOGIN_HTTP_TIMEOUT_SECONDS = 60.0
 
 _pending_lock = threading.Lock()
@@ -102,8 +67,7 @@ class AudibleLoginError(Exception):
 
 @dataclass
 class AudiblePendingPrompt:
-    kind: str  # "captcha" or "otp"
-    prompt: str  # the CAPTCHA image URL for "captcha"; unused ("") for "otp"
+    login_url: str  # the Amazon OAuth URL to open in a real browser
 
 
 @dataclass
@@ -116,13 +80,13 @@ class AudibleBookData:
 
 
 def login_status() -> AudiblePendingPrompt | None:
-    """The currently pending CAPTCHA/OTP prompt, if a login attempt is
-    mid-flight and waiting on one — None if nothing is in progress, or the
-    attempt already finished (see login_result)."""
+    """The login URL waiting for a pasted-back redirect, if a login attempt
+    is mid-flight — None if nothing is in progress, or the attempt already
+    finished (see login_result)."""
     with _pending_lock:
         if _pending is None or _pending["done"]:
             return None
-        return AudiblePendingPrompt(kind=_pending["kind"], prompt=_pending["prompt"])
+        return AudiblePendingPrompt(login_url=_pending["login_url"])
 
 
 def login_result() -> tuple[audible.Authenticator | None, str | None] | None:
@@ -143,7 +107,7 @@ def clear_pending() -> None:
         _pending = None
 
 
-def start_login(username: str, password: str, locale: str) -> None:
+def start_login(locale: str) -> None:
     """Starts a login attempt on a background thread and returns
     immediately — poll login_status()/login_result() to see how it's going
     (routers/settings.py polls the same way bundles/_refresh_status.html
@@ -154,8 +118,7 @@ def start_login(username: str, password: str, locale: str) -> None:
         if _pending is not None and not _pending["done"]:
             raise AudibleLoginError("A login attempt is already in progress.")
         _pending = {
-            "kind": "",
-            "prompt": "",
+            "login_url": "",
             "answer_queue": queue.Queue(),
             "result": None,
             "error": None,
@@ -163,36 +126,15 @@ def start_login(username: str, password: str, locale: str) -> None:
         }
     state = _pending
 
-    def _wait_for_answer(kind: str, prompt: str) -> str:
+    def _login_url_callback(oauth_url: str) -> str:
         with _pending_lock:
-            state["kind"] = kind
-            state["prompt"] = prompt
+            state["login_url"] = oauth_url
         return state["answer_queue"].get()  # blocks until answer_login() is called
-
-    def _captcha_callback(captcha_url: str) -> str:
-        return _wait_for_answer("captcha", captcha_url)
-
-    def _otp_callback() -> str:
-        return _wait_for_answer("otp", "")
-
-    def _cvf_callback() -> str:
-        return _wait_for_answer("cvf", "")
-
-    def _approval_callback():
-        # Amazon's "approval alert" flow: a push notification/email asking
-        # the user to approve the login elsewhere, no code to type in — the
-        # return value is never actually used (confirmed reading
-        # audible/login.py, which just calls this and moves on), so any
-        # answer at all unblocks it. Real content is only ever "captcha",
-        # "otp", or "cvf" — "approval" needs no input(), just an
-        # acknowledgment.
-        return _wait_for_answer("approval", "")
 
     def _run() -> None:
         original_client_cls = httpx.Client
         original_post = httpx.post
         original_get = httpx.get
-        original_get_soup = audible.login.get_soup
 
         class _TimeoutClient(httpx.Client):
             def __init__(self, *args, **kwargs):
@@ -207,56 +149,13 @@ def start_login(username: str, password: str, locale: str) -> None:
             kwargs.setdefault("timeout", _LOGIN_HTTP_TIMEOUT_SECONDS)
             return original_get(*args, **kwargs)
 
-        def _get_soup_with_cvf_logging(resp, *args, **kwargs):
-            # Temporary diagnostic: a real account reaches the CVF prompt but
-            # never receives a code by email or SMS. cvf_callback() itself
-            # takes no arguments (confirmed via inspect.signature — audible
-            # gives it zero context), so there is no way to see what Amazon
-            # actually told the user through the supported callback API at
-            # all. This spies on get_soup() instead (the function login()
-            # already calls on every page it fetches) to log the raw
-            # response's status/headers/page text whenever that page is a
-            # CVF one — enough to tell "Amazon sent a code" from "Amazon's
-            # own CVF endpoint errored" (confirmed live: it was the latter —
-            # a 200 response whose cvf-page-content div was Amazon's own
-            # generic "something went wrong" filler, not a real code-entry
-            # form), without changing what get_soup() returns or otherwise
-            # touching the real login flow.
-            soup = original_get_soup(resp, *args, **kwargs)
-            try:
-                if audible.login.check_for_cvf(soup):
-                    # Deliberately excludes Set-Cookie and Authorization — the
-                    # rest (amzn-*/request-id/content-type/date) are safe,
-                    # non-secret response metadata worth having if this ever
-                    # needs escalating to Amazon or cross-referencing later.
-                    safe_headers = {
-                        k: v for k, v in resp.headers.items() if k.lower() not in ("set-cookie", "authorization")
-                    }
-                    text = soup.get_text(" ", strip=True)[:4000]
-                    logger.info(
-                        "AUDIBLE LOGIN DIAGNOSTIC (cvf page): status=%s url=%s headers=%s text=%s",
-                        resp.status_code,
-                        resp.url,
-                        safe_headers,
-                        text,
-                    )
-            except Exception as exc:  # noqa: BLE001 - diagnostics must never break the real login
-                logger.info("AUDIBLE LOGIN DIAGNOSTIC (cvf page logging failed): %s", exc)
-            return soup
-
         httpx.Client = _TimeoutClient
         httpx.post = _post_with_timeout
         httpx.get = _get_with_timeout
-        audible.login.get_soup = _get_soup_with_cvf_logging
         try:
-            auth = audible.Authenticator.from_login(
-                username,
-                password,
+            auth = audible.Authenticator.from_login_external(
                 locale,
-                captcha_callback=_captcha_callback,
-                otp_callback=_otp_callback,
-                cvf_callback=_cvf_callback,
-                approval_callback=_approval_callback,
+                login_url_callback=_login_url_callback,
             )
             with _pending_lock:
                 state["result"] = auth
@@ -269,18 +168,18 @@ def start_login(username: str, password: str, locale: str) -> None:
             httpx.Client = original_client_cls
             httpx.post = original_post
             httpx.get = original_get
-            audible.login.get_soup = original_get_soup
 
     threading.Thread(target=_run, daemon=True).start()
 
 
-def answer_login(answer: str) -> None:
-    """Submits the user's CAPTCHA/OTP answer, unblocking whichever callback
-    is currently waiting on one. A no-op if nothing is pending."""
+def answer_login(pasted_url: str) -> None:
+    """Submits the URL the user was redirected to after logging in on
+    Amazon's own site, unblocking the waiting login_url_callback. A no-op if
+    nothing is pending."""
     with _pending_lock:
         if _pending is None:
             return
-        _pending["answer_queue"].put(answer)
+        _pending["answer_queue"].put(pasted_url)
 
 
 async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:

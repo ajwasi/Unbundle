@@ -8,6 +8,8 @@ from app.models.credential import SOURCE_AUDIBLE, STATUS_ERROR, STATUS_OK, Crede
 from app.security import decrypt_json
 
 _POLL_TIMEOUT_SECONDS = 2.0
+_FAKE_LOGIN_URL = "https://amazon.com/ap/signin?fake=1"
+_FAKE_REDIRECT_URL = "https://amazon.com/ap/maplanding?openid.oa2.authorization_code=abc"
 
 
 @pytest.fixture(autouse=True)
@@ -29,14 +31,12 @@ def _wait_until(predicate, timeout=_POLL_TIMEOUT_SECONDS):
 def test_settings_page_shows_audible_card(authed_client):
     resp = authed_client.get("/settings")
     assert "Audible" in resp.text
-    assert 'name="username"' in resp.text
-    assert 'name="password"' in resp.text
+    assert 'name="locale"' in resp.text
 
 
 def test_settings_page_renders_the_login_dialog(authed_client):
-    # The login/CAPTCHA/OTP/CVF flow lives in a floating <dialog>, opened
-    # from a plain button in the card rather than replacing the card's own
-    # content inline.
+    # The login flow lives in a floating <dialog>, opened from a plain
+    # button in the card rather than replacing the card's own content inline.
     resp = authed_client.get("/settings")
     assert '<dialog id="audible-login-modal">' in resp.text
     assert 'id="audible-modal-content"' in resp.text
@@ -47,55 +47,49 @@ def test_audible_actions_oob_update_the_card_behind_the_modal(authed_client, db)
     # Every state-changing Audible route's response carries an out-of-band
     # fragment for the card (status badge, Connect/Disconnect) alongside the
     # modal's own content, so the two never go out of sync.
-    resp = authed_client.post("/settings/audible/login", data={"username": "", "password": ""})
+    with patch("audible.Authenticator.from_login_external", return_value="fake-auth"):
+        resp = authed_client.post("/settings/audible/login", data={"locale": "us"})
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
     assert 'id="audible-card-body" hx-swap-oob="true"' in resp.text
 
 
+def test_start_login_shows_login_url_prompt(authed_client, db):
+    def fake_from_login_external(locale, login_url_callback=None, **kwargs):
+        answer = login_url_callback(_FAKE_LOGIN_URL)
+        return "fake-authenticator" if answer else None
+
+    with patch("audible.Authenticator.from_login_external", side_effect=fake_from_login_external):
+        resp = authed_client.post("/settings/audible/login", data={"locale": "us"})
+        assert resp.status_code == 200
+        assert _wait_until(lambda: audible_connector.login_status() is not None)
+        assert audible_connector.login_status().login_url == _FAKE_LOGIN_URL
+
+        # Poll route reflects the pending prompt without resolving it.
+        status_resp = authed_client.get("/settings/audible/login/status")
+        assert _FAKE_LOGIN_URL in status_resp.text
+
+        answer_resp = authed_client.post("/settings/audible/login/answer", data={"pasted_url": _FAKE_REDIRECT_URL})
+        assert answer_resp.status_code == 200
+
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+
+
 def test_completed_login_shows_confirmation_in_the_modal(authed_client, db):
-    with patch("audible.Authenticator.from_login") as mock_from_login:
+    with patch("audible.Authenticator.from_login_external") as mock_from_login:
         mock_from_login.return_value.to_dict.return_value = {"access_token": "AT", "locale_code": "us"}
-        authed_client.post("/settings/audible/login", data={"username": "me@example.com", "password": "hunter2"})
+        authed_client.post("/settings/audible/login", data={"locale": "us"})
         assert _wait_until(lambda: audible_connector.login_result() is not None)
 
         resp = authed_client.get("/settings/audible/login/status")
     assert "Connected to Audible" in resp.text
 
 
-def test_start_login_rejects_blank_credentials(authed_client, db):
-    resp = authed_client.post("/settings/audible/login", data={"username": "", "password": ""})
-    assert "required" in resp.text.lower()
-    assert audible_connector.login_status() is None
-
-
-def test_start_login_shows_captcha_prompt(authed_client, db):
-    def fake_from_login(username, password, locale, captcha_callback=None, otp_callback=None, **kwargs):
-        answer = captcha_callback("https://example.com/captcha.jpg")
-        return "fake-auth" if answer else None
-
-    with patch("audible.Authenticator.from_login", side_effect=fake_from_login):
-        resp = authed_client.post(
-            "/settings/audible/login", data={"username": "me@example.com", "password": "hunter2", "locale": "us"}
-        )
-        assert resp.status_code == 200
-        assert _wait_until(lambda: audible_connector.login_status() is not None)
-        assert audible_connector.login_status().kind == "captcha"
-
-        # Poll route reflects the pending prompt without resolving it.
-        status_resp = authed_client.get("/settings/audible/login/status")
-        assert "CAPTCHA" in status_resp.text
-
-        answer_resp = authed_client.post("/settings/audible/login/answer", data={"answer": "solved"})
-        assert answer_resp.status_code == 200
-
-        assert _wait_until(lambda: audible_connector.login_result() is not None)
-
-
 def test_completed_login_saves_credential_and_clears_pending(authed_client, db):
-    with patch("audible.Authenticator.from_login") as mock_from_login:
+    with patch("audible.Authenticator.from_login_external") as mock_from_login:
         fake_auth = mock_from_login.return_value
         fake_auth.to_dict.return_value = {"access_token": "AT", "locale_code": "us"}
 
-        authed_client.post("/settings/audible/login", data={"username": "me@example.com", "password": "hunter2"})
+        authed_client.post("/settings/audible/login", data={"locale": "us"})
         assert _wait_until(lambda: audible_connector.login_result() is not None)
 
         resp = authed_client.get("/settings/audible/login/status")
@@ -108,16 +102,16 @@ def test_completed_login_saves_credential_and_clears_pending(authed_client, db):
 
 
 def test_failed_login_records_error_and_clears_pending(authed_client, db):
-    with patch("audible.Authenticator.from_login", side_effect=ValueError("bad credentials")):
-        authed_client.post("/settings/audible/login", data={"username": "me@example.com", "password": "wrong"})
+    with patch("audible.Authenticator.from_login_external", side_effect=ValueError("bad redirect url")):
+        authed_client.post("/settings/audible/login", data={"locale": "us"})
         assert _wait_until(lambda: audible_connector.login_result() is not None)
 
         resp = authed_client.get("/settings/audible/login/status")
-        assert "bad credentials" in resp.text
+        assert "bad redirect url" in resp.text
 
     cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one()
     assert cred.status == STATUS_ERROR
-    assert cred.last_error == "bad credentials"
+    assert cred.last_error == "bad redirect url"
 
 
 def test_disconnect_audible_removes_credential(authed_client, db):
