@@ -7,23 +7,30 @@ Amazon's private device-registration API — there is no public Audible API.
 
 Every method signature referenced below was confirmed directly against the
 installed package via introspection (inspect.signature / reading
-audible/auth.py and audible/client.py), not just its docs — but a real
-Amazon login (with a real CAPTCHA/2FA challenge) has never been exercised
-against this code from this environment, so treat the login flow as
-best-effort until proven against a real account.
+audible/auth.py and audible/client.py), not just its docs.
 
 The login flow is a genuinely different shape from every other connector
 here: Authenticator.from_login(...) is a **synchronous, blocking** call —
-when Amazon demands a CAPTCHA or a 2FA (OTP) code, it invokes the given
-callback *inline* and blocks until that callback returns a string. An HTTP
-request/response cycle can't pause mid-request waiting for a second request
-from the browser, so this module bridges the gap with a background thread
-(from_login does real blocking network I/O plus the inline callback waits
-below, so it must never run on the event loop) and a queue.Queue() the
-pending callback blocks on until routers/settings.py's answer-submission
-route calls answer_login(). Single pending login at a time, module-level
-state — the same "no multi-tenant complexity" assumption already used
-throughout this single-user app (e.g. ratelimit.py's per-process counters).
+whenever Amazon demands one of four possible extra verification steps
+(CAPTCHA, a 2FA/OTP code, a CVF code sent by mail/SMS, or an "approval
+alert" push notification the user must acknowledge elsewhere — confirmed by
+reading audible/login.py's own from_login implementation, which checks for
+all four independently), it invokes the corresponding callback *inline* and
+blocks until that callback returns. All four must be supplied — leaving any
+one as None makes audible fall back to its own console-based default
+(builtin input()), which raises a bare "EOF when reading a line" the moment
+it runs with no attached terminal, i.e. always, inside this container
+(confirmed live: an early version of this file only wired up captcha/otp and
+hit exactly this on a real account whose login happened to need a CVF
+step). An HTTP request/response cycle can't pause mid-request waiting for a
+second request from the browser either way, so this module bridges the gap
+with a background thread (from_login does real blocking network I/O plus
+the inline callback waits below, so it must never run on the event loop)
+and a queue.Queue() the pending callback blocks on until
+routers/settings.py's answer-submission route calls answer_login(). Single
+pending login at a time, module-level state — the same "no multi-tenant
+complexity" assumption already used throughout this single-user app (e.g.
+ratelimit.py's per-process counters).
 """
 
 import queue
@@ -115,6 +122,19 @@ def start_login(username: str, password: str, locale: str) -> None:
     def _otp_callback() -> str:
         return _wait_for_answer("otp", "")
 
+    def _cvf_callback() -> str:
+        return _wait_for_answer("cvf", "")
+
+    def _approval_callback():
+        # Amazon's "approval alert" flow: a push notification/email asking
+        # the user to approve the login elsewhere, no code to type in — the
+        # return value is never actually used (confirmed reading
+        # audible/login.py, which just calls this and moves on), so any
+        # answer at all unblocks it. Real content is only ever "captcha",
+        # "otp", or "cvf" — "approval" needs no input(), just an
+        # acknowledgment.
+        return _wait_for_answer("approval", "")
+
     def _run() -> None:
         try:
             auth = audible.Authenticator.from_login(
@@ -123,6 +143,8 @@ def start_login(username: str, password: str, locale: str) -> None:
                 locale,
                 captcha_callback=_captcha_callback,
                 otp_callback=_otp_callback,
+                cvf_callback=_cvf_callback,
+                approval_callback=_approval_callback,
             )
             with _pending_lock:
                 state["result"] = auth

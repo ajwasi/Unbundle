@@ -6,36 +6,15 @@
 </p>
 {% if audible_error %}<p style="color: var(--error);">{{ audible_error }}</p>{% endif %}
 
-{% if audible_pending %}
-<div hx-get="/settings/audible/login/status" hx-target="#audible-card-body" hx-swap="innerHTML" hx-trigger="every 2s">
-  {% if audible_pending.kind == "captcha" %}
-  <p class="muted">Amazon wants a CAPTCHA solved to continue:</p>
-  <img src="{{ audible_pending.prompt }}" alt="CAPTCHA image" style="max-width: 300px; display: block; margin-bottom: 0.5rem;">
-  {% else %}
-  <p class="muted">Amazon sent a one-time code to your usual 2FA method — enter it below:</p>
-  {% endif %}
-  <form hx-post="/settings/audible/login/answer" hx-target="#audible-card-body" hx-swap="innerHTML" style="display: flex; gap: 0.5rem; max-width: 480px;">
+<div class="toolbar" style="justify-content: flex-start;">
+  <button type="button" onclick="document.getElementById('audible-login-modal').showModal()">
+    {{ 'Reconnect' if audible_status != 'not_configured' else 'Connect' }}
+  </button>
+  {% if audible_status != 'not_configured' %}
+  <form hx-post="/settings/audible/disconnect" hx-target="#audible-modal-content" hx-swap="innerHTML"
+        hx-confirm="Disconnect Audible? This removes the saved login; your cached library list is kept." style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-    <input type="text" name="answer" placeholder="{{ 'CAPTCHA answer' if audible_pending.kind == 'captcha' else 'One-time code' }}" autocomplete="off" style="flex: 1;">
-    <button type="submit">Submit</button>
+    <button type="submit" class="secondary">Disconnect</button>
   </form>
+  {% endif %}
 </div>
-{% else %}
-<form hx-post="/settings/audible/login" hx-target="#audible-card-body" hx-swap="innerHTML">
-  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-width: 320px;">
-    <input type="text" name="username" placeholder="Amazon email or phone" autocomplete="off">
-    <input type="password" name="password" placeholder="Amazon password" autocomplete="off">
-    <input type="text" name="locale" placeholder="Marketplace (e.g. us, uk, de)" value="us">
-    <button type="submit">Connect</button>
-  </div>
-</form>
-{% endif %}
-
-{% if audible_status != 'not_configured' and not audible_pending %}
-<form hx-post="/settings/audible/disconnect" hx-target="#audible-card-body" hx-swap="innerHTML"
-      hx-confirm="Disconnect Audible? This removes the saved login; your cached library list is kept." style="margin-top: 0.6rem;">
-  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <button type="submit" class="secondary">Disconnect</button>
-</form>
-{% endif %}
