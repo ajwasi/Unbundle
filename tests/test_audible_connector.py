@@ -106,7 +106,7 @@ def test_cvf_prompt_has_no_url():
         audible_connector.answer_login("123456")
 
 
-def test_check_for_cvf_diagnostic_logs_page_text_and_restores(capsys):
+def test_check_for_cvf_diagnostic_logs_page_text_and_restores(caplog):
     # cvf_callback() itself gets zero context from audible (confirmed via
     # inspect.signature) — this is the only way to see what Amazon actually
     # told a real account at this step, since nothing never received a code.
@@ -125,14 +125,15 @@ def test_check_for_cvf_diagnostic_logs_page_text_and_restores(capsys):
         assert audible.login.check_for_cvf(_FakeSoup()) is True
         return cvf_callback()
 
-    with patch("audible.Authenticator.from_login", side_effect=fake_from_login):
-        audible_connector.start_login("user", "pass", "us")
-        assert _wait_until(lambda: audible_connector.login_status() is not None)
-        audible_connector.answer_login("123456")
-        assert _wait_until(lambda: audible_connector.login_result() is not None)
+    with caplog.at_level("INFO", logger="app.connectors.audible_connector"):
+        with patch("audible.Authenticator.from_login", side_effect=fake_from_login):
+            audible_connector.start_login("user", "pass", "us")
+            assert _wait_until(lambda: audible_connector.login_status() is not None)
+            audible_connector.answer_login("123456")
+            assert _wait_until(lambda: audible_connector.login_result() is not None)
 
     assert audible.login.check_for_cvf is original_check_for_cvf
-    assert "We sent a code to your phone ending in 1234" in capsys.readouterr().err
+    assert "We sent a code to your phone ending in 1234" in caplog.text
 
 
 def test_approval_prompt_completes_on_any_answer():

@@ -57,13 +57,15 @@ guess, without changing what that function returns or otherwise touching
 the real login flow. Remove this once the underlying cause is understood.
 """
 
+import logging
 import queue
-import sys
 import threading
 from dataclasses import dataclass
 
 import audible
 import httpx
+
+logger = logging.getLogger(__name__)
 
 # Neither audible/login.py's httpx.Client() nor audible/register.py's and
 # auth.py's bare httpx.post()/httpx.get() calls override httpx's own tight
@@ -215,7 +217,9 @@ def start_login(username: str, password: str, locale: str) -> None:
                     text = content.get_text(" ", strip=True) if content else "(no cvf-page-content div found)"
                 except Exception as exc:  # noqa: BLE001 - diagnostics must never break the real login
                     text = f"(failed to extract diagnostic text: {exc})"
-                print(f"AUDIBLE LOGIN DIAGNOSTIC (cvf page text): {text}", file=sys.stderr)
+                # logging, not print() — the in-app log viewer (app/applog.py)
+                # only captures records that go through the logging module.
+                logger.info("AUDIBLE LOGIN DIAGNOSTIC (cvf page text): %s", text)
             return result
 
         httpx.Client = _TimeoutClient
