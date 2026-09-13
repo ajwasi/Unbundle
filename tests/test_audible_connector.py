@@ -165,12 +165,46 @@ def test_start_login_patches_httpx_client_timeout_during_login_and_restores_it()
     assert httpx.Client is original_client_cls
 
 
-def test_httpx_client_timeout_patch_is_restored_even_on_failure():
+def test_start_login_patches_bare_httpx_post_and_get_too():
+    # The *same* "read operation timed out" persisted even after the
+    # httpx.Client patch above shipped — root cause was one level deeper:
+    # audible/register.py's device-registration step (which runs right
+    # after the interactive captcha/otp/cvf/approval part succeeds) uses the
+    # bare module-level httpx.post()/httpx.get() convenience functions, not
+    # httpx.Client, so that patch alone never touched it.
+    original_post = httpx.post
+    original_get = httpx.get
+    captured = {}
+
+    def fake_from_login(username, password, locale, otp_callback=None, **kwargs):
+        assert httpx.post is not original_post
+        assert httpx.get is not original_get
+        with patch("httpx._api.request", return_value="posted") as mock_request:
+            httpx.post("https://example.com/auth/register", json={})
+            captured["post_kwargs"] = mock_request.call_args.kwargs
+        return otp_callback()
+
+    with patch("audible.Authenticator.from_login", side_effect=fake_from_login):
+        audible_connector.start_login("user", "pass", "us")
+        assert _wait_until(lambda: audible_connector.login_status() is not None)
+        audible_connector.answer_login("000000")
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+
+    assert captured["post_kwargs"].get("timeout") == audible_connector._LOGIN_HTTP_TIMEOUT_SECONDS
+    assert httpx.post is original_post
+    assert httpx.get is original_get
+
+
+def test_httpx_patches_are_restored_even_on_failure():
     original_client_cls = httpx.Client
+    original_post = httpx.post
+    original_get = httpx.get
     with patch("audible.Authenticator.from_login", side_effect=ValueError("boom")):
         audible_connector.start_login("user", "pass", "us")
         assert _wait_until(lambda: audible_connector.login_result() is not None)
     assert httpx.Client is original_client_cls
+    assert httpx.post is original_post
+    assert httpx.get is original_get
 
 
 def test_login_failure_surfaces_as_an_error_not_a_result():
