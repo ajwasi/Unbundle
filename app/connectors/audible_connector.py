@@ -50,11 +50,20 @@ Separately, the same account reaches the CVF prompt but never receives a
 code by email or SMS. cvf_callback() takes zero arguments (confirmed via
 inspect.signature), so there's no supported way to see what Amazon actually
 told the user at that point through the callback itself. start_login()'s
-_run() temporarily wraps audible.login.check_for_cvf() (a pure boolean check
-login() already calls on every page it fetches) to log the cvf page's own
-text to stderr the moment the prompt first fires — a real diagnostic, not a
-guess, without changing what that function returns or otherwise touching
-the real login flow. Remove this once the underlying cause is understood.
+_run() temporarily wraps audible.login.get_soup() (the function login()
+already calls on every page it fetches) to log the raw response's
+status/headers/page text whenever that page is a CVF one, without changing
+what get_soup() returns or otherwise touching the real login flow. This is
+how the actual root cause was found on a real account: the GET to
+/ap/cvf/request came back HTTP 200, but its cvf-page-content div contained
+Amazon's own generic "JavaScript Is Disabled ... something went wrong on
+our end" filler — not a real code-entry form. check_for_cvf() only checks
+that the div exists at all, so login() proceeds as if a code was requested
+even though Amazon's own CVF endpoint errored server-side and never sent
+one — consistent with a soft anti-automation response (the per-attempt
+"arb" token in that URL suggests fraud-scoring, not a hard block), which
+may or may not clear up on a retry. Remove this diagnostic once the
+underlying cause is fully understood and (if possible) worked around.
 """
 
 import logging
@@ -183,7 +192,7 @@ def start_login(username: str, password: str, locale: str) -> None:
         original_client_cls = httpx.Client
         original_post = httpx.post
         original_get = httpx.get
-        original_check_for_cvf = audible.login.check_for_cvf
+        original_get_soup = audible.login.get_soup
 
         class _TimeoutClient(httpx.Client):
             def __init__(self, *args, **kwargs):
@@ -198,34 +207,47 @@ def start_login(username: str, password: str, locale: str) -> None:
             kwargs.setdefault("timeout", _LOGIN_HTTP_TIMEOUT_SECONDS)
             return original_get(*args, **kwargs)
 
-        def _check_for_cvf_with_logging(soup):
-            # Temporary diagnostic: a real account reaches this prompt but
+        def _get_soup_with_cvf_logging(resp, *args, **kwargs):
+            # Temporary diagnostic: a real account reaches the CVF prompt but
             # never receives a code by email or SMS. cvf_callback() itself
             # takes no arguments (confirmed via inspect.signature — audible
             # gives it zero context), so there is no way to see what Amazon
             # actually told the user through the supported callback API at
-            # all. This spies on check_for_cvf() instead (a pure boolean
-            # check the real login() already calls on every page it fetches)
-            # to log the cvf-page-content div's own text — whatever Amazon
-            # says there (which channel, a resend link, an error) the moment
-            # this prompt first fires, without changing what it returns or
-            # otherwise touching the real login flow.
-            result = original_check_for_cvf(soup)
-            if result:
-                try:
-                    content = soup.find("div", id="cvf-page-content")
-                    text = content.get_text(" ", strip=True) if content else "(no cvf-page-content div found)"
-                except Exception as exc:  # noqa: BLE001 - diagnostics must never break the real login
-                    text = f"(failed to extract diagnostic text: {exc})"
-                # logging, not print() — the in-app log viewer (app/applog.py)
-                # only captures records that go through the logging module.
-                logger.info("AUDIBLE LOGIN DIAGNOSTIC (cvf page text): %s", text)
-            return result
+            # all. This spies on get_soup() instead (the function login()
+            # already calls on every page it fetches) to log the raw
+            # response's status/headers/page text whenever that page is a
+            # CVF one — enough to tell "Amazon sent a code" from "Amazon's
+            # own CVF endpoint errored" (confirmed live: it was the latter —
+            # a 200 response whose cvf-page-content div was Amazon's own
+            # generic "something went wrong" filler, not a real code-entry
+            # form), without changing what get_soup() returns or otherwise
+            # touching the real login flow.
+            soup = original_get_soup(resp, *args, **kwargs)
+            try:
+                if audible.login.check_for_cvf(soup):
+                    # Deliberately excludes Set-Cookie and Authorization — the
+                    # rest (amzn-*/request-id/content-type/date) are safe,
+                    # non-secret response metadata worth having if this ever
+                    # needs escalating to Amazon or cross-referencing later.
+                    safe_headers = {
+                        k: v for k, v in resp.headers.items() if k.lower() not in ("set-cookie", "authorization")
+                    }
+                    text = soup.get_text(" ", strip=True)[:4000]
+                    logger.info(
+                        "AUDIBLE LOGIN DIAGNOSTIC (cvf page): status=%s url=%s headers=%s text=%s",
+                        resp.status_code,
+                        resp.url,
+                        safe_headers,
+                        text,
+                    )
+            except Exception as exc:  # noqa: BLE001 - diagnostics must never break the real login
+                logger.info("AUDIBLE LOGIN DIAGNOSTIC (cvf page logging failed): %s", exc)
+            return soup
 
         httpx.Client = _TimeoutClient
         httpx.post = _post_with_timeout
         httpx.get = _get_with_timeout
-        audible.login.check_for_cvf = _check_for_cvf_with_logging
+        audible.login.get_soup = _get_soup_with_cvf_logging
         try:
             auth = audible.Authenticator.from_login(
                 username,
@@ -247,7 +269,7 @@ def start_login(username: str, password: str, locale: str) -> None:
             httpx.Client = original_client_cls
             httpx.post = original_post
             httpx.get = original_get
-            audible.login.check_for_cvf = original_check_for_cvf
+            audible.login.get_soup = original_get_soup
 
     threading.Thread(target=_run, daemon=True).start()
 
