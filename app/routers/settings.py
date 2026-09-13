@@ -5,10 +5,10 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
-from app import accounts, backup
+from app import accounts, applog, backup
 from app.cli import _set_password
 from app.config import settings
 from app.connectors import audible_connector, gog_connector, steam_connector
@@ -556,3 +556,30 @@ async def restore_backup_route(request: Request, backup_file: UploadFile = File(
     finally:
         fresh_db.close()
     return templates.TemplateResponse(request, "settings/_backup_form.html", context)
+
+
+@router.get("/logs", response_class=HTMLResponse)
+def logs_page(request: Request):
+    return templates.TemplateResponse(request, "settings/logs.html", {"log_lines": applog.recent_lines()})
+
+
+@router.get("/logs/content", response_class=HTMLResponse)
+def logs_content(request: Request):
+    """Polled every few seconds by logs.html while the page is open, so a
+    live login attempt (Audible or otherwise) can be watched without
+    manually reloading."""
+    return templates.TemplateResponse(request, "settings/_logs_content.html", {"log_lines": applog.recent_lines()})
+
+
+@router.get("/logs/download")
+def download_logs():
+    return PlainTextResponse(
+        applog.as_text(),
+        headers={"Content-Disposition": f'attachment; filename="{applog.download_filename()}"'},
+    )
+
+
+@router.post("/logs/clear", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def clear_logs(request: Request):
+    applog.clear()
+    return templates.TemplateResponse(request, "settings/_logs_content.html", {"log_lines": applog.recent_lines()})

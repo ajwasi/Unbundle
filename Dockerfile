@@ -17,6 +17,17 @@ RUN (git describe --tags --exact-match HEAD 2>/dev/null || git rev-parse --short
 FROM python:3.12-slim
 WORKDIR /app
 
+# Without this, Python fully block-buffers stdout/stderr whenever they aren't
+# attached to a real terminal — true for every container process, always.
+# print()/logging output then sits in an unflushed buffer until it either
+# fills up or the process exits, neither of which happens for a long-running
+# web server — so `docker logs`/Portainer's log viewer can show nothing at
+# all for real output the app already produced. Confirmed live: a
+# diagnostic print() added to debug an Audible login issue never appeared in
+# Portainer's log view even though the code path that emits it was
+# definitely running.
+ENV PYTHONUNBUFFERED=1
+
 # Explicit on purpose: Go's os.UserHomeDir() (what humble-cli uses to find
 # ~/.humble-cli-key) requires $HOME to be set and does NOT fall back to
 # /etc/passwd if it's missing — unverified whether python:3.12-slim's default

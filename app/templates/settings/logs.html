@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Application Logs — Unbundle{% endblock %}
+{% block content %}
+<h1>Application Logs</h1>
+<p class="muted">
+  Recent log output from this process, including third-party libraries this app talks to
+  (e.g. Audible's own login library) — useful for diagnosing a connection issue without
+  needing to find and read the container's own logs separately. Capped at the most recent
+  2000 lines; older lines are dropped automatically. Cleared on every restart.
+</p>
+
+<div class="toolbar">
+  <a href="/settings/logs/download" class="secondary">Download as .txt</a>
+  <button type="button" class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('logs-pre').innerText)">Copy to clipboard</button>
+  <form hx-post="/settings/logs/clear" hx-target="#logs-content" hx-swap="outerHTML" hx-confirm="Clear the log buffer?" style="margin: 0;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="secondary">Clear</button>
+  </form>
+</div>
+
+<div hx-get="/settings/logs/content" hx-target="#logs-content" hx-swap="outerHTML" hx-trigger="every 3s">
+  {% include "settings/_logs_content.html" %}
+</div>
+{% endblock %}

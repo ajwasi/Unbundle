@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import backup, version
+from app import applog, backup, version
 from app.config import settings
 from app.db import SessionLocal
 from app.deps import AuthMiddleware, SecurityHeadersMiddleware
@@ -19,6 +19,11 @@ from app.sync import refresh
 from app.telemetry import instrument_app
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+# Installed at import time, not inside lifespan() — active from the earliest
+# possible moment (before any router/connector module below has a chance to
+# log anything), rather than waiting for uvicorn to actually start serving.
+applog.install()
 
 
 def _startup_warnings() -> list[str]:
