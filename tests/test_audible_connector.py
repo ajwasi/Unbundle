@@ -9,6 +9,7 @@ with a short poll-with-timeout since a real background thread is involved.
 import time
 from unittest.mock import patch
 
+import audible.login
 import httpx
 import pytest
 
@@ -103,6 +104,35 @@ def test_cvf_prompt_has_no_url():
         assert prompt.kind == "cvf"
         assert prompt.prompt == ""
         audible_connector.answer_login("123456")
+
+
+def test_check_for_cvf_diagnostic_logs_page_text_and_restores(capsys):
+    # cvf_callback() itself gets zero context from audible (confirmed via
+    # inspect.signature) — this is the only way to see what Amazon actually
+    # told a real account at this step, since nothing never received a code.
+    original_check_for_cvf = audible.login.check_for_cvf
+
+    class _FakeTag:
+        def get_text(self, *args, **kwargs):
+            return "We sent a code to your phone ending in 1234"
+
+    class _FakeSoup:
+        def find(self, *args, **kwargs):
+            return _FakeTag()
+
+    def fake_from_login(username, password, locale, cvf_callback=None, **kwargs):
+        assert audible.login.check_for_cvf is not original_check_for_cvf
+        assert audible.login.check_for_cvf(_FakeSoup()) is True
+        return cvf_callback()
+
+    with patch("audible.Authenticator.from_login", side_effect=fake_from_login):
+        audible_connector.start_login("user", "pass", "us")
+        assert _wait_until(lambda: audible_connector.login_status() is not None)
+        audible_connector.answer_login("123456")
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+
+    assert audible.login.check_for_cvf is original_check_for_cvf
+    assert "We sent a code to your phone ending in 1234" in capsys.readouterr().err
 
 
 def test_approval_prompt_completes_on_any_answer():
