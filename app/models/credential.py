@@ -10,6 +10,7 @@ SOURCE_OIDC = "oidc"  # SSO config: issuer/client_id/client_secret/enabled/disab
 SOURCE_APP_AUTH = "app_auth"  # optional DB-stored password override — see security.py
 SOURCE_STEAM = "steam"  # Steam Web API key + resolved steamid64 — see connectors/steam_connector.py
 SOURCE_GOG = "gog"  # OAuth refresh_token — see connectors/gog_connector.py
+SOURCE_AUDIBLE = "audible"  # audible package's Authenticator.to_dict() — see connectors/audible_connector.py
 
 STATUS_NOT_CONFIGURED = "not_configured"
 STATUS_OK = "ok"

@@ -39,6 +39,14 @@ Docker-based, no external services required beyond the ones you choose to connec
   directly, unlike Steam) — see the GOG card in Settings for specifics before expecting
   much here. Its unredeemed table gets the same different-listing/owned-on-Steam and
   expiration treatment as the Steam page.
+- **Audible** — lists your owned Audible audiobooks (title, author, runtime, cover).
+  Amazon has no public Audible API either; this uses the real `audible` package
+  (unofficial, actively maintained) to log in with your actual Amazon email/password —
+  the same credentials the Audible app itself uses — and may prompt for a CAPTCHA or a
+  2FA code depending on your account's security settings, right there in the Settings
+  card. No download/decrypt support yet (Audible's files are DRM-encrypted and need a
+  per-title license + ffmpeg to become playable) — this first pass is read-only, same as
+  Steam/GOG.
 - **Auth** — a one-time setup screen on first launch requires setting a password
   before the app is usable at all, or OIDC/SSO (Authentik, Keycloak, etc.) configured
   from Settings afterward, with password login optionally turned off once SSO is

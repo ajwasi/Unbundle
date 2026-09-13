@@ -70,6 +70,20 @@
   </div>
 </div>
 
+<div class="card" id="audible-card">
+  <h2>Audible</h2>
+  <p class="muted">
+    Lists your owned Audible audiobooks. Amazon has no public Audible API — this uses your
+    real Amazon email/password (same as the Audible app itself), and may ask for a CAPTCHA
+    or a one-time code depending on your account's security settings. Nothing is stored in
+    plaintext: the resulting login is encrypted at rest the same way every other connected
+    account here is.
+  </p>
+  <div id="audible-card-body">
+    {% include "settings/_audible_form.html" %}
+  </div>
+</div>
+
 <div class="card" id="backup-card">
   <h2>Backups</h2>
   {% if backups_supported %}

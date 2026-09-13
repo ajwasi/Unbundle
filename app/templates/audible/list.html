@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Audible — Unbundle{% endblock %}
+{% block content %}
+<h1>Audible Library</h1>
+
+{% if audible_status == "not_configured" %}
+<p class="muted">Audible isn't connected yet. Connect it in <a href="/settings">Settings</a>.</p>
+{% else %}
+<div class="toolbar">
+  <form hx-post="/audible/refresh" hx-target="#audible-content" hx-swap="outerHTML" style="margin: 0;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="secondary">Refresh</button>
+  </form>
+</div>
+{% endif %}
+
+{% include "audible/_content.html" %}
+{% endblock %}

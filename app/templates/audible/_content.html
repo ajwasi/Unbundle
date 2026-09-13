@@ -1,0 +1,33 @@
+<div id="audible-content">
+  {% if audible_status == "error" %}
+  <p style="color: var(--error);">{{ audible_error }}</p>
+  {% endif %}
+
+  {% if audible_status != "not_configured" %}
+  <p class="muted">
+    {{ book_count }} book(s) owned &mdash; {{ total_runtime_hours }} hour(s) total runtime.
+    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>.{% else %}Never refreshed.{% endif %}
+  </p>
+
+  <div class="card">
+    <h2>Owned Books ({{ book_count }})</h2>
+    {% if books %}
+    <table>
+      <thead><tr><th></th><th>Title</th><th>Author</th><th>Runtime</th></tr></thead>
+      <tbody>
+        {% for b in books %}
+        <tr>
+          <td>{% if b.cover_url %}<img class="owned-item-icon" src="{{ b.cover_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
+          <td>{{ b.title }}</td>
+          <td>{{ b.author }}</td>
+          <td>{{ (b.runtime_minutes // 60) }}h {{ (b.runtime_minutes % 60) }}m</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No books loaded yet — click Refresh.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

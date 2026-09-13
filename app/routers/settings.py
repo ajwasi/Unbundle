@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session
 from app import accounts, backup
 from app.cli import _set_password
 from app.config import settings
-from app.connectors import gog_connector, steam_connector
+from app.connectors import audible_connector, gog_connector, steam_connector
 from app.connectors.humble_connector import HumbleConnector
 from app.csrf import require_csrf
 from app.db import SessionLocal
 from app.deps import get_db
 from app.models.credential import (
+    SOURCE_AUDIBLE,
     SOURCE_GOG,
     SOURCE_HUMBLE,
     SOURCE_OIDC,
@@ -28,7 +29,7 @@ from app.models.credential import (
 )
 from app.oidc import discover, get_oidc_config, is_password_login_active
 from app.security import check_app_password, decrypt_json, encrypt_json
-from app.sync import gog_sync
+from app.sync import audible_sync, gog_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/settings")
@@ -102,6 +103,29 @@ def _gog_context(db: Session) -> dict:
     }
 
 
+def _get_or_create_audible_credential(db: Session) -> Credential:
+    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
+    if cred is None:
+        cred = Credential(source=SOURCE_AUDIBLE)
+        db.add(cred)
+    return cred
+
+
+def _audible_context(db: Session, error: str | None = None) -> dict:
+    """audible_pending drives which of three states _audible_form.html
+    renders: not connected (plain username/password/locale form), a login
+    in progress waiting on a CAPTCHA/OTP answer (audible_pending set, see
+    audible_connector.login_status), or connected/error (the normal
+    status+disconnect view every other connector card uses).
+    """
+    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
+    return {
+        "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
+        "audible_error": error if error is not None else (cred.last_error if cred else None),
+        "audible_pending": audible_connector.login_status(),
+    }
+
+
 def _oidc_context(request: Request, db: Session, oidc_error: str | None = None) -> dict:
     cfg = get_oidc_config(db) or {}
     return {
@@ -145,6 +169,7 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     context.update(_oidc_context(request, db))
     context.update(_steam_context(db))
     context.update(_gog_context(db))
+    context.update(_audible_context(db))
     context.update(_backup_context(db))
     return templates.TemplateResponse(request, "settings/index.html", context)
 
@@ -352,6 +377,71 @@ def disconnect_gog(request: Request, db: Session = Depends(get_db)):
         db.delete(cred)
         db.commit()
     return templates.TemplateResponse(request, "settings/_gog_form.html", _gog_context(db))
+
+
+@router.post("/audible/login", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def start_audible_login(
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(""),
+    locale: str = Form("us"),
+    db: Session = Depends(get_db),
+):
+    username, password = username.strip(), password.strip()
+    locale = locale.strip().lower() or "us"
+
+    error = None
+    if not username or not password:
+        error = "Amazon email/phone and password are both required."
+    else:
+        try:
+            audible_connector.start_login(username, password, locale)
+        except audible_connector.AudibleLoginError as exc:
+            error = str(exc)
+
+    return templates.TemplateResponse(request, "settings/_audible_form.html", _audible_context(db, error))
+
+
+@router.get("/audible/login/status", response_class=HTMLResponse)
+def audible_login_status(request: Request, db: Session = Depends(get_db)):
+    """Polled every 2s by _audible_form.html while a login is in progress —
+    same "poll a running background job" pattern
+    bundles/_refresh_status.html already uses. Once login_result() has an
+    answer, persists it (success or failure) and clears the pending state so
+    this only ever fires once per login attempt.
+    """
+    result = audible_connector.login_result()
+    if result is not None:
+        auth, error = result
+        if auth is not None:
+            audible_sync.save_authenticator(db, auth)
+            cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one()
+            cred.status = STATUS_OK
+            cred.last_error = None
+        else:
+            cred = _get_or_create_audible_credential(db)
+            cred.status = STATUS_ERROR
+            cred.last_error = error
+        db.commit()
+        audible_connector.clear_pending()
+
+    return templates.TemplateResponse(request, "settings/_audible_form.html", _audible_context(db))
+
+
+@router.post("/audible/login/answer", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def answer_audible_login(request: Request, answer: str = Form(""), db: Session = Depends(get_db)):
+    audible_connector.answer_login(answer.strip())
+    return templates.TemplateResponse(request, "settings/_audible_form.html", _audible_context(db))
+
+
+@router.post("/audible/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def disconnect_audible(request: Request, db: Session = Depends(get_db)):
+    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
+    if cred:
+        db.delete(cred)
+        db.commit()
+    audible_connector.clear_pending()
+    return templates.TemplateResponse(request, "settings/_audible_form.html", _audible_context(db))
 
 
 @router.post("/backups/config", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
