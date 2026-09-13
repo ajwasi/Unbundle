@@ -11,7 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import backup, version
 from app.config import settings
 from app.db import SessionLocal
-from app.deps import AuthMiddleware
+from app.deps import AuthMiddleware, SecurityHeadersMiddleware
 from app.downloads import worker
 from app.oidc import is_auth_configured
 from app.routers import auth, bundles, catalog, docs, downloads, finance, gog, home, metrics, steam, tags, settings as settings_router
@@ -84,6 +84,11 @@ app.add_middleware(
 # out, after everything else has finished. Default 500-byte threshold skips
 # tiny responses where compression overhead isn't worth it.
 app.add_middleware(GZipMiddleware)
+# The true outermost layer: added after GZip so these headers land on every
+# response this app ever sends — static files, /metrics, login/setup, and
+# any error response an inner middleware produces — not just the ones that
+# reach a route handler.
+app.add_middleware(SecurityHeadersMiddleware)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(auth.router)

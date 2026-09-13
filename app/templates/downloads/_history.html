@@ -31,7 +31,11 @@
           {% endif %}
         </td>
         <td>{{ d.expected_size_bytes | human_size }}</td>
-        <td class="muted path-cell">{{ d.current_location_path or "&mdash;" | safe }}</td>
+        {# Parens make Jinja's actual precedence explicit: |safe only ever applies to
+           the literal "&mdash;" fallback below — current_location_path itself still
+           gets normal autoescaping either way, this just stops it from reading like
+           the whole expression is unescaped. #}
+        <td class="muted path-cell">{{ d.current_location_path or ("&mdash;" | safe) }}</td>
         <td>{{ (d.completed_at.strftime("%Y-%m-%d %H:%M") if d.completed_at else "&mdash;") | safe }}</td>
       </tr>
       {% else %}

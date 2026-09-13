@@ -9,7 +9,39 @@ from app.db import SessionLocal, get_db  # get_db re-exported: routers do `db: S
 from app.oidc import is_auth_configured
 from app.security import SESSION_COOKIE_NAME, decode_session_token
 
-__all__ = ["get_db", "AuthMiddleware"]
+__all__ = ["get_db", "AuthMiddleware", "SecurityHeadersMiddleware"]
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Headers CSRF protection doesn't cover. The double-submit CSRF cookie
+    (csrf.py) only stops a *forged* cross-origin request — it does nothing
+    against clickjacking, where an attacker iframes this app's real page (with
+    the victim's real cookies, real CSRF token, everything genuine) and tricks
+    a click into landing on a real button. X-Frame-Options/frame-ancestors is
+    the actual defense for that, and there's no reason for this single-user
+    app to ever be framed by anything, including itself. The other two are
+    cheap, standard defense-in-depth with no functional downside: nosniff
+    stops a MIME-sniffing attack on an upload-adjacent response, and a same-
+    origin referrer policy keeps this app's own URLs (which can carry a
+    gamekey or similar in the path) out of a third-party site's referrer logs
+    when an outbound link (e.g. a redeem-on-humblebundle.com link) is clicked.
+
+    Deliberately no Content-Security-Policy here — this app relies on several
+    inline `<script>` blocks (countdown timers, the image-fallback handler,
+    docs/_content.html's theme detection) and one external CDN script
+    (ReDoc), and a CSP strict enough to matter would need either
+    'unsafe-inline' (which defeats most of the point) or per-response nonces
+    threaded through every template that has an inline script — a much larger
+    change than the header additions here, not attempted in this pass.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "same-origin"
+        return response
 
 _PUBLIC_PATH_PREFIXES = ("/login", "/auth/oidc", "/setup")
 _STATIC_PREFIX = "/static"

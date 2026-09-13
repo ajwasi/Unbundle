@@ -34,7 +34,12 @@
       <tr>
         <td><a href="/bundles/{{ b.gamekey }}">{{ b.name }}</a></td>
         <td>{{ b.subproduct_count }}</td>
-        <td>{{ (b.category | format_category or "&mdash;") | safe }}</td>
+        {# format_category's fallback for an unrecognized value (Humble's own
+           category field, not something this app controls) is just a plain
+           title-cased string, not HTML-sanitized — |safe must stay scoped to
+           the literal dash only, never the whole expression, or an
+           unexpected category value would render unescaped. #}
+        <td>{{ b.category | format_category or ("&mdash;" | safe) }}</td>
         <td>{{ b.key_count }}</td>
         <td>
           {% if b.gamekey in unredeemed_gamekeys %}

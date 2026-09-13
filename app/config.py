@@ -57,11 +57,12 @@ class Settings(BaseSettings):
     scan_roots: str = ""
 
     humble_cli_path: str = "/usr/local/bin/humble-cli"
-    # In the container this resolves under $HOME=/root (the Dockerfile runs as root and
-    # sets this explicitly — see its own comment on why) — the exact path humble-cli
-    # itself hardcodes. MUST be overridden via env var for any local/dev run outside
-    # Docker so it never collides with a real ~/.humble-cli-key on the host machine
-    # running this code.
+    # In the container this resolves under $HOME=/home/appuser (the Dockerfile sets
+    # this explicitly, and the app itself runs as that unprivileged user via
+    # docker-entrypoint.sh — see both files' own comments on why) — the exact path
+    # humble-cli itself hardcodes. MUST be overridden via env var for any local/dev
+    # run outside Docker so it never collides with a real ~/.humble-cli-key on the
+    # host machine running this code.
     humble_cli_key_path: Path = Path.home() / ".humble-cli-key"
 
     # When true, the Humble/Steam/GOG connectors talk to mock_api_base_url instead

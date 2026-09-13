@@ -94,6 +94,14 @@ def test_finance_category_filter(authed_client, make_bundle):
     assert "$20.00" not in resp.text
 
 
+def test_finance_escapes_an_unrecognized_category_value(authed_client, make_bundle):
+    # Same |safe scoping concern as bundles/_table.html's own copy of this test.
+    make_bundle(gamekey="GK1", order=make_order(amount_spent=10.0, category="<script>alert(1)</script>"))
+    resp = authed_client.get("/finance")
+    assert "<script>alert(1)</script>" not in resp.text
+    assert "&lt;script&gt;" in resp.text
+
+
 def test_finance_granularity_is_year_without_year_filter(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(created="2023-01-01T00:00:00"))
     make_bundle(gamekey="GK2", order=make_order(created="2024-01-01T00:00:00"))

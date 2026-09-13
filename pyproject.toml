@@ -3,29 +3,36 @@ name = "unbundle"
 version = "0.1.0"
 description = "Self-hosted web UI + download/location tracker for humble-cli"
 requires-python = ">=3.11"
+# Exact pins (==), not lower bounds — a `docker build` run today vs. six
+# months from now must resolve to the exact same versions, so a compromised
+# or newly-vulnerable transitive release never gets silently pulled into a
+# fresh image. Every version below is the one this exact codebase's full test
+# suite has actually passed against; bumping any of these is a deliberate
+# action (re-run the full suite, update the pin here), not something that
+# happens automatically on the next build.
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
-    "sqlalchemy>=2.0",
-    "alembic>=1.13",
-    "httpx>=0.27",
-    "pydantic-settings>=2.4",
-    "itsdangerous>=2.2",
-    "cryptography>=43.0",
-    "jinja2>=3.1",
-    "python-multipart>=0.0.9",
-    "authlib>=1.3",
-    "nh3>=0.2",
-    "opentelemetry-api>=1.44",
-    "opentelemetry-sdk>=1.44",
-    "opentelemetry-exporter-prometheus>=0.65b0",
-    "opentelemetry-instrumentation-fastapi>=0.65b0",
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.52.4",
+    "sqlalchemy==2.0.52",
+    "alembic==1.19.2",
+    "httpx==0.28.1",
+    "pydantic-settings==2.15.0",
+    "itsdangerous==2.2.0",
+    "cryptography==50.0.1",
+    "jinja2==3.1.6",
+    "python-multipart==0.0.32",
+    "authlib==1.8.0",
+    "nh3==0.3.7",
+    "opentelemetry-api==1.44.0",
+    "opentelemetry-sdk==1.44.0",
+    "opentelemetry-exporter-prometheus==0.65b0",
+    "opentelemetry-instrumentation-fastapi==0.65b0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.24",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
 ]
 # psycopg3, not psycopg2 (SQLAlchemy 2.0's actively-recommended modern driver).
 # [binary] vendors a statically-linked libpq in the wheel, so no apt-get
@@ -33,7 +40,7 @@ dev = [
 # a plain local `pip install`). DSN scheme must be postgresql+psycopg://
 # (bare postgresql:// resolves to psycopg2 by default, which isn't installed).
 postgres = [
-    "psycopg[binary]>=3.1",
+    "psycopg[binary]==3.3.5",
 ]
 
 [build-system]

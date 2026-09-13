@@ -1,11 +1,14 @@
 """Tests that documentation and Docker/Compose config actually match reality.
 
 This project has a real history of this drifting: app/config.py's comment and
-README.md both claimed humble_cli_key_path resolves under $HOME=/home/appuser
-in Docker — the actual Dockerfile has never created that user at all and sets
-HOME=/root explicitly (running as root). Neither a human re-reading the prose
+README.md once claimed humble_cli_key_path resolves under $HOME=/home/appuser
+in Docker while the Dockerfile actually ran as root with HOME=/root — that
+user didn't exist yet at the time. It's since become true for real (the
+Dockerfile now creates appuser and drops root privileges via
+docker-entrypoint.sh, see both files' own comments), but the underlying risk
+this test guards against is unchanged: neither a human re-reading the prose
 nor the app's own test suite (which never touches the Dockerfile or README)
-would catch that kind of drift.
+would catch a *future* drift between these three sources on its own.
 
 These parse the real files rather than duplicate their content as string
 literals, so a genuine future change to any of them doesn't fight the tests
@@ -355,8 +358,29 @@ def test_dockerfile_home_value_matches_what_config_and_readme_document():
     assert home in _readme_text(), f"Dockerfile sets HOME={home}, but README.md doesn't mention it"
 
 
-def test_readme_and_config_do_not_reference_a_nonexistent_container_user():
-    # The Dockerfile has never created an "appuser" or any non-root user at
-    # all — it runs as root with HOME=/root set explicitly.
-    assert "appuser" not in _readme_text()
-    assert "appuser" not in _config_source()
+def test_readme_and_config_only_reference_appuser_if_the_dockerfile_actually_creates_it():
+    # Inverse of the original regression this file guards against: README/config.py
+    # mentioning appuser is only accurate if the Dockerfile actually creates that
+    # user (useradd) and actually runs the app as it (ENTRYPOINT), not root.
+    dockerfile = _dockerfile_text()
+    if "appuser" in _readme_text() or "appuser" in _config_source():
+        assert "useradd" in dockerfile and "appuser" in dockerfile, (
+            "README/config.py reference appuser, but the Dockerfile doesn't create it"
+        )
+        assert "ENTRYPOINT" in dockerfile, "appuser exists but nothing drops root privileges to run as it"
+
+
+# --- regression lock for the app actually running as a non-root user ---
+
+
+def test_dockerfile_creates_a_non_root_user_and_drops_to_it():
+    dockerfile = _dockerfile_text()
+    assert re.search(r"useradd\b.*\bappuser\b", dockerfile), "Dockerfile doesn't create a non-root appuser"
+    assert 'ENTRYPOINT ["docker-entrypoint.sh"]' in dockerfile
+    entrypoint = (ROOT / "docker-entrypoint.sh").read_text(encoding="utf-8")
+    assert "chown" in entrypoint and "/data" in entrypoint, "entrypoint doesn't fix /data's ownership"
+    assert re.search(r"exec gosu appuser\b", entrypoint), "entrypoint doesn't actually drop to appuser via gosu"
+
+
+def test_dockerfile_installs_gosu_before_the_entrypoint_needs_it():
+    assert re.search(r"apt-get install.*\bgosu\b", _dockerfile_text()), "gosu is used but never installed"
