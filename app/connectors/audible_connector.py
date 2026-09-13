@@ -31,6 +31,15 @@ routers/settings.py's answer-submission route calls answer_login(). Single
 pending login at a time, module-level state — the same "no multi-tenant
 complexity" assumption already used throughout this single-user app (e.g.
 ratelimit.py's per-process counters).
+
+A real account also hit "The read operation timed out": audible/login.py
+builds its own httpx.Client with no timeout override, so httpx's own tight
+5-second default applies to every request it makes to Amazon — plausible to
+exceed on a real (if slightly slower) homelab network path, especially after
+several CAPTCHA/CVF round trips. from_login() exposes no parameter to
+override this, so start_login()'s _run() patches httpx.Client itself for the
+duration of the call (see _LOGIN_HTTP_TIMEOUT_SECONDS below), restored in a
+finally block regardless of outcome.
 """
 
 import queue
@@ -38,6 +47,22 @@ import threading
 from dataclasses import dataclass
 
 import audible
+import httpx
+
+# audible/login.py constructs its own httpx.Client(base_url=..., headers=...,
+# cookies=..., follow_redirects=True) with no timeout override at all — which
+# means httpx's own tight default (5 seconds per connect/read/write) applies
+# to every request the real login flow makes to Amazon. from_login() exposes
+# no way to pass a custom timeout through (confirmed via inspect.signature —
+# no timeout param exists), so the only way to give a real, possibly-slower
+# homelab network path enough time is to patch the timeout in underneath it.
+# Confirmed safe to patch the sync httpx.Client class globally (not just
+# scoped to the audible.login module) rather than something narrower: this
+# app's every other connector uses httpx.AsyncClient exclusively — nothing
+# else here ever constructs a sync httpx.Client — so this can't affect
+# unrelated in-flight requests, and it's restored immediately after
+# from_login() returns either way (see start_login's _run()).
+_LOGIN_HTTP_TIMEOUT_SECONDS = 60.0
 
 _pending_lock = threading.Lock()
 _pending: dict | None = None
@@ -136,6 +161,14 @@ def start_login(username: str, password: str, locale: str) -> None:
         return _wait_for_answer("approval", "")
 
     def _run() -> None:
+        original_client_cls = httpx.Client
+
+        class _TimeoutClient(httpx.Client):
+            def __init__(self, *args, **kwargs):
+                kwargs.setdefault("timeout", _LOGIN_HTTP_TIMEOUT_SECONDS)
+                super().__init__(*args, **kwargs)
+
+        httpx.Client = _TimeoutClient
         try:
             auth = audible.Authenticator.from_login(
                 username,
@@ -153,6 +186,8 @@ def start_login(username: str, password: str, locale: str) -> None:
             with _pending_lock:
                 state["error"] = str(exc)
                 state["done"] = True
+        finally:
+            httpx.Client = original_client_cls
 
     threading.Thread(target=_run, daemon=True).start()
 

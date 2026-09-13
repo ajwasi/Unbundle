@@ -9,6 +9,7 @@ with a short poll-with-timeout since a real background thread is involved.
 import time
 from unittest.mock import patch
 
+import httpx
 import pytest
 
 from app.connectors import audible_connector
@@ -134,6 +135,42 @@ def test_start_login_always_passes_all_four_callbacks():
     kwargs = mock_from_login.call_args.kwargs
     for name in ("captcha_callback", "otp_callback", "cvf_callback", "approval_callback"):
         assert kwargs.get(name) is not None, f"{name} was not passed to from_login"
+
+
+def test_start_login_patches_httpx_client_timeout_during_login_and_restores_it():
+    # audible/login.py builds its own httpx.Client with no timeout override
+    # at all, and from_login() exposes no way to pass one through — a real
+    # account hit "The read operation timed out" against httpx's tight
+    # 5-second default on a real (if slightly slower) homelab network path.
+    # This locks in both that the patched client actually gets a longer
+    # timeout while from_login is running, and that the patch is always
+    # undone afterward regardless of outcome.
+    original_client_cls = httpx.Client
+
+    def fake_from_login(username, password, locale, otp_callback=None, **kwargs):
+        assert httpx.Client is not original_client_cls
+        client = httpx.Client(base_url="https://example.com")
+        try:
+            assert client.timeout.read == audible_connector._LOGIN_HTTP_TIMEOUT_SECONDS
+        finally:
+            client.close()
+        return otp_callback()
+
+    with patch("audible.Authenticator.from_login", side_effect=fake_from_login):
+        audible_connector.start_login("user", "pass", "us")
+        assert _wait_until(lambda: audible_connector.login_status() is not None)
+        audible_connector.answer_login("000000")
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+
+    assert httpx.Client is original_client_cls
+
+
+def test_httpx_client_timeout_patch_is_restored_even_on_failure():
+    original_client_cls = httpx.Client
+    with patch("audible.Authenticator.from_login", side_effect=ValueError("boom")):
+        audible_connector.start_login("user", "pass", "us")
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+    assert httpx.Client is original_client_cls
 
 
 def test_login_failure_surfaces_as_an_error_not_a_result():
