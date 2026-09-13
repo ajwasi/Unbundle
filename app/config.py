@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     # trusted LAN). Empty means /metrics is unauthenticated, same "insecure but explicit"
     # default this app already uses for APP_PASSWORD.
     metrics_token: str = ""
+    # Empty (default) disables tracing entirely — no exporter is created, no
+    # attempt is ever made to reach a collector. Set to an OTLP/HTTP traces
+    # endpoint (e.g. "http://tempo:4318/v1/traces") to enable it. See
+    # app/telemetry.py and README's "Observability" section.
+    otel_exporter_otlp_endpoint: str = ""
     # Marks the session/CSRF cookies Secure. Only turn this on once a reverse proxy
     # is actually terminating real HTTPS in front of this app — browsers refuse to
     # send a Secure cookie back over plain HTTP, so enabling this without HTTPS in

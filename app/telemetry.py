@@ -6,9 +6,17 @@ prometheus_client's own auto-registered Python process/GC collectors live —
 so app/routers/metrics.py's generate_latest(REGISTRY) picks up process health
 metrics for free, not just what's defined here.
 
-Deliberately metrics-only, not traces/logs — this is a single-process app
-with no distributed calls worth tracing, and the ask was specifically a
-Prometheus/Grafana-consumable endpoint.
+Tracing (spans) is also set up here, opt-in via OTEL_EXPORTER_OTLP_ENDPOINT
+(app/config.py) — empty by default, which means a TracerProvider still
+exists (so FastAPIInstrumentor/HTTPXClientInstrumentor have somewhere to
+send spans) but has no span processor attached, so spans are created and
+immediately dropped at zero export cost, and the app never attempts to
+reach a collector that isn't there. Only worth turning on once a real OTLP
+collector exists to receive it (Tempo/Jaeger/an OTel Collector) — see
+README's "Observability" section for the turnkey Grafana Tempo profile.
+Logs are still not part of this: see app/applog.py's own docstring for why
+an in-app ring buffer solves this project's actual "review logs" need
+better than an OTel Logs signal would.
 
 Custom instruments are observable (callback-based), not push-updated counters
 scattered across the codebase, for everything that's really "current state
@@ -26,13 +34,18 @@ nothing to query, and re-hitting GitHub's API on every scrape would be both
 pointless and a good way to get rate-limited).
 """
 
-from opentelemetry import metrics
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from sqlalchemy import func
 
+from app.config import settings
 from app.db import SessionLocal
 from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
@@ -48,6 +61,26 @@ _resource = Resource.create({"service.name": "unbundle"})
 _reader = PrometheusMetricReader()
 _provider = MeterProvider(metric_readers=[_reader], resource=_resource)
 metrics.set_meter_provider(_provider)
+
+# A provider with no span processor still lets FastAPIInstrumentor/
+# HTTPXClientInstrumentor run unconditionally below — spans are created and
+# immediately dropped, at negligible cost, and no attempt is ever made to
+# reach a collector unless OTEL_EXPORTER_OTLP_ENDPOINT is actually set. See
+# module docstring.
+_tracer_provider = TracerProvider(resource=_resource)
+if settings.otel_exporter_otlp_endpoint:
+    _tracer_provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint))
+    )
+trace.set_tracer_provider(_tracer_provider)
+
+# Instruments every httpx.AsyncClient/httpx.Client call this app makes
+# (every connector) process-wide — runs once at import time, same pattern
+# FastAPIInstrumentor follows in instrument_app() below. Patches
+# Client.send/AsyncClient.send, which coexists fine with
+# audible_connector.py's temporary monkey-patches of httpx.Client/post/get
+# (those replace the class/functions themselves, not .send).
+HTTPXClientInstrumentor().instrument()
 
 meter = metrics.get_meter(METER_NAME)
 
@@ -176,4 +209,4 @@ meter.create_observable_gauge(
 
 
 def instrument_app(app) -> None:
-    FastAPIInstrumentor.instrument_app(app, meter_provider=_provider)
+    FastAPIInstrumentor.instrument_app(app, meter_provider=_provider, tracer_provider=_tracer_provider)
