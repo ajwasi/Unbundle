@@ -28,6 +28,7 @@ from datetime import datetime  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.connectors.humble_connector import parse_bundle  # noqa: E402
 from app.csrf import require_csrf  # noqa: E402
 from app.db import Base, engine, SessionLocal  # noqa: E402
 from app.deps import get_db  # noqa: E402
@@ -214,11 +215,17 @@ def make_bundle(db):
                 purchased_at = datetime.fromisoformat(order["created"])
             except ValueError:
                 purchased_at = None
+        # Mirrors sync/refresh.py's own distinction between "every subproduct"
+        # and "subproducts with an actual file" — real bundles created via
+        # this fixture (not through a real refresh) still need the latter for
+        # tests exercising the Bundles list's "N/M downloaded" column.
+        downloadable_item_count = len({d.subproduct_index for d in parse_bundle(gamekey, order).downloads})
         b = bundle.Bundle(
             gamekey=gamekey,
             name=order["product"]["human_name"],
             category=order["product"].get("category", ""),
             subproduct_count=len(order.get("subproducts") or []),
+            downloadable_item_count=downloadable_item_count,
             key_count=len((order.get("tpkd_dict") or {}).get("all_tpks") or []),
             purchased_at=purchased_at,
             amount_spent=float(order.get("amount_spent") or 0.0),

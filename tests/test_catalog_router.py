@@ -1,3 +1,4 @@
+from app.models.download import STATUS_COMPLETED, Download
 from app.models.tag import ItemTag, Tag
 from app.routers.catalog import _avg_item_value, _build_catalog, _rows_from_catalog
 from tests.factories import make_order, make_subproduct
@@ -24,6 +25,36 @@ def test_build_catalog_includes_item_count_per_bundle(db, make_bundle):
     )
     catalog = _build_catalog(db)
     assert catalog["a"]["bundles"][0]["item_count"] == 2
+
+
+def test_build_catalog_marks_a_bundle_copy_downloaded_once_all_variants_completed(db, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("A Book", machine_name="abook")]))
+    db.add(Download(gamekey="GK1", item_name="A Book", original_filename="book.epub", status=STATUS_COMPLETED))
+    db.commit()
+
+    catalog = _build_catalog(db)
+    assert catalog["abook"]["bundles"][0]["downloaded"] is True
+
+
+def test_build_catalog_marks_a_bundle_copy_not_downloaded_with_no_download_row(db, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("A Book", machine_name="abook")]))
+    catalog = _build_catalog(db)
+    assert catalog["abook"]["bundles"][0]["downloaded"] is False
+
+
+def test_rows_from_catalog_counts_downloaded_copies_independently_per_bundle(db, make_bundle):
+    # Same item ("dup") owned via two different bundles — only one of the two
+    # copies has actually been downloaded.
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Dup", machine_name="dup")]))
+    make_bundle(gamekey="GK2", order=make_order(subproducts=[make_subproduct("Dup", machine_name="dup")]))
+    db.add(Download(gamekey="GK1", item_name="Dup", original_filename="book.epub", status=STATUS_COMPLETED))
+    db.commit()
+
+    catalog = _build_catalog(db)
+    rows = _rows_from_catalog(catalog)
+    row = next(r for r in rows if r["key"] == "dup")
+    assert row["count"] == 2
+    assert row["downloaded_count"] == 1
 
 
 def test_build_catalog_skips_items_with_no_machine_name(db, make_bundle):
@@ -87,6 +118,15 @@ def test_avg_item_value_averages_per_bundle_effective_price():
 
 def test_avg_item_value_returns_none_for_empty_list():
     assert _avg_item_value([]) is None
+
+
+def test_catalog_page_shows_download_progress_column(authed_client, make_bundle, db):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("A Book", machine_name="abook")]))
+    db.add(Download(gamekey="GK1", item_name="A Book", original_filename="book.epub", status=STATUS_COMPLETED))
+    db.commit()
+
+    resp = authed_client.get("/catalog")
+    assert "1/1" in resp.text
 
 
 def _seed_many_items(make_bundle, count, prefix="Item"):

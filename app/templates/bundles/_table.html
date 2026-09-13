@@ -21,6 +21,7 @@
       <tr>
         <th>{{ sort_link('name', 'Bundle') }}</th>
         <th>{{ sort_link('items', 'Items') }}</th>
+        <th>Downloaded</th>
         <th>{{ sort_link('category', 'Category') }}</th>
         <th>Keys</th>
         <th>Unredeemed</th>
@@ -34,6 +35,10 @@
       <tr>
         <td><a href="/bundles/{{ b.gamekey }}">{{ b.name }}</a></td>
         <td>{{ b.subproduct_count }}</td>
+        <td>
+          {% set dp = download_progress.get(b.gamekey, (0, 0)) %}
+          {% if dp[1] %}{{ dp[0] }}/{{ dp[1] }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+        </td>
         {# format_category's fallback for an unrecognized value (Humble's own
            category field, not something this app controls) is just a plain
            title-cased string, not HTML-sanitized — |safe must stay scoped to
@@ -59,13 +64,13 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="muted">No bundles match.</td></tr>
+      <tr><td colspan="9" class="muted">No bundles match.</td></tr>
       {% endfor %}
     </tbody>
     {% if bundles %}
     <tfoot>
       <tr style="font-weight: 600; border-top: 2px solid var(--border);">
-        <td colspan="6">TOTAL ({{ bundles|length }} bundle{{ "s" if bundles|length != 1 else "" }} shown)</td>
+        <td colspan="7">TOTAL ({{ bundles|length }} bundle{{ "s" if bundles|length != 1 else "" }} shown)</td>
         <td>${{ "%.2f"|format(filtered_total_spent) }}</td>
         <td></td>
       </tr>

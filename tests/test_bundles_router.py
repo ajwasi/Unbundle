@@ -2,6 +2,7 @@ import re
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
+from app.models.download import STATUS_COMPLETED, Download
 from app.models.tag import BundleTag, Tag
 from tests.factories import make_order, make_subproduct
 
@@ -54,6 +55,40 @@ def test_list_bundles_shows_last_refreshed_time(authed_client, make_bundle):
     resp = authed_client.get("/bundles")
     assert "Last refreshed" in resp.text
     assert "1 hour ago" in resp.text
+
+
+def test_list_bundles_shows_download_progress_column(authed_client, make_bundle, db):
+    make_bundle(
+        gamekey="GK1",
+        order=make_order(
+            subproducts=[
+                make_subproduct("Item One", machine_name="item-one"),
+                make_subproduct("Item Two", machine_name="item-two"),
+            ]
+        ),
+    )
+    db.add(Download(gamekey="GK1", item_name="Item One", original_filename="book.epub", status=STATUS_COMPLETED))
+    db.commit()
+
+    resp = authed_client.get("/bundles")
+    assert "1/2" in resp.text
+
+
+def test_list_bundles_download_progress_shows_dash_with_no_downloadable_items(authed_client, make_bundle):
+    # subscriptionplan-style bundles legitimately have zero subproducts at all
+    # (see Bundle's own docstring) — must never render as a misleading "0/0".
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[]))
+    resp = authed_client.get("/bundles")
+    assert "0/0" not in resp.text
+
+
+def test_list_bundles_download_progress_reflects_all_items_downloaded(authed_client, make_bundle, db):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Item One", machine_name="item-one")]))
+    db.add(Download(gamekey="GK1", item_name="Item One", original_filename="book.epub", status=STATUS_COMPLETED))
+    db.commit()
+
+    resp = authed_client.get("/bundles")
+    assert "1/1" in resp.text
 
 
 def test_list_bundles_defers_raw_json_column(authed_client, make_bundle, db):
