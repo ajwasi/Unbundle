@@ -5,7 +5,7 @@
 
   {% if gog_status != "not_configured" %}
   <p class="muted">
-    {{ game_count }} game(s) owned. {{ checked_entitlement_count }} bundle key(s) checked against this library.
+    {{ game_count }} game(s){% if movie_count %}, {{ movie_count }} movie(s){% endif %} owned. {{ checked_entitlement_count }} bundle key(s) checked against this library.
     {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>.{% else %}Never refreshed.{% endif %}
   </p>
 
@@ -45,13 +45,17 @@
   </div>
 
   <div class="card">
-    <h2>Owned Games ({{ game_count }})</h2>
+    <h2>Owned ({{ game_count }} game(s){% if movie_count %}, {{ movie_count }} movie(s){% endif %})</h2>
     {% if games %}
     <table>
-      <thead><tr><th>Title</th></tr></thead>
+      <thead><tr><th></th><th>Title</th><th>Type</th></tr></thead>
       <tbody>
         {% for g in games %}
-        <tr><td>{{ g.title }}</td></tr>
+        <tr>
+          <td>{% if g.image_url %}<img class="owned-item-icon" src="{{ g.image_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
+          <td>{{ g.title }}</td>
+          <td><span class="badge badge-pending">{{ g.content_type | title }}</span></td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>

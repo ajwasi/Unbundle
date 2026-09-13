@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.connectors import gog_connector
 from app.connectors.humble_connector import order_page_url
 from app.csrf import require_csrf
 from app.deps import get_db
@@ -67,13 +68,17 @@ def _unredeemed_rows(db: Session) -> list[dict]:
 
 def _context(db: Session) -> dict:
     cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none()
-    games = db.query(GogGame).order_by(GogGame.title).all()
+    # GogGame holds every product type the API returns (games and movies
+    # both — see its own docstring); ordered content_type first so movies
+    # group together rather than interleaving with games alphabetically.
+    items = db.query(GogGame).order_by(GogGame.content_type, GogGame.title).all()
     checked_count = db.query(BundleEntitlement).filter(BundleEntitlement.gog_owned.isnot(None)).count()
     return {
         "gog_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "gog_error": cred.last_error if cred else None,
-        "games": games,
-        "game_count": len(games),
+        "games": items,
+        "game_count": sum(1 for i in items if i.content_type == gog_connector.CONTENT_TYPE_GAME),
+        "movie_count": sum(1 for i in items if i.content_type == gog_connector.CONTENT_TYPE_MOVIE),
         "checked_entitlement_count": checked_count,
         "unredeemed": _unredeemed_rows(db),
         "last_synced": db.query(func.max(GogGame.fetched_at)).scalar(),

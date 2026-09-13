@@ -26,12 +26,24 @@ def test_gog_page_shows_not_configured_prompt(authed_client):
 
 def test_gog_page_shows_games(authed_client, db):
     _connect_gog(db)
-    db.add(GogGame(product_id=1, title="Shadowrun Returns", image_url=""))
+    db.add(GogGame(product_id=1, title="Shadowrun Returns", image_url="", content_type="game"))
     db.commit()
 
     resp = authed_client.get("/gog")
     assert "Shadowrun Returns" in resp.text
     assert "1 game(s) owned" in resp.text
+
+
+def test_gog_page_shows_movie_count_separately(authed_client, db):
+    _connect_gog(db)
+    db.add(GogGame(product_id=1, title="Shadowrun Returns", image_url="", content_type="game"))
+    db.add(GogGame(product_id=2, title="Some Movie", image_url="", content_type="movie"))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "1 game(s), 1 movie(s) owned" in resp.text
+    assert 'class="badge badge-pending">Movie<' in resp.text
+    assert 'class="badge badge-pending">Game<' in resp.text
 
 
 def test_gog_page_shows_never_refreshed_with_no_games(authed_client, db):
@@ -83,7 +95,7 @@ def test_gog_page_flags_a_key_owned_under_a_different_gog_listing(authed_client,
     # gog_id (2) — but the same title (case-insensitive) is separately owned
     # under a *different* product_id (1), e.g. a re-release/edition.
     _connect_gog(db)
-    db.add(GogGame(product_id=1, title="unredeemed - gog", image_url=""))
+    db.add(GogGame(product_id=1, title="unredeemed - gog", image_url="", content_type="game"))
     db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed - GOG", gog_id="2", gog_owned=False))
     db.commit()
