@@ -65,6 +65,66 @@ def test_no_update_link_shown_when_already_current(authed_client, monkeypatch):
     assert "Update available" not in resp.text
 
 
+def test_check_for_updates_button_shown_for_a_tagged_build(authed_client, monkeypatch):
+    import app.version as version_module
+
+    monkeypatch.setattr(version_module, "get_version", lambda: "v1.0.0")
+    resp = authed_client.get("/")
+    assert "Check for updates" in resp.text
+
+
+def test_check_for_updates_button_hidden_for_a_non_tagged_build(authed_client, monkeypatch):
+    import app.version as version_module
+
+    monkeypatch.setattr(version_module, "get_version", lambda: "abc1234")
+    resp = authed_client.get("/")
+    assert "Check for updates" not in resp.text
+
+
+def test_manual_check_shows_up_to_date_message(authed_client, monkeypatch):
+    from datetime import datetime
+    from unittest.mock import AsyncMock
+
+    import app.version as version_module
+
+    monkeypatch.setattr(version_module, "get_version", lambda: "v1.0.0")
+    monkeypatch.setattr(version_module, "check_for_update", AsyncMock(return_value=True))
+    monkeypatch.setattr(version_module, "_update_available", False)
+    monkeypatch.setattr(version_module, "_last_checked_at", datetime.utcnow())
+
+    resp = authed_client.post("/version/check")
+    assert resp.status_code == 200
+    assert "Up to date" in resp.text
+    assert "checked" in resp.text
+
+
+def test_manual_check_shows_failure_message_on_failure(authed_client, monkeypatch):
+    import app.version as version_module
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(version_module, "get_version", lambda: "v1.0.0")
+    monkeypatch.setattr(version_module, "check_for_update", AsyncMock(return_value=False))
+
+    resp = authed_client.post("/version/check")
+    assert resp.status_code == 200
+    assert "Check failed" in resp.text
+
+
+def test_manual_check_is_rate_limited(authed_client, monkeypatch):
+    import app.version as version_module
+    from unittest.mock import AsyncMock
+
+    from app.routers.version import _check_limiter
+
+    monkeypatch.setattr(version_module, "get_version", lambda: "v1.0.0")
+    monkeypatch.setattr(version_module, "check_for_update", AsyncMock(return_value=True))
+    _check_limiter.reset()
+
+    for _ in range(5):
+        assert authed_client.post("/version/check").status_code == 200
+    assert authed_client.post("/version/check").status_code == 429
+
+
 def test_no_auth_warning_when_oidc_enabled_instead(db, monkeypatch):
     from app.models.credential import SOURCE_OIDC, STATUS_OK, Credential
     from app.security import encrypt_json

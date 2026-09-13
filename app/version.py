@@ -14,6 +14,7 @@ import asyncio
 import re
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -27,6 +28,12 @@ _VERSION_TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 # so a network hiccup never renders as a false "you're up to date".
 _update_available: bool | None = None
 _latest_tag: str | None = None
+# Set whenever a real network check is actually attempted (never for a
+# non-tagged build — see is_tagged_build(), which the template uses to hide
+# the manual check button entirely for those) — lets the button show
+# "Checked just now" even when the answer is "no update", distinct from
+# is_update_available()'s bare True/False.
+_last_checked_at: datetime | None = None
 
 
 def _git_describe_or_sha(cwd: Path) -> str | None:
@@ -66,19 +73,41 @@ def latest_tag() -> str | None:
     return _latest_tag
 
 
-async def check_for_update() -> None:
-    """Never raises — a network error, GitHub outage, or rate limit should leave
-    _update_available/_latest_tag at their previous values, not crash the app or
-    the caller's scheduling loop. Skipped entirely when the running build isn't
-    itself a tagged release — there's nothing meaningful to compare a bare commit
-    SHA against a semver tag.
+def is_tagged_build() -> bool:
+    """False for a plain main/local-dev build (version is a bare commit SHA) —
+    there's nothing meaningful to check an update against in that case, so the
+    template uses this to hide the manual "Check for updates" button entirely
+    rather than offering a control that can never do anything.
     """
-    global _update_available, _latest_tag
+    return bool(_VERSION_TAG_RE.match(get_version()))
+
+
+def last_checked_at() -> datetime | None:
+    """When a real update check last actually ran (network attempted) — None
+    before the first one, or for a non-tagged build, which never checks at
+    all. Distinct from is_update_available(): lets a manual check confirm
+    "yes, this just ran" even when the answer was "no update".
+    """
+    return _last_checked_at
+
+
+async def check_for_update() -> bool:
+    """Returns True if the check itself completed (reached GitHub and got a
+    parseable tag list) regardless of whether an update was found — False on
+    any failure (network, rate limit, GitHub outage) or if this build isn't a
+    tagged release, so the manual check button can tell "no update" apart
+    from "the check failed". Never raises either way — a network error,
+    GitHub outage, or rate limit should leave _update_available/_latest_tag
+    at their previous values, not crash the app or the caller's scheduling
+    loop.
+    """
+    global _update_available, _latest_tag, _last_checked_at
 
     current = get_version()
     if not _VERSION_TAG_RE.match(current):
-        return
+        return False
 
+    _last_checked_at = datetime.utcnow()
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(f"https://api.github.com/repos/{_REPO}/tags", params={"per_page": 100})
@@ -86,10 +115,10 @@ async def check_for_update() -> None:
             tags = [t["name"] for t in resp.json() if _VERSION_TAG_RE.match(t["name"])]
     except Exception:
         print("WARNING: could not check for updates (GitHub unreachable or rate-limited)", file=sys.stderr)
-        return
+        return False
 
     if not tags:
-        return
+        return False
 
     # Tuple-of-ints, not a plain string max — "v0.10.0" must outrank "v0.9.0",
     # which a lexicographic string comparison would get backwards (comparing
@@ -97,6 +126,7 @@ async def check_for_update() -> None:
     latest = max(tags, key=lambda t: tuple(int(part) for part in _VERSION_TAG_RE.match(t).groups()))
     _latest_tag = latest
     _update_available = latest != current
+    return True
 
 
 async def run_update_check_loop() -> None:
