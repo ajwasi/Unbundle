@@ -12,6 +12,7 @@ from app.connectors.humble_connector import order_page_url, parse_bundle
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.downloads import worker
+from app.downloads.progress import bundle_download_progress
 from app.entitlement_status import parse_expiration
 from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
@@ -178,6 +179,7 @@ def list_bundles(
         "category_breakdown": category_breakdown,
         "grand_total_spent": db.query(func.sum(Bundle.amount_spent)).scalar() or 0.0,
         "last_synced": db.query(func.max(Bundle.fetched_at)).scalar(),
+        "download_progress": bundle_download_progress(db),
     }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse(request, "bundles/_table.html", context)

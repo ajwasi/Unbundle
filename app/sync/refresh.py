@@ -149,6 +149,10 @@ async def refresh_library(db: Session, log: LogCallback) -> int:
         bundle.name = normalized.name
         bundle.category = normalized.category
         bundle.subproduct_count = normalized.item_count
+        # Distinct subproducts with at least one actual file — NOT len(normalized.downloads),
+        # which is flattened to one entry per format variant (a single item available as
+        # both EPUB and PDF would otherwise inflate this). See Bundle's own docstring.
+        bundle.downloadable_item_count = len({d.subproduct_index for d in normalized.downloads})
         bundle.key_count = len(normalized.entitlements)
         bundle.amount_spent = normalized.amount_spent
         if normalized.purchased_at:

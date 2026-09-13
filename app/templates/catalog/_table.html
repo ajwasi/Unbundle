@@ -17,12 +17,13 @@
         <th>{{ sort_link('name', 'Item') }}</th>
         <th>{{ sort_link('purchased', 'First Purchased') }}</th>
         <th>{{ sort_link('count', 'Copies Owned') }}</th>
+        <th>Downloaded</th>
         <th>Tags</th>
       </tr>
     </thead>
     <tbody>
       {% for r in rows %}{{ rowmacro.render_row(r) }}{% else %}
-      <tr><td colspan="4" class="muted">No items match.</td></tr>
+      <tr><td colspan="5" class="muted">No items match.</td></tr>
       {% endfor %}
       {% if has_more %}{{ rowmacro.sentinel(q, dupes_only, tag_id, sort, dir, next_offset) }}{% endif %}
     </tbody>

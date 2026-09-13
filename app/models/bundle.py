@@ -10,10 +10,18 @@ class Bundle(Base):
     """Cached summary of one Humble order/bundle. `raw_json` holds the full,
     verbatim `/api/v1/order/<gamekey>?all_tpkds=true` response so re-parsing
     never requires re-hitting Humble's API. `category`/`subproduct_count`/
-    `key_count`/`purchased_at`/`amount_spent` are denormalized from raw_json
-    at refresh time specifically so the bundle list can filter/sort/sum on
-    them with plain SQL instead of json-parsing all 550+ rows on every page
-    load.
+    `key_count`/`purchased_at`/`amount_spent`/`downloadable_item_count` are
+    denormalized from raw_json at refresh time specifically so the bundle
+    list can filter/sort/sum on them with plain SQL instead of json-parsing
+    all 550+ rows on every page load.
+
+    `downloadable_item_count` specifically exists for the Bundles list's own
+    "N/M downloaded" column (app/downloads/progress.py) — distinct from
+    `subproduct_count` (every subproduct, including third-party-key-only
+    placeholders with nothing to download) because that column would
+    otherwise show a misleadingly low fraction. Stays at its default (0,
+    rendered as "—") for any bundle synced before this field existed, until
+    its next refresh.
 
     `category` is Humble's own `product.category` field — confirmed real
     values against a live 550-bundle account (2026-09-06): 'bundle' (a classic
@@ -36,6 +44,7 @@ class Bundle(Base):
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     category: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     subproduct_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    downloadable_item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     key_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     purchased_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     amount_spent: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
