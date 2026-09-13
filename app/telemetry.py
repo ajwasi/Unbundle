@@ -62,16 +62,24 @@ _reader = PrometheusMetricReader()
 _provider = MeterProvider(metric_readers=[_reader], resource=_resource)
 metrics.set_meter_provider(_provider)
 
-# A provider with no span processor still lets FastAPIInstrumentor/
-# HTTPXClientInstrumentor run unconditionally below — spans are created and
-# immediately dropped, at negligible cost, and no attempt is ever made to
-# reach a collector unless OTEL_EXPORTER_OTLP_ENDPOINT is actually set. See
-# module docstring.
-_tracer_provider = TracerProvider(resource=_resource)
-if settings.otel_exporter_otlp_endpoint:
-    _tracer_provider.add_span_processor(
-        BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint))
-    )
+def _build_tracer_provider(otlp_endpoint: str) -> TracerProvider:
+    """A provider with no span processor still lets FastAPIInstrumentor/
+    HTTPXClientInstrumentor run unconditionally below — spans are created
+    and immediately dropped, at negligible cost, and no attempt is ever made
+    to reach a collector unless OTEL_EXPORTER_OTLP_ENDPOINT is actually set.
+    See module docstring. A plain function (not inlined at module level) so
+    the enable/disable branch is unit-testable without reloading this module
+    — trace.set_tracer_provider() below is process-global and silently
+    refuses a second call, so re-running this module's setup code via
+    importlib.reload() can't actually swap the live provider anyway.
+    """
+    provider = TracerProvider(resource=_resource)
+    if otlp_endpoint:
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint)))
+    return provider
+
+
+_tracer_provider = _build_tracer_provider(settings.otel_exporter_otlp_endpoint)
 trace.set_tracer_provider(_tracer_provider)
 
 # Instruments every httpx.AsyncClient/httpx.Client call this app makes
