@@ -106,23 +106,25 @@ def test_cvf_prompt_has_no_url():
         audible_connector.answer_login("123456")
 
 
-def test_check_for_cvf_diagnostic_logs_page_text_and_restores(caplog):
+def test_cvf_page_diagnostic_logs_status_headers_and_text_and_restores(caplog):
     # cvf_callback() itself gets zero context from audible (confirmed via
-    # inspect.signature) — this is the only way to see what Amazon actually
-    # told a real account at this step, since nothing never received a code.
-    original_check_for_cvf = audible.login.check_for_cvf
+    # inspect.signature) — spying on get_soup() (called on every page
+    # login() fetches) is the only way to see what Amazon actually served at
+    # this step, including cases where it's Amazon's own generic error page
+    # rather than a real code-entry form (the real-world root cause this
+    # diagnostic actually found — see module docstring).
+    original_get_soup = audible.login.get_soup
 
-    class _FakeTag:
-        def get_text(self, *args, **kwargs):
-            return "We sent a code to your phone ending in 1234"
-
-    class _FakeSoup:
-        def find(self, *args, **kwargs):
-            return _FakeTag()
+    class _FakeResponse:
+        status_code = 200
+        url = "https://www.amazon.com/ap/cvf/request?arb=test"
+        headers = {"Content-Type": "text/html", "Set-Cookie": "session=super-secret"}
+        text = "<html><div id='cvf-page-content'>We sent a code to your phone ending in 1234</div></html>"
 
     def fake_from_login(username, password, locale, cvf_callback=None, **kwargs):
-        assert audible.login.check_for_cvf is not original_check_for_cvf
-        assert audible.login.check_for_cvf(_FakeSoup()) is True
+        assert audible.login.get_soup is not original_get_soup
+        soup = audible.login.get_soup(_FakeResponse())
+        assert audible.login.check_for_cvf(soup) is True
         return cvf_callback()
 
     with caplog.at_level("INFO", logger="app.connectors.audible_connector"):
@@ -132,8 +134,10 @@ def test_check_for_cvf_diagnostic_logs_page_text_and_restores(caplog):
             audible_connector.answer_login("123456")
             assert _wait_until(lambda: audible_connector.login_result() is not None)
 
-    assert audible.login.check_for_cvf is original_check_for_cvf
+    assert audible.login.get_soup is original_get_soup
+    assert "status=200" in caplog.text
     assert "We sent a code to your phone ending in 1234" in caplog.text
+    assert "super-secret" not in caplog.text
 
 
 def test_approval_prompt_completes_on_any_answer():
