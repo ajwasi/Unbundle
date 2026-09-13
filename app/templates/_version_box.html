@@ -1,0 +1,19 @@
+<div class="version-box" id="version-box">
+  <div class="version-box-number">{{ app_version }}</div>
+  {% if is_update_available() %}
+  <a class="badge badge-pending" href="https://github.com/ajwasi/Unbundle/compare/{{ app_version }}...{{ latest_version_tag() }}" target="_blank" rel="noopener">Update available</a>
+  {% endif %}
+  {% if is_tagged_build() %}
+  <form hx-post="/version/check" hx-target="#version-box" hx-swap="outerHTML" style="margin: 0;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="secondary" style="font-size: 0.7rem; padding: 0.05rem 0.35rem;">Check for updates</button>
+  </form>
+  {% if check_failed %}
+  <span class="muted">Check failed &mdash; GitHub unreachable.</span>
+  {% elif update_last_checked_at() %}
+  <span class="muted" title="{{ update_last_checked_at().strftime('%Y-%m-%d %H:%M') }} UTC">
+    {% if not is_update_available() %}Up to date, {% endif %}checked {{ update_last_checked_at() | time_since }}
+  </span>
+  {% endif %}
+  {% endif %}
+</div>

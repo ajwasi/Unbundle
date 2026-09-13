@@ -58,9 +58,11 @@ def test_git_describe_or_sha_returns_none_when_git_not_installed(tmp_path):
 def _reset_update_state():
     version._update_available = None
     version._latest_tag = None
+    version._last_checked_at = None
     yield
     version._update_available = None
     version._latest_tag = None
+    version._last_checked_at = None
 
 
 def test_is_update_available_defaults_false_before_any_check():
@@ -123,6 +125,55 @@ async def test_check_for_update_skips_when_version_is_unknown(monkeypatch):
         await version.check_for_update()
     mock_get.assert_not_awaited()
     assert version.is_update_available() is False
+
+
+def test_is_tagged_build_true_for_a_real_version_tag(monkeypatch):
+    monkeypatch.setattr(version, "get_version", lambda: "v1.2.3")
+    assert version.is_tagged_build() is True
+
+
+def test_is_tagged_build_false_for_a_bare_commit_sha(monkeypatch):
+    monkeypatch.setattr(version, "get_version", lambda: "abc1234")
+    assert version.is_tagged_build() is False
+
+
+def test_last_checked_at_defaults_none_before_any_check():
+    assert version.last_checked_at() is None
+
+
+async def test_check_for_update_records_last_checked_at_on_success(monkeypatch):
+    monkeypatch.setattr(version, "get_version", lambda: "v1.0.0")
+    fake_response = MagicMock()
+    fake_response.raise_for_status = MagicMock()
+    fake_response.json.return_value = [{"name": "v1.0.0"}]
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=fake_response)):
+        result = await version.check_for_update()
+    assert result is True
+    assert version.last_checked_at() is not None
+
+
+async def test_check_for_update_records_last_checked_at_even_on_network_failure(monkeypatch):
+    # A failed check still "ran" — the button should say so, distinct from
+    # never having checked at all.
+    monkeypatch.setattr(version, "get_version", lambda: "v1.0.0")
+    with patch("httpx.AsyncClient.get", new=AsyncMock(side_effect=httpx.ConnectError("boom"))):
+        result = await version.check_for_update()
+    assert result is False
+    assert version.last_checked_at() is not None
+
+
+async def test_check_for_update_never_sets_last_checked_at_for_a_non_tagged_build(monkeypatch):
+    monkeypatch.setattr(version, "get_version", lambda: "abc1234")
+    result = await version.check_for_update()
+    assert result is False
+    assert version.last_checked_at() is None
+
+
+async def test_check_for_update_returns_false_when_github_is_unreachable(monkeypatch):
+    monkeypatch.setattr(version, "get_version", lambda: "v1.0.0")
+    with patch("httpx.AsyncClient.get", new=AsyncMock(side_effect=httpx.ConnectError("boom"))):
+        result = await version.check_for_update()
+    assert result is False
 
 
 async def test_check_for_update_skips_when_current_version_is_a_bare_sha_not_a_tag(monkeypatch):
