@@ -112,9 +112,9 @@ def _get_or_create_audible_credential(db: Session) -> Credential:
 
 
 def _audible_context(db: Session, error: str | None = None) -> dict:
-    """audible_pending drives which of three states _audible_form.html
-    renders: not connected (plain username/password/locale form), a login
-    in progress waiting on a CAPTCHA/OTP answer (audible_pending set, see
+    """audible_pending drives which of three states _audible_modal_content.html
+    renders: not connected (plain locale form), a login in progress waiting
+    on the pasted-back redirect URL (audible_pending set, see
     audible_connector.login_status), or connected/error (the normal
     status+disconnect view every other connector card uses).
     """
@@ -396,22 +396,16 @@ def _audible_response(request: Request, db: Session, error: str | None = None, j
 @router.post("/audible/login", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def start_audible_login(
     request: Request,
-    username: str = Form(""),
-    password: str = Form(""),
     locale: str = Form("us"),
     db: Session = Depends(get_db),
 ):
-    username, password = username.strip(), password.strip()
     locale = locale.strip().lower() or "us"
 
     error = None
-    if not username or not password:
-        error = "Amazon email/phone and password are both required."
-    else:
-        try:
-            audible_connector.start_login(username, password, locale)
-        except audible_connector.AudibleLoginError as exc:
-            error = str(exc)
+    try:
+        audible_connector.start_login(locale)
+    except audible_connector.AudibleLoginError as exc:
+        error = str(exc)
 
     return _audible_response(request, db, error)
 
@@ -445,8 +439,8 @@ def audible_login_status(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/audible/login/answer", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def answer_audible_login(request: Request, answer: str = Form(""), db: Session = Depends(get_db)):
-    audible_connector.answer_login(answer.strip())
+def answer_audible_login(request: Request, pasted_url: str = Form(""), db: Session = Depends(get_db)):
+    audible_connector.answer_login(pasted_url.strip())
     return _audible_response(request, db)
 
 

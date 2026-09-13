@@ -73,11 +73,11 @@
 <div class="card" id="audible-card">
   <h2>Audible</h2>
   <p class="muted">
-    Lists your owned Audible audiobooks. Amazon has no public Audible API — this uses your
-    real Amazon email/password (same as the Audible app itself), and may ask for a CAPTCHA
-    or a one-time code depending on your account's security settings. Nothing is stored in
-    plaintext: the resulting login is encrypted at rest the same way every other connected
-    account here is.
+    Lists your owned Audible audiobooks. Amazon has no public Audible API, and Amazon now
+    blocks a plain automated login outright — so connecting means a one-time manual step,
+    similar to GOG above: click a link to log in on Amazon's own site in a real browser,
+    then copy the resulting URL back here. Nothing is stored in plaintext: the resulting
+    login is encrypted at rest the same way every other connected account here is.
   </p>
   <div id="audible-card-body">
     {% include "settings/_audible_form.html" %}
