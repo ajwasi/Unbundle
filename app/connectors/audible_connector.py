@@ -37,6 +37,7 @@ queue.Queue() bridge as before (single pending login at a time,
 module-level state), just with one prompt instead of four.
 """
 
+import logging
 import queue
 import threading
 from dataclasses import dataclass
@@ -45,6 +46,8 @@ from datetime import datetime
 import audible
 import httpx
 import nh3
+
+logger = logging.getLogger(__name__)
 
 # Amazon's own Plus Catalog access marker — the one value confirmed from
 # community reverse-engineering references (not yet confirmed against this
@@ -275,7 +278,7 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
         )
 
     books: list[AudibleBookData] = []
-    for item in resp.get("items") or []:
+    for index, item in enumerate(resp.get("items") or []):
         asin = item.get("asin")
         if not asin:
             continue
@@ -283,6 +286,18 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
         images = item.get("product_images") or {}
         cover = images.get("500") or next(iter(images.values()), "")
         price_amount, price_currency = _parse_price(item)
+        if price_amount is None and index < 5:
+            # Temporary diagnostic: a real account isn't getting a price at
+            # all. Logs the raw "price" key (if any) plus every top-level
+            # key Amazon actually sent, for the first few items, so the real
+            # shape can be seen via Settings > Application Logs instead of
+            # guessing again. Remove once the real shape is confirmed.
+            logger.info(
+                "AUDIBLE PRICE DIAGNOSTIC asin=%s raw_price=%r top_level_keys=%s",
+                asin,
+                item.get("price"),
+                sorted(item.keys()),
+            )
         series_title, series_sequence = _parse_series(item)
         description = nh3.clean(item.get("publisher_summary") or item.get("merchandising_summary") or "", tags=set())
         books.append(
