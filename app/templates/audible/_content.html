@@ -13,14 +13,19 @@
     <h2>Owned Books ({{ book_count }})</h2>
     {% if books %}
     <table>
-      <thead><tr><th></th><th>Title</th><th>Author</th><th>Runtime</th></tr></thead>
+      <thead><tr><th></th><th>Title</th><th>Author</th><th>Series</th><th>Runtime</th><th>Purchased</th><th>Price</th><th>Rating</th><th></th></tr></thead>
       <tbody>
         {% for b in books %}
-        <tr>
+        <tr class="{{ 'audible-row-credit' if not is_owned(b.benefit_id) }}">
           <td>{% if b.cover_url %}<img class="owned-item-icon" src="{{ b.cover_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
-          <td>{{ b.title }}</td>
+          <td><a href="/audible/{{ b.asin }}">{{ b.title }}</a></td>
           <td>{{ b.author }}</td>
+          <td>{% if b.series_title %}{{ b.series_title }}{% if b.series_sequence %} #{{ b.series_sequence }}{% endif %}{% endif %}</td>
           <td>{{ (b.runtime_minutes // 60) }}h {{ (b.runtime_minutes % 60) }}m</td>
+          <td>{% if b.purchase_date %}{{ b.purchase_date.strftime('%Y-%m-%d') }}{% endif %}</td>
+          <td>{% if b.price_amount %}{{ "%.2f"|format(b.price_amount) }} {{ b.price_currency }}{% endif %}</td>
+          <td>{% if b.rating_average %}{{ "%.1f"|format(b.rating_average) }}{% endif %}</td>
+          <td><span class="badge {{ 'badge-ok' if is_owned(b.benefit_id) else 'badge-pending' }}">{{ 'Owned' if is_owned(b.benefit_id) else 'Plus Catalog' }}</span></td>
         </tr>
         {% endfor %}
       </tbody>

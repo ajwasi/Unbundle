@@ -54,6 +54,48 @@ async def test_refresh_audible_library_upserts_books(db):
 
 
 @pytest.mark.asyncio
+async def test_refresh_audible_library_upserts_new_metadata_fields(db):
+    _connect_audible(db)
+    purchased = datetime(2024, 3, 1, 12, 0, 0)
+    books = [
+        AudibleBookData(
+            asin="B001",
+            title="A Great Book",
+            author="Jane Author",
+            runtime_minutes=605,
+            cover_url="",
+            purchase_date=purchased,
+            price_amount=14.99,
+            price_currency="USD",
+            series_title="The Great Series",
+            series_sequence="3",
+            rating_average=4.5,
+            description="A great book.",
+            is_finished=True,
+            percent_complete=100,
+            pdf_url="https://example.com/companion.pdf",
+            benefit_id="LIBRARY",
+        )
+    ]
+    with patch("app.sync.audible_sync.audible.Authenticator.from_dict", return_value=_FakeAuth()):
+        with patch("app.sync.audible_sync.audible_connector.fetch_library", new=AsyncMock(return_value=books)):
+            await audible_sync.refresh_audible_library(db)
+
+    saved = db.get(AudibleBook, "B001")
+    assert saved.purchase_date == purchased
+    assert saved.price_amount == 14.99
+    assert saved.price_currency == "USD"
+    assert saved.series_title == "The Great Series"
+    assert saved.series_sequence == "3"
+    assert saved.rating_average == 4.5
+    assert saved.description == "A great book."
+    assert saved.is_finished is True
+    assert saved.percent_complete == 100
+    assert saved.pdf_url == "https://example.com/companion.pdf"
+    assert saved.benefit_id == "LIBRARY"
+
+
+@pytest.mark.asyncio
 async def test_refresh_audible_library_full_replace_on_each_refresh(db):
     _connect_audible(db)
     db.add(AudibleBook(asin="STALE", title="No Longer Owned", fetched_at=datetime.utcnow()))

@@ -40,9 +40,19 @@ module-level state), just with one prompt instead of four.
 import queue
 import threading
 from dataclasses import dataclass
+from datetime import datetime
 
 import audible
 import httpx
+import nh3
+
+# Amazon's own Plus Catalog access marker — the one value confirmed from
+# community reverse-engineering references (not yet confirmed against this
+# app's own real account). Unknown/empty benefit_id defaults to "owned"
+# deliberately: failing toward showing a real purchase as owned is far less
+# harmful than mislabeling one as a rental, and this is a single, isolated
+# check to correct once a real account's actual value set is known.
+_PLUS_CATALOG_BENEFIT_IDS = {"AYCL"}
 
 # Confirmed via audible/auth.py: from_login_external() calls the same
 # shared register_() device-registration function from_login() did (a real
@@ -77,6 +87,64 @@ class AudibleBookData:
     author: str
     runtime_minutes: int
     cover_url: str
+    purchase_date: datetime | None = None
+    price_amount: float | None = None
+    price_currency: str = ""
+    series_title: str = ""
+    series_sequence: str = ""
+    rating_average: float | None = None
+    description: str = ""
+    is_finished: bool = False
+    percent_complete: float = 0
+    pdf_url: str = ""
+    benefit_id: str = ""
+
+
+def is_owned(benefit_id: str) -> bool:
+    """False only for a known Plus-Catalog-style benefit_id — see
+    _PLUS_CATALOG_BENEFIT_IDS above for why unknown/empty defaults True.
+    """
+    return benefit_id not in _PLUS_CATALOG_BENEFIT_IDS
+
+
+def _parse_purchase_date(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _parse_price(item: dict) -> tuple[float | None, str]:
+    # List price at fetch time, not confirmed to be what was actually paid —
+    # Audible's API has no confirmed "amount paid" field. Correct this if a
+    # real account's response shows one (e.g. under order_details).
+    try:
+        list_price = (item.get("price") or {}).get("list_price") or {}
+        amount = list_price.get("base")
+        return (float(amount) if amount is not None else None, str(list_price.get("currency_code") or ""))
+    except (TypeError, ValueError, AttributeError):
+        return (None, "")
+
+
+def _parse_series(item: dict) -> tuple[str, str]:
+    try:
+        series = (item.get("series") or [])[0]
+        return (str(series.get("title") or ""), str(series.get("sequence") or ""))
+    except (TypeError, ValueError, IndexError, AttributeError):
+        return ("", "")
+
+
+def _parse_rating(item: dict) -> float | None:
+    # Exact shape unconfirmed against a real account — best-effort walk,
+    # never raises.
+    try:
+        overall = (item.get("rating") or {}).get("overall_distribution") or {}
+        value = overall.get("display_average_rating")
+        return float(value) if value is not None else None
+    except (TypeError, ValueError, AttributeError):
+        return None
 
 
 def login_status() -> AudiblePendingPrompt | None:
@@ -192,7 +260,18 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
     async with audible.AsyncClient(auth) as client:
         resp = await client.get(
             "library",
-            params={"response_groups": "product_desc,media,contributors", "num_results": 1000},
+            params={
+                # Best-effort superset — Amazon silently ignores response_groups
+                # it doesn't recognize, confirmed safe to over-ask. price/series/
+                # rating/product_attrs (benefit_id) are unconfirmed shapes against
+                # a real account; every field pulled from them below is parsed
+                # defensively (see the _parse_* helpers and is_owned() above).
+                "response_groups": (
+                    "product_desc,media,contributors,price,series,rating,"
+                    "is_finished,percent_complete,pdf_url,product_attrs"
+                ),
+                "num_results": 1000,
+            },
         )
 
     books: list[AudibleBookData] = []
@@ -203,6 +282,9 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
         authors = ", ".join(a["name"] for a in item.get("authors") or [] if a.get("name"))
         images = item.get("product_images") or {}
         cover = images.get("500") or next(iter(images.values()), "")
+        price_amount, price_currency = _parse_price(item)
+        series_title, series_sequence = _parse_series(item)
+        description = nh3.clean(item.get("publisher_summary") or item.get("merchandising_summary") or "", tags=set())
         books.append(
             AudibleBookData(
                 asin=asin,
@@ -210,6 +292,17 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
                 author=authors,
                 runtime_minutes=int(item.get("runtime_length_min") or 0),
                 cover_url=cover,
+                purchase_date=_parse_purchase_date(item.get("purchase_date")),
+                price_amount=price_amount,
+                price_currency=price_currency,
+                series_title=series_title,
+                series_sequence=series_sequence,
+                rating_average=_parse_rating(item),
+                description=description,
+                is_finished=bool(item.get("is_finished")),
+                percent_complete=float(item.get("percent_complete") or 0),
+                pdf_url=item.get("pdf_url") or "",
+                benefit_id=str(item.get("benefit_id") or ""),
             )
         )
     return books

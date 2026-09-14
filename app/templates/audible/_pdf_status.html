@@ -1,0 +1,28 @@
+<div id="pdf-status">
+  {% if pdf_running %}
+  <span hx-get="/audible/{{ asin }}/pdf/status" hx-trigger="every 2s" hx-target="#pdf-status" hx-swap="outerHTML">
+    Downloading&hellip;
+    {% if pdf_job.expected_size_bytes %}
+    <progress value="{{ pdf_job.progress_bytes }}" max="{{ pdf_job.expected_size_bytes }}" style="width: 220px;"></progress>
+    <span class="muted" style="font-size: 0.85em;">
+      {{ pdf_job.progress_bytes | human_size }} / {{ pdf_job.expected_size_bytes | human_size }}
+    </span>
+    {% else %}
+    <span class="muted" style="font-size: 0.85em;">{{ pdf_job.progress_bytes | human_size }}</span>
+    {% endif %}
+  </span>
+  {% elif pdf_completed %}
+  <span class="badge badge-ok">Downloaded</span>
+  <a href="/audible/{{ asin }}/pdf/file">Download PDF</a>
+  <form hx-post="/audible/{{ asin }}/pdf/download" hx-target="#pdf-status" hx-swap="outerHTML" style="display: inline;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="secondary">Re-download</button>
+  </form>
+  {% else %}
+  {% if pdf_job and pdf_job.error_message %}<p style="color: var(--error);">{{ pdf_job.error_message }}</p>{% endif %}
+  <form hx-post="/audible/{{ asin }}/pdf/download" hx-target="#pdf-status" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit">Download PDF</button>
+  </form>
+  {% endif %}
+</div>
