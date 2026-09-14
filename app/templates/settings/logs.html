@@ -10,8 +10,13 @@
 </p>
 
 <div class="toolbar">
+  <input type="search" id="logs-filter" placeholder="Filter (e.g. a log line's own text, or a component name)"
+         oninput="filterLogs()" style="flex: 1; min-width: 240px;">
+  <label class="muted" style="display: flex; align-items: center; gap: 0.3rem; white-space: nowrap;">
+    <input type="checkbox" id="logs-wrap" checked onchange="toggleWrap()"> Wrap lines
+  </label>
   <a href="/settings/logs/download" class="secondary">Download as .txt</a>
-  <button type="button" class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('logs-pre').innerText)">Copy to clipboard</button>
+  <button type="button" class="secondary" onclick="copyVisibleLogs()">Copy visible</button>
   <form hx-post="/settings/logs/clear" hx-target="#logs-content" hx-swap="outerHTML" hx-confirm="Clear the log buffer?" style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="secondary">Clear</button>
@@ -21,4 +26,52 @@
 <div hx-get="/settings/logs/content" hx-target="#logs-content" hx-swap="outerHTML" hx-trigger="every 3s">
   {% include "settings/_logs_content.html" %}
 </div>
+
+<script>
+  // The filter input and its logic live outside #logs-content on purpose —
+  // that div is replaced wholesale every 3s by the polling hx-get above, so
+  // anything inside it (an input's typed value, its focus, a filter's
+  // matched state) would be wiped on every poll. Living out here plus
+  // re-applying on every htmx swap (below) is what makes filtering survive
+  // the auto-refresh instead of resetting every few seconds.
+  function filterLogs() {
+    const query = document.getElementById('logs-filter').value.toLowerCase();
+    const lines = document.querySelectorAll('#logs-pre .log-line');
+    let visible = 0;
+    lines.forEach((line) => {
+      const matches = !query || line.textContent.toLowerCase().includes(query);
+      line.hidden = !matches;
+      if (matches) visible++;
+    });
+    const countEl = document.getElementById('logs-count');
+    if (countEl) {
+      countEl.textContent = query
+        ? `Showing ${visible} of ${lines.length} line(s) matching "${query}".`
+        : `Showing ${lines.length} line(s) (oldest first, newest at the bottom).`;
+    }
+  }
+
+  function toggleWrap() {
+    const wrap = document.getElementById('logs-wrap').checked;
+    const pre = document.getElementById('logs-pre');
+    if (pre) pre.style.whiteSpace = wrap ? 'pre-wrap' : 'pre';
+  }
+
+  function copyVisibleLogs() {
+    const lines = document.querySelectorAll('#logs-pre .log-line');
+    const text = Array.from(lines).filter((l) => !l.hidden).map((l) => l.textContent).join('\n');
+    navigator.clipboard.writeText(text);
+  }
+
+  // Not scoped to a specific swap target: the polling div above swaps its
+  // own innerHTML by default (no explicit hx-target), so the element htmx
+  // reports as the swap target is that outer wrapper, not #logs-content
+  // itself — simplest correct fix is to just re-apply on every swap this
+  // script tag is around to see, which is cheap and a no-op if #logs-pre
+  // isn't present.
+  document.body.addEventListener('htmx:afterSwap', () => {
+    filterLogs();
+    toggleWrap();
+  });
+</script>
 {% endblock %}
