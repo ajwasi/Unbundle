@@ -37,7 +37,6 @@ queue.Queue() bridge as before (single pending login at a time,
 module-level state), just with one prompt instead of four.
 """
 
-import logging
 import queue
 import threading
 from dataclasses import dataclass
@@ -46,8 +45,6 @@ from datetime import datetime
 import audible
 import httpx
 import nh3
-
-logger = logging.getLogger(__name__)
 
 # Amazon's own Plus Catalog access marker — the one value confirmed from
 # community reverse-engineering references (not yet confirmed against this
@@ -120,9 +117,14 @@ def _parse_purchase_date(value: str | None) -> datetime | None:
 
 
 def _parse_price(item: dict) -> tuple[float | None, str]:
-    # List price at fetch time, not confirmed to be what was actually paid —
-    # Audible's API has no confirmed "amount paid" field. Correct this if a
-    # real account's response shows one (e.g. under order_details).
+    # Confirmed against a real account (2026-09-14): the library endpoint's
+    # "price" key is always null for every already-owned item, regardless of
+    # which response_groups are requested — Amazon only populates it for
+    # something you don't yet own (i.e. still shopping), not a purchase
+    # history. order_id/order_item_id are also always null here, so there is
+    # no "amount actually paid" data anywhere in this response at all. This
+    # is kept only for the rare edge case (if any) where it's non-null —
+    # expect price_amount to be None for virtually everything.
     try:
         list_price = (item.get("price") or {}).get("list_price") or {}
         amount = list_price.get("base")
@@ -265,10 +267,16 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
             "library",
             params={
                 # Best-effort superset — Amazon silently ignores response_groups
-                # it doesn't recognize, confirmed safe to over-ask. price/series/
-                # rating/product_attrs (benefit_id) are unconfirmed shapes against
-                # a real account; every field pulled from them below is parsed
-                # defensively (see the _parse_* helpers and is_owned() above).
+                # it doesn't recognize, confirmed safe to over-ask. series/rating
+                # are confirmed populated against a real account; "price" is
+                # confirmed to always come back null for already-owned items
+                # (see _parse_price's own comment) but kept in the request in
+                # case that's ever not true for some edge case (a gift not yet
+                # redeemed, etc). benefit_id (via product_attrs) is present but
+                # every sample seen so far was null too — is_owned() defaults to
+                # True for that reason; still worth another look if a real Plus
+                # Catalog title ever shows up in a synced library to confirm the
+                # actual non-owned value.
                 "response_groups": (
                     "product_desc,media,contributors,price,series,rating,"
                     "is_finished,percent_complete,pdf_url,product_attrs"
@@ -278,7 +286,7 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
         )
 
     books: list[AudibleBookData] = []
-    for index, item in enumerate(resp.get("items") or []):
+    for item in resp.get("items") or []:
         asin = item.get("asin")
         if not asin:
             continue
@@ -286,18 +294,6 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
         images = item.get("product_images") or {}
         cover = images.get("500") or next(iter(images.values()), "")
         price_amount, price_currency = _parse_price(item)
-        if price_amount is None and index < 5:
-            # Temporary diagnostic: a real account isn't getting a price at
-            # all. Logs the raw "price" key (if any) plus every top-level
-            # key Amazon actually sent, for the first few items, so the real
-            # shape can be seen via Settings > Application Logs instead of
-            # guessing again. Remove once the real shape is confirmed.
-            logger.info(
-                "AUDIBLE PRICE DIAGNOSTIC asin=%s raw_price=%r top_level_keys=%s",
-                asin,
-                item.get("price"),
-                sorted(item.keys()),
-            )
         series_title, series_sequence = _parse_series(item)
         description = nh3.clean(item.get("publisher_summary") or item.get("merchandising_summary") or "", tags=set())
         books.append(
