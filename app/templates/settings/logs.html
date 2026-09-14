@@ -15,6 +15,13 @@
   <label class="muted" style="display: flex; align-items: center; gap: 0.3rem; white-space: nowrap;">
     <input type="checkbox" id="logs-wrap" checked onchange="toggleWrap()"> Wrap lines
   </label>
+  <label class="muted" style="display: flex; align-items: center; gap: 0.3rem; white-space: nowrap;">
+    <input type="checkbox" id="logs-paused" onchange="togglePause()"> Pause
+  </label>
+  <select id="logs-order" onchange="applyOrder()">
+    <option value="asc">Oldest first</option>
+    <option value="desc">Newest first</option>
+  </select>
   <a href="/settings/logs/download" class="secondary">Download as .txt</a>
   <button type="button" class="secondary" onclick="copyVisibleLogs()">Copy visible</button>
   <form hx-post="/settings/logs/clear" hx-target="#logs-content" hx-swap="outerHTML" hx-confirm="Clear the log buffer?" style="margin: 0;">
@@ -23,17 +30,33 @@
   </form>
 </div>
 
-<div hx-get="/settings/logs/content" hx-target="#logs-content" hx-swap="outerHTML" hx-trigger="every 3s">
+<div hx-get="/settings/logs/content" hx-target="#logs-content" hx-swap="outerHTML" hx-trigger="every 3s [isNotPaused()]">
   {% include "settings/_logs_content.html" %}
 </div>
 
 <script>
-  // The filter input and its logic live outside #logs-content on purpose —
+  // The filter/pause/order controls live outside #logs-content on purpose —
   // that div is replaced wholesale every 3s by the polling hx-get above, so
   // anything inside it (an input's typed value, its focus, a filter's
   // matched state) would be wiped on every poll. Living out here plus
-  // re-applying on every htmx swap (below) is what makes filtering survive
+  // re-applying on every htmx swap (below) is what makes all three survive
   // the auto-refresh instead of resetting every few seconds.
+
+  function isNotPaused() {
+    // Referenced from logs.html's own hx-trigger="every 3s [isNotPaused()]"
+    // above — htmx re-evaluates this expression each interval and skips the
+    // request entirely when it returns false, so pausing means genuinely no
+    // requests fire (not just "fetch and discard"), letting you select and
+    // copy the log text without it shifting under you mid-selection.
+    const checkbox = document.getElementById('logs-paused');
+    return !checkbox || !checkbox.checked;
+  }
+
+  function togglePause() {
+    // No fetch to (re)start here — the next 3s tick's own [isNotPaused()]
+    // check picks the new state up on its own.
+  }
+
   function filterLogs() {
     const query = document.getElementById('logs-filter').value.toLowerCase();
     const lines = document.querySelectorAll('#logs-pre .log-line');
@@ -47,7 +70,7 @@
     if (countEl) {
       countEl.textContent = query
         ? `Showing ${visible} of ${lines.length} line(s) matching "${query}".`
-        : `Showing ${lines.length} line(s) (oldest first, newest at the bottom).`;
+        : `Showing ${lines.length} line(s).`;
     }
   }
 
@@ -57,21 +80,29 @@
     if (pre) pre.style.whiteSpace = wrap ? 'pre-wrap' : 'pre';
   }
 
+  function applyOrder() {
+    const pre = document.getElementById('logs-pre');
+    if (!pre) return;
+    const newestFirst = document.getElementById('logs-order').value === 'desc';
+    const lines = Array.from(pre.querySelectorAll('.log-line'));
+    // The server always sends oldest-first — reverse client-side rather
+    // than round-tripping, and re-sort (not just append) so this stays
+    // correct across every auto-refresh, which always re-sends fresh
+    // oldest-first markup.
+    const ordered = newestFirst ? lines.reverse() : lines;
+    ordered.forEach((line) => pre.appendChild(line));
+  }
+
   function copyVisibleLogs() {
     const lines = document.querySelectorAll('#logs-pre .log-line');
     const text = Array.from(lines).filter((l) => !l.hidden).map((l) => l.textContent).join('\n');
     navigator.clipboard.writeText(text);
   }
 
-  // Not scoped to a specific swap target: the polling div above swaps its
-  // own innerHTML by default (no explicit hx-target), so the element htmx
-  // reports as the swap target is that outer wrapper, not #logs-content
-  // itself — simplest correct fix is to just re-apply on every swap this
-  // script tag is around to see, which is cheap and a no-op if #logs-pre
-  // isn't present.
   document.body.addEventListener('htmx:afterSwap', () => {
     filterLogs();
     toggleWrap();
+    applyOrder();
   });
 </script>
 {% endblock %}
