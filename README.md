@@ -39,15 +39,19 @@ Docker-based, no external services required beyond the ones you choose to connec
   directly, unlike Steam) — see the GOG card in Settings for specifics before expecting
   much here. Its unredeemed table gets the same different-listing/owned-on-Steam and
   expiration treatment as the Steam page.
-- **Audible** — lists your owned Audible audiobooks (title, author, runtime, cover).
-  Amazon has no public Audible API either, and now blocks a plain automated login outright
-  (an AWS WAF JavaScript challenge no headless HTTP client can pass) — this uses the real
-  `audible` package's (unofficial, actively maintained) external-browser login instead:
-  click a link to log in on Amazon's own site in a real browser, then paste the resulting
-  URL back into the Settings card, the same "manual paste-the-redirect-URL" shape GOG
-  above already uses. No download/decrypt support yet (Audible's files are DRM-encrypted
-  and need a per-title license + ffmpeg to become playable) — this first pass is
-  read-only, same as Steam/GOG.
+- **Audible** — lists your owned Audible audiobooks with title, author, series, runtime,
+  rating, purchase date, and list price, plus a detail page per title and a badge
+  distinguishing titles you actually own from ones only available through a Plus Catalog
+  subscription credit. Some titles ship a companion PDF (course material/illustrated-book
+  supplements) — downloadable from the detail page with the same progress-tracked job
+  flow other downloads in this app use. Amazon has no public Audible API, and now blocks a
+  plain automated login outright (an AWS WAF JavaScript challenge no headless HTTP client
+  can pass) — this uses the real `audible` package's (unofficial, actively maintained)
+  external-browser login instead: click a link to log in on Amazon's own site in a real
+  browser, then paste the resulting URL back into the Settings card, the same "manual
+  paste-the-redirect-URL" shape GOG above already uses. No audiobook download/decrypt
+  support (Audible's own audio files are DRM-encrypted and need a per-title license +
+  ffmpeg to become playable) — only the plain, unencrypted companion PDF is downloadable.
 - **Auth** — a one-time setup screen on first launch requires setting a password
   before the app is usable at all, or OIDC/SSO (Authentik, Keycloak, etc.) configured
   from Settings afterward, with password login optionally turned off once SSO is

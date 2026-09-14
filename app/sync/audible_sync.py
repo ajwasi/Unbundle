@@ -73,6 +73,17 @@ async def refresh_audible_library(db: Session) -> int:
                 runtime_minutes=b.runtime_minutes,
                 cover_url=b.cover_url,
                 fetched_at=now,
+                purchase_date=b.purchase_date,
+                price_amount=b.price_amount,
+                price_currency=b.price_currency,
+                series_title=b.series_title,
+                series_sequence=b.series_sequence,
+                rating_average=b.rating_average,
+                description=b.description,
+                is_finished=b.is_finished,
+                percent_complete=b.percent_complete,
+                pdf_url=b.pdf_url,
+                benefit_id=b.benefit_id,
             )
         )
     db.commit()

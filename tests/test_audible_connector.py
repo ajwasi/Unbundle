@@ -209,3 +209,100 @@ async def test_fetch_library_parses_real_shape():
     assert books[0].author == "Jane Author"
     assert books[0].runtime_minutes == 605
     assert books[0].cover_url == "https://example.com/cover.jpg"
+
+
+async def _fetch_one(item: dict):
+    """Helper: run fetch_library() against a single fake library item and
+    return the resulting AudibleBookData."""
+
+    class _FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def get(self, path, params=None):
+            return {"items": [item]}
+
+    with patch("audible.AsyncClient", return_value=_FakeAsyncClient()):
+        books = await audible_connector.fetch_library(auth=object())
+    assert len(books) == 1
+    return books[0]
+
+
+@pytest.mark.asyncio
+async def test_fetch_library_parses_all_new_fields_when_present():
+    item = {
+        "asin": "B001",
+        "title": "A Great Book",
+        "purchase_date": "2024-03-01T12:00:00Z",
+        "price": {"list_price": {"base": 14.99, "currency_code": "USD"}},
+        "series": [{"title": "The Great Series", "sequence": "3"}],
+        "rating": {"overall_distribution": {"display_average_rating": 4.5}},
+        "publisher_summary": "<p>A <b>great</b> book.</p>",
+        "is_finished": True,
+        "percent_complete": 100,
+        "pdf_url": "https://example.com/companion.pdf",
+        "benefit_id": "LIBRARY",
+    }
+    book = await _fetch_one(item)
+
+    assert book.purchase_date.year == 2024
+    assert book.price_amount == 14.99
+    assert book.price_currency == "USD"
+    assert book.series_title == "The Great Series"
+    assert book.series_sequence == "3"
+    assert book.rating_average == 4.5
+    assert book.description == "A great book."
+    assert book.is_finished is True
+    assert book.percent_complete == 100
+    assert book.pdf_url == "https://example.com/companion.pdf"
+    assert book.benefit_id == "LIBRARY"
+
+
+@pytest.mark.asyncio
+async def test_fetch_library_defaults_new_fields_when_missing():
+    book = await _fetch_one({"asin": "B002", "title": "Bare Item"})
+
+    assert book.purchase_date is None
+    assert book.price_amount is None
+    assert book.price_currency == ""
+    assert book.series_title == ""
+    assert book.series_sequence == ""
+    assert book.rating_average is None
+    assert book.description == ""
+    assert book.is_finished is False
+    assert book.percent_complete == 0
+    assert book.pdf_url == ""
+    assert book.benefit_id == ""
+
+
+@pytest.mark.asyncio
+async def test_fetch_library_tolerates_malformed_field_shapes():
+    item = {
+        "asin": "B003",
+        "title": "Weird Shape",
+        "purchase_date": "not-a-date",
+        "price": {"list_price": "not-a-dict"},
+        "series": "not-a-list",
+        "rating": {"overall_distribution": "not-a-dict"},
+    }
+    book = await _fetch_one(item)
+
+    assert book.purchase_date is None
+    assert book.price_amount is None
+    assert book.price_currency == ""
+    assert book.series_title == ""
+    assert book.series_sequence == ""
+    assert book.rating_average is None
+
+
+def test_is_owned_true_for_unknown_or_empty_benefit_id():
+    assert audible_connector.is_owned("") is True
+    assert audible_connector.is_owned("LIBRARY") is True
+    assert audible_connector.is_owned("something-unrecognized") is True
+
+
+def test_is_owned_false_for_plus_catalog_benefit_id():
+    assert audible_connector.is_owned("AYCL") is False
