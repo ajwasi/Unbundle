@@ -1,5 +1,4 @@
 <div id="logs-content">
-  <p class="muted">Showing the last {{ log_lines|length }} line(s) (oldest first, newest at the bottom).</p>
-  <pre id="logs-pre" style="max-height: 60vh; overflow: auto; white-space: pre-wrap; word-break: break-word;">{% for line in log_lines %}{{ line }}
-{% endfor %}</pre>
+  <p class="muted" id="logs-count">Showing {{ log_lines|length }} line(s) (oldest first, newest at the bottom).</p>
+  <pre id="logs-pre" style="max-height: 60vh; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 0;">{% for line in log_lines %}<div class="log-line">{{ line }}</div>{% endfor %}</pre>
 </div>
