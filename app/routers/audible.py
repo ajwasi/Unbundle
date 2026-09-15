@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse
-from sqlalchemy import func
+from sqlalchemy import asc, desc, func, or_
 from sqlalchemy.orm import Session
 
 from app.audible import pdf_downloader
@@ -17,17 +17,48 @@ from app.templates_env import templates
 router = APIRouter(prefix="/audible")
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
+_SORT_COLUMNS = {
+    "title": AudibleBook.title,
+    "author": AudibleBook.author,
+    "runtime": AudibleBook.runtime_minutes,
+    "purchased": AudibleBook.purchase_date,
+    "price": AudibleBook.price_amount,
+    "rating": AudibleBook.rating_average,
+}
 
-def _context(db: Session) -> dict:
+
+def _context(db: Session, q: str = "", owned: str = "", sort: str = "title", dir: str = "asc") -> dict:
     cred = Credential.get(db, SOURCE_AUDIBLE)
-    books = db.query(AudibleBook).order_by(AudibleBook.title).all()
-    total_runtime_hours = round(sum(b.runtime_minutes for b in books) / 60, 1)
+    query = db.query(AudibleBook)
+    if q:
+        query = query.filter(or_(AudibleBook.title.ilike(f"%{q}%"), AudibleBook.author.ilike(f"%{q}%")))
+    column = _SORT_COLUMNS.get(sort, AudibleBook.title)
+    books = query.order_by(desc(column) if dir == "desc" else asc(column)).all()
+    # owned/Plus-Catalog is a plain Python membership check (is_owned(), on a
+    # private module constant not worth importing into this router) applied
+    # to the already-fetched, single-account-sized list — see the same
+    # reasoning on is_owned() itself for why this isn't done in SQL.
+    if owned == "owned":
+        books = [b for b in books if is_owned(b.benefit_id)]
+    elif owned == "plus":
+        books = [b for b in books if not is_owned(b.benefit_id)]
+
+    # Library-wide total, independent of the current filters — same "stable
+    # overview vs. filtered table" split bundles/list.html's
+    # grand_total_spent (vs. the table's own filtered_total_spent) already uses.
+    total_book_count, total_runtime_minutes = db.query(
+        func.count(AudibleBook.asin), func.coalesce(func.sum(AudibleBook.runtime_minutes), 0)
+    ).one()
     return {
         "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "audible_error": cred.last_error if cred else None,
         "books": books,
-        "book_count": len(books),
-        "total_runtime_hours": total_runtime_hours,
+        "q": q,
+        "owned": owned,
+        "sort": sort,
+        "dir": dir,
+        "book_count": total_book_count,
+        "total_runtime_hours": round(total_runtime_minutes / 60, 1),
         "last_synced": db.query(func.max(AudibleBook.fetched_at)).scalar(),
         "is_owned": is_owned,
     }
@@ -50,8 +81,18 @@ def _detail_context(db: Session, book: AudibleBook) -> dict:
 
 
 @router.get("", response_class=HTMLResponse)
-def audible_page(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(request, "audible/list.html", _context(db))
+def audible_page(
+    request: Request,
+    q: str = "",
+    owned: str = "",
+    sort: str = "title",
+    dir: str = "asc",
+    db: Session = Depends(get_db),
+):
+    context = _context(db, q, owned, sort, dir)
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse(request, "audible/_books_table.html", context)
+    return templates.TemplateResponse(request, "audible/list.html", context)
 
 
 @router.post(

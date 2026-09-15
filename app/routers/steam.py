@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import func
+from sqlalchemy import asc, desc, func
 from sqlalchemy.orm import Session
 
 from app.csrf import require_csrf
@@ -16,17 +16,37 @@ from app.templates_env import templates
 router = APIRouter(prefix="/steam")
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
+_SORT_COLUMNS = {
+    "name": SteamGame.name,
+    "playtime": SteamGame.playtime_forever_minutes,
+}
 
-def _context(db: Session) -> dict:
+
+def _context(db: Session, q: str = "", sort: str = "name", dir: str = "asc") -> dict:
     cred = Credential.get(db, SOURCE_STEAM)
-    games = db.query(SteamGame).order_by(SteamGame.name).all()
+    query = db.query(SteamGame)
+    if q:
+        query = query.filter(SteamGame.name.ilike(f"%{q}%"))
+    column = _SORT_COLUMNS.get(sort, SteamGame.name)
+    games = query.order_by(desc(column) if dir == "desc" else asc(column)).all()
+
+    # Library-wide totals, independent of the current search filter — same
+    # "stable overview vs. filtered table" split bundles/list.html's
+    # grand_total_spent (vs. the table's own filtered_total_spent) already
+    # uses. A separate aggregate query rather than re-fetching every row.
+    total_game_count, total_playtime_minutes = db.query(
+        func.count(SteamGame.appid), func.coalesce(func.sum(SteamGame.playtime_forever_minutes), 0)
+    ).one()
     checked_count = db.query(BundleEntitlement).filter(BundleEntitlement.steam_app_id.isnot(None)).count()
     return {
         "steam_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "steam_error": cred.last_error if cred else None,
         "games": games,
-        "game_count": len(games),
-        "total_playtime_hours": round(sum(g.playtime_forever_minutes for g in games) / 60, 1),
+        "q": q,
+        "sort": sort,
+        "dir": dir,
+        "game_count": total_game_count,
+        "total_playtime_hours": round(total_playtime_minutes / 60, 1),
         "checked_entitlement_count": checked_count,
         "unredeemed": unredeemed_rows(db, "steam"),
         "last_synced": db.query(func.max(SteamGame.fetched_at)).scalar(),
@@ -34,8 +54,11 @@ def _context(db: Session) -> dict:
 
 
 @router.get("", response_class=HTMLResponse)
-def steam_page(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(request, "steam/list.html", _context(db))
+def steam_page(request: Request, q: str = "", sort: str = "name", dir: str = "asc", db: Session = Depends(get_db)):
+    context = _context(db, q, sort, dir)
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse(request, "steam/_games_table.html", context)
+    return templates.TemplateResponse(request, "steam/list.html", context)
 
 
 @router.post("/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "steam-refresh")), Depends(require_csrf)])

@@ -1,0 +1,28 @@
+{% macro sort_link(col, label) %}
+{% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
+<a href="#"
+   hx-get="/steam?q={{ q | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-target="#steam-games-table" hx-swap="outerHTML">
+  {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
+</a>
+{% endmacro %}
+
+<div id="steam-games-table">
+  <p class="muted">Showing {{ games|length }} of {{ game_count }} game(s)</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th></th><th scope="col">{{ sort_link('name', 'Name') }}</th><th scope="col">{{ sort_link('playtime', 'Playtime') }}</th></tr></thead>
+      <tbody>
+        {% for g in games %}
+        <tr>
+          <td>{% if g.icon_url %}<img class="owned-item-icon" src="{{ g.icon_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
+          <td>{{ g.name }}</td>
+          <td>{{ (g.playtime_forever_minutes / 60) | round(1) }} hrs</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">{{ "No games match." if q else "No games loaded yet — click Refresh." }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import func
+from sqlalchemy import asc, desc, func
 from sqlalchemy.orm import Session
 
 from app.connectors import gog_connector
@@ -17,20 +17,46 @@ from app.templates_env import templates
 router = APIRouter(prefix="/gog")
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
+_SORT_COLUMNS = {
+    "title": GogGame.title,
+    "type": GogGame.content_type,
+}
 
-def _context(db: Session) -> dict:
+
+def _context(db: Session, q: str = "", content_type: str = "", sort: str = "title", dir: str = "asc") -> dict:
     cred = Credential.get(db, SOURCE_GOG)
-    # GogGame holds every product type the API returns (games and movies
-    # both — see its own docstring); ordered content_type first so movies
-    # group together rather than interleaving with games alphabetically.
-    items = db.query(GogGame).order_by(GogGame.content_type, GogGame.title).all()
+    query = db.query(GogGame)
+    if q:
+        query = query.filter(GogGame.title.ilike(f"%{q}%"))
+    if content_type:
+        query = query.filter(GogGame.content_type == content_type)
+    if sort == "type":
+        # Ties within a content_type still sort by title, matching the
+        # unfiltered default ordering below (content_type first, title
+        # second) rather than falling back to whatever order SQLite hands
+        # back for equal keys.
+        column_order = [desc(GogGame.content_type) if dir == "desc" else asc(GogGame.content_type), GogGame.title]
+    else:
+        column_order = [desc(GogGame.title) if dir == "desc" else asc(GogGame.title)]
+    items = query.order_by(*column_order).all()
+
+    # Library-wide totals, independent of the current search/type filter —
+    # same "stable overview vs. filtered table" split bundles/list.html's
+    # grand_total_spent (vs. the table's own filtered_total_spent) already
+    # uses. One grouped aggregate rather than a second full-row fetch.
+    counts_by_type = dict(db.query(GogGame.content_type, func.count(GogGame.product_id)).group_by(GogGame.content_type).all())
     checked_count = db.query(BundleEntitlement).filter(BundleEntitlement.gog_owned.isnot(None)).count()
     return {
         "gog_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "gog_error": cred.last_error if cred else None,
         "games": items,
-        "game_count": sum(1 for i in items if i.content_type == gog_connector.CONTENT_TYPE_GAME),
-        "movie_count": sum(1 for i in items if i.content_type == gog_connector.CONTENT_TYPE_MOVIE),
+        "q": q,
+        "content_type": content_type,
+        "sort": sort,
+        "dir": dir,
+        "total_count": sum(counts_by_type.values()),
+        "game_count": counts_by_type.get(gog_connector.CONTENT_TYPE_GAME, 0),
+        "movie_count": counts_by_type.get(gog_connector.CONTENT_TYPE_MOVIE, 0),
         "checked_entitlement_count": checked_count,
         "unredeemed": unredeemed_rows(db, "gog"),
         "last_synced": db.query(func.max(GogGame.fetched_at)).scalar(),
@@ -38,8 +64,18 @@ def _context(db: Session) -> dict:
 
 
 @router.get("", response_class=HTMLResponse)
-def gog_page(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(request, "gog/list.html", _context(db))
+def gog_page(
+    request: Request,
+    q: str = "",
+    content_type: str = "",
+    sort: str = "title",
+    dir: str = "asc",
+    db: Session = Depends(get_db),
+):
+    context = _context(db, q, content_type, sort, dir)
+    if request.headers.get("HX-Request") == "true":
+        return templates.TemplateResponse(request, "gog/_games_table.html", context)
+    return templates.TemplateResponse(request, "gog/list.html", context)
 
 
 @router.post("/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "gog-refresh")), Depends(require_csrf)])

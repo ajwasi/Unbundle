@@ -182,3 +182,59 @@ def test_refresh_gog_triggers_sync_and_rerenders(authed_client, db):
 def test_refresh_gog_when_not_connected_does_not_crash(authed_client):
     resp = authed_client.post("/gog/refresh")
     assert resp.status_code == 200
+
+
+def test_gog_page_search_filters_by_title(authed_client, db):
+    _connect_gog(db)
+    db.add(GogGame(product_id=1, title="Shadowrun Returns", image_url="", content_type="game"))
+    db.add(GogGame(product_id=2, title="Some Movie", image_url="", content_type="movie"))
+    db.commit()
+
+    resp = authed_client.get("/gog", params={"q": "shadowrun"})
+    assert "Shadowrun Returns" in resp.text
+    assert "Some Movie" not in resp.text
+    # Library-wide stats stay the true total, unaffected by the search filter.
+    assert "1 game(s), 1 movie(s) owned" in resp.text
+
+
+def test_gog_page_content_type_filter(authed_client, db):
+    _connect_gog(db)
+    db.add(GogGame(product_id=1, title="Shadowrun Returns", image_url="", content_type="game"))
+    db.add(GogGame(product_id=2, title="Some Movie", image_url="", content_type="movie"))
+    db.commit()
+
+    resp = authed_client.get("/gog", params={"content_type": "movie"})
+    assert "Some Movie" in resp.text
+    assert "Shadowrun Returns" not in resp.text
+
+
+def test_gog_page_sort_by_type(authed_client, db):
+    _connect_gog(db)
+    db.add(GogGame(product_id=1, title="Z Game", image_url="", content_type="game"))
+    db.add(GogGame(product_id=2, title="A Movie", image_url="", content_type="movie"))
+    db.commit()
+
+    resp_asc = authed_client.get("/gog", params={"sort": "type", "dir": "asc"})
+    assert resp_asc.text.index("Z Game") < resp_asc.text.index("A Movie")
+
+    resp_desc = authed_client.get("/gog", params={"sort": "type", "dir": "desc"})
+    assert resp_desc.text.index("A Movie") < resp_desc.text.index("Z Game")
+
+
+def test_gog_page_clear_filters_link_only_shown_when_filtered(authed_client, db):
+    _connect_gog(db)
+    db.commit()
+
+    assert "Clear filters" not in authed_client.get("/gog").text
+    assert "Clear filters" in authed_client.get("/gog", params={"content_type": "movie"}).text
+
+
+def test_gog_page_hx_request_returns_just_the_table(authed_client, db):
+    _connect_gog(db)
+    db.add(GogGame(product_id=1, title="Shadowrun Returns", image_url="", content_type="game"))
+    db.commit()
+
+    resp = authed_client.get("/gog", headers={"HX-Request": "true"})
+    assert 'id="gog-games-table"' in resp.text
+    assert "Shadowrun Returns" in resp.text
+    assert "<h1>GOG Library</h1>" not in resp.text

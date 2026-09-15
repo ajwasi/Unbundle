@@ -1,0 +1,28 @@
+{% macro sort_link(col, label) %}
+{% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
+<a href="#"
+   hx-get="/gog?q={{ q | urlencode }}&content_type={{ content_type | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-target="#gog-games-table" hx-swap="outerHTML">
+  {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
+</a>
+{% endmacro %}
+
+<div id="gog-games-table">
+  <p class="muted">Showing {{ games|length }} of {{ total_count }} item(s)</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th></th><th scope="col">{{ sort_link('title', 'Title') }}</th><th scope="col">{{ sort_link('type', 'Type') }}</th></tr></thead>
+      <tbody>
+        {% for g in games %}
+        <tr>
+          <td>{% if g.image_url %}<img class="owned-item-icon" src="{{ g.image_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
+          <td>{{ g.title }}</td>
+          <td><span class="badge badge-pending">{{ g.content_type | title }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">{{ "No items match." if (q or content_type) else "No games loaded yet — click Refresh." }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

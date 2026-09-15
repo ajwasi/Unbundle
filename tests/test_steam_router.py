@@ -218,3 +218,48 @@ def test_refresh_steam_shows_error_message_on_failure(authed_client, db):
         resp = authed_client.post("/steam/refresh")
     assert resp.status_code == 200
     assert "profile is private" in resp.text
+
+
+def test_steam_page_search_filters_by_name(authed_client, db):
+    _connect_steam(db)
+    db.add(SteamGame(appid=220, name="Half-Life 2", playtime_forever_minutes=0, img_icon_url=""))
+    db.add(SteamGame(appid=221, name="Portal", playtime_forever_minutes=0, img_icon_url=""))
+    db.commit()
+
+    resp = authed_client.get("/steam", params={"q": "half"})
+    assert "Half-Life 2" in resp.text
+    assert "Portal" not in resp.text
+    # Library-wide stats stay the true total, unaffected by the search filter.
+    assert "2 game(s) owned" in resp.text
+
+
+def test_steam_page_sort_by_playtime(authed_client, db):
+    _connect_steam(db)
+    db.add(SteamGame(appid=220, name="Short Game", playtime_forever_minutes=10, img_icon_url=""))
+    db.add(SteamGame(appid=221, name="Long Game", playtime_forever_minutes=1000, img_icon_url=""))
+    db.commit()
+
+    resp_asc = authed_client.get("/steam", params={"sort": "playtime", "dir": "asc"})
+    assert resp_asc.text.index("Short Game") < resp_asc.text.index("Long Game")
+
+    resp_desc = authed_client.get("/steam", params={"sort": "playtime", "dir": "desc"})
+    assert resp_desc.text.index("Long Game") < resp_desc.text.index("Short Game")
+
+
+def test_steam_page_clear_filters_link_only_shown_when_searching(authed_client, db):
+    _connect_steam(db)
+    db.commit()
+
+    assert "Clear filters" not in authed_client.get("/steam").text
+    assert "Clear filters" in authed_client.get("/steam", params={"q": "x"}).text
+
+
+def test_steam_page_hx_request_returns_just_the_table(authed_client, db):
+    _connect_steam(db)
+    db.add(SteamGame(appid=220, name="Half-Life 2", playtime_forever_minutes=0, img_icon_url=""))
+    db.commit()
+
+    resp = authed_client.get("/steam", headers={"HX-Request": "true"})
+    assert 'id="steam-games-table"' in resp.text
+    assert "Half-Life 2" in resp.text
+    assert "<h1>Steam Library</h1>" not in resp.text

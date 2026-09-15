@@ -7,6 +7,21 @@
 <p class="muted">Audible isn't connected yet. Connect it in <a href="/settings">Settings</a>.</p>
 {% else %}
 <div class="toolbar">
+  <form hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
+        hx-trigger="keyup changed delay:300ms from:input, change from:select" style="display: flex; gap: 0.75rem; flex: 1; margin: 0;">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="dir" value="{{ dir }}">
+    <label for="audible-search" class="sr-only">Search title or author</label>
+    <input id="audible-search" type="search" name="q" placeholder="Search title or author..." value="{{ q }}" style="flex: 1;">
+    <select name="owned">
+      <option value="">All books</option>
+      <option value="owned" {{ "selected" if owned == "owned" else "" }}>Owned</option>
+      <option value="plus" {{ "selected" if owned == "plus" else "" }}>Plus Catalog</option>
+    </select>
+  </form>
+  {% if q or owned %}
+  <a href="/audible" hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML">Clear filters</a>
+  {% endif %}
   <form hx-post="/audible/refresh" hx-target="#audible-content" hx-swap="outerHTML" style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="secondary">Refresh</button>
