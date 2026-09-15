@@ -20,7 +20,7 @@
     <thead>
       <tr>
         <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#scan-commit-form .scan-item-check').forEach(c => c.checked = this.checked)" title="{% if result.matched|length > preview_limit %}Selects only the {{ preview_limit }} rows shown here, not all {{ result.matched|length }} matches{% else %}Select all{% endif %}"></th>
-        <th>File</th><th>Bundle</th><th>Item</th><th>Format</th><th>Found at</th>
+        <th scope="col">File</th><th scope="col">Bundle</th><th scope="col">Item</th><th scope="col">Format</th><th scope="col">Found at</th>
       </tr>
     </thead>
     <tbody>
@@ -49,7 +49,7 @@
 <p class="muted">Showing the first {{ preview_limit }} of {{ result.ambiguous|length }} ambiguous matches.</p>
 {% endif %}
 <table class="scan-ambiguous-table">
-  <thead><tr><th>File</th><th>Found at</th><th>Candidates</th></tr></thead>
+  <thead><tr><th scope="col">File</th><th scope="col">Found at</th><th scope="col">Candidates</th></tr></thead>
   <tbody>
     {% for a in result.ambiguous[:preview_limit] %}
     <tr>

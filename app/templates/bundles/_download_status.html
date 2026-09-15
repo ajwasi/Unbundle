@@ -1,5 +1,5 @@
 {% if running %}
-<div id="download-status" hx-get="/bundles/{{ gamekey }}/download/status" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
+<div id="download-status" aria-live="polite" hx-get="/bundles/{{ gamekey }}/download/status" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
   Downloading&hellip; this can take a while depending on file sizes.
   {% if bytes_total %}
   <br><progress value="{{ bytes_done }}" max="{{ bytes_total }}" style="width: 220px;"></progress>
@@ -9,16 +9,16 @@
   {% endif %}
 </div>
 {% elif queued %}
-<span id="download-status" class="badge badge-not-configured" hx-get="/bundles/{{ gamekey }}/download/status" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
+<span id="download-status" aria-live="polite" class="badge badge-not-configured" hx-get="/bundles/{{ gamekey }}/download/status" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
   Queued &mdash; waiting for a download slot&hellip;
 </span>
 {% elif message %}
-<span id="download-status" class="badge {{ 'badge-error' if 'failed' in message else 'badge-ok' }}">{{ message }}</span>
+<span id="download-status" aria-live="polite" class="badge {{ 'badge-error' if 'failed' in message else 'badge-ok' }}">{{ message }}</span>
 {% if item_groups is defined %}
 <div id="item-table-wrapper" hx-swap-oob="true">
   {% include "bundles/_item_table.html" %}
 </div>
 {% endif %}
 {% else %}
-<span id="download-status"></span>
+<span id="download-status" aria-live="polite"></span>
 {% endif %}
