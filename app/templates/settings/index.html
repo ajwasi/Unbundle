@@ -3,16 +3,32 @@
 {% block content %}
 <h1>Settings</h1>
 
+<h2>Identity</h2>
+
 <div class="card" id="account-card">
-  <h2>Account</h2>
+  <h3>Account</h3>
   <p class="muted">Your display identity and password for this instance.</p>
   <div id="account-card-body">
     {% include "settings/_account_form.html" %}
   </div>
 </div>
 
+<div class="card" id="oidc-card">
+  <h3>Single Sign-On (OIDC)</h3>
+  <p class="muted">
+    Log in via an external identity provider (e.g. Authentik) instead of, or alongside,
+    the app password. Point this at an OIDC application you've set up for Unbundle —
+    any standards-compliant provider that supports discovery works.
+  </p>
+  <div id="oidc-card-body">
+    {% include "settings/_oidc_form.html" %}
+  </div>
+</div>
+
+<h2>Connected Accounts</h2>
+
 <div class="card" id="humble-card">
-  <h2>Humble Bundle</h2>
+  <h3>Humble Bundle</h3>
   <p class="muted">
     Paste your <code>_simpleauth_sess</code> session cookie from a logged-in
     humblebundle.com browser tab. There's no username/password login here —
@@ -27,20 +43,8 @@
   </div>
 </div>
 
-<div class="card" id="oidc-card">
-  <h2>Single Sign-On (OIDC)</h2>
-  <p class="muted">
-    Log in via an external identity provider (e.g. Authentik) instead of, or alongside,
-    the app password. Point this at an OIDC application you've set up for Unbundle —
-    any standards-compliant provider that supports discovery works.
-  </p>
-  <div id="oidc-card-body">
-    {% include "settings/_oidc_form.html" %}
-  </div>
-</div>
-
 <div class="card" id="steam-card">
-  <h2>Steam</h2>
+  <h3>Steam</h3>
   <p class="muted">
     Compares your bundles' Steam keys against your actual Steam library, so you can see
     which ones you've never redeemed. Get a free API key at
@@ -54,7 +58,7 @@
 </div>
 
 <div class="card" id="gog-card">
-  <h2>GOG</h2>
+  <h3>GOG</h3>
   <p class="muted">
     Compares your bundles' GOG keys against your actual GOG library. Unlike Steam, GOG has
     no public API key or a redirect URI this app can register for itself — connecting means
@@ -70,8 +74,14 @@
   </div>
 </div>
 
+<dialog id="gog-login-modal">
+  <div id="gog-modal-content">
+    {% include "settings/_gog_modal_content.html" %}
+  </div>
+</dialog>
+
 <div class="card" id="audible-card">
-  <h2>Audible</h2>
+  <h3>Audible</h3>
   <p class="muted">
     Lists your owned Audible audiobooks. Amazon has no public Audible API, and Amazon now
     blocks a plain automated login outright — so connecting means a one-time manual step,
@@ -90,8 +100,10 @@
   </div>
 </dialog>
 
+<h2>System</h2>
+
 <div class="card" id="backup-card">
-  <h2>Backups</h2>
+  <h3>Backups</h3>
   {% if backups_supported %}
   <p class="muted">
     The whole database as one file — bundles, tags, and every stored credential.
@@ -110,7 +122,7 @@
 </div>
 
 <div class="card" id="logs-card">
-  <h2>Application Logs</h2>
+  <h3>Application Logs</h3>
   <p class="muted">
     Review recent log output from this process — including third-party libraries this app
     talks to (e.g. Audible's own login library) — without needing to find and read the
@@ -122,7 +134,7 @@
 </div>
 
 <div class="card" id="api-card">
-  <h2>API</h2>
+  <h3>API</h3>
   <p class="muted">
     FastAPI generates interactive API documentation for every route this app exposes.
     It's the same login-protected session as the rest of the app — open one of these in

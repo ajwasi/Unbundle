@@ -77,14 +77,34 @@ def _get_or_create_gog_credential(db: Session) -> Credential:
     return Credential.get_or_create(db, SOURCE_GOG)
 
 
-def _gog_context(db: Session) -> dict:
+def _gog_context(db: Session, error: str | None = None) -> dict:
     cred = Credential.get(db, SOURCE_GOG)
     return {
         "gog_status": cred.status if cred else STATUS_NOT_CONFIGURED,
-        "gog_error": cred.last_error if cred else None,
+        "gog_error": error if error is not None else (cred.last_error if cred else None),
         "gog_login_url": gog_connector.LOGIN_URL,
         "demo_mode": settings.demo_mode,
     }
+
+
+def _gog_response(
+    request: Request,
+    db: Session,
+    error: str | None = None,
+    just_connected: bool = False,
+    connected_as: str | None = None,
+):
+    """Every state-changing GOG settings route (save/disconnect) renders this
+    same response: an out-of-band update to the card behind the modal (status
+    badge, Connect/Disconnect) plus the modal's own content (paste-URL form,
+    or a "Connected" confirmation) — mirrors _audible_response()'s identical
+    shape below, for the same reason (one response shape means every action
+    stays consistent regardless of which of the two ever triggered it).
+    """
+    context = _gog_context(db, error)
+    context["just_connected"] = just_connected
+    context["gog_connected_as"] = connected_as
+    return templates.TemplateResponse(request, "settings/_gog_response.html", context)
 
 
 def _get_or_create_audible_credential(db: Session) -> Credential:
@@ -332,6 +352,7 @@ async def save_gog(request: Request, pasted_code: str = Form(""), db: Session = 
     code = gog_connector.extract_code(pasted_code)
 
     error = None
+    connected_as = None
     if not code:
         error = "Paste the URL or code you were redirected to after logging in."
     else:
@@ -341,13 +362,22 @@ async def save_gog(request: Request, pasted_code: str = Form(""), db: Session = 
             error = str(exc)
         else:
             gog_sync.save_refresh_token(db, tokens["refresh_token"])
+            # Best-effort: GOG's real token response is documented (by the
+            # reverse-engineering community, not GOG itself — see
+            # gog_connector.py's own caveat) to include a numeric account
+            # identifier alongside the tokens. Shown once, right after
+            # connecting, as confirmation of which account just got linked —
+            # the same role Steam's own check_credentials() message already
+            # plays — degrading to no identity shown at all if it's ever
+            # absent (e.g. demo mode's mock response) rather than guessing.
+            connected_as = str(tokens["user_id"]) if tokens.get("user_id") else None
 
     cred = _get_or_create_gog_credential(db)
     cred.status = STATUS_ERROR if error else STATUS_OK
     cred.last_error = error
     db.commit()
 
-    return templates.TemplateResponse(request, "settings/_gog_form.html", _gog_context(db))
+    return _gog_response(request, db, error, just_connected=not error, connected_as=connected_as)
 
 
 @router.post("/gog/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
@@ -356,10 +386,16 @@ def disconnect_gog(request: Request, db: Session = Depends(get_db)):
     if cred:
         db.delete(cred)
         db.commit()
-    return templates.TemplateResponse(request, "settings/_gog_form.html", _gog_context(db))
+    return _gog_response(request, db)
 
 
-def _audible_response(request: Request, db: Session, error: str | None = None, just_connected: bool = False):
+def _audible_response(
+    request: Request,
+    db: Session,
+    error: str | None = None,
+    just_connected: bool = False,
+    connected_as: str | None = None,
+):
     """Every Audible settings route (login start/answer/status, disconnect)
     renders this same response: an out-of-band update to the card behind the
     modal (status badge, Connect/Disconnect buttons) plus the modal's own
@@ -370,6 +406,7 @@ def _audible_response(request: Request, db: Session, error: str | None = None, j
     """
     context = _audible_context(db, error)
     context["just_connected"] = just_connected
+    context["audible_connected_as"] = connected_as
     return templates.TemplateResponse(request, "settings/_audible_response.html", context)
 
 
@@ -399,6 +436,7 @@ def audible_login_status(request: Request, db: Session = Depends(get_db)):
     this only ever fires once per login attempt.
     """
     just_connected = False
+    connected_as = None
     result = audible_connector.login_result()
     if result is not None:
         auth, error = result
@@ -408,6 +446,16 @@ def audible_login_status(request: Request, db: Session = Depends(get_db)):
             cred.status = STATUS_OK
             cred.last_error = None
             just_connected = True
+            # Best-effort: Amazon's device-registration response includes a
+            # "customer_info" extension (confirmed present as a real
+            # Authenticator attribute, requested by audible/register.py) —
+            # its exact fields are unconfirmed against a real account from
+            # this sandbox, so this degrades to no identity shown at all
+            # rather than guessing further if it's ever absent/differently
+            # shaped, the same philosophy audible_connector.py's own
+            # best-effort field parsing already uses.
+            customer_info = getattr(auth, "customer_info", None) or {}
+            connected_as = customer_info.get("name") or customer_info.get("user_id")
         else:
             cred = _get_or_create_audible_credential(db)
             cred.status = STATUS_ERROR
@@ -415,7 +463,7 @@ def audible_login_status(request: Request, db: Session = Depends(get_db)):
         db.commit()
         audible_connector.clear_pending()
 
-    return _audible_response(request, db, just_connected=just_connected)
+    return _audible_response(request, db, just_connected=just_connected, connected_as=connected_as)
 
 
 @router.post("/audible/login/answer", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
