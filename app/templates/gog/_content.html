@@ -47,24 +47,7 @@
 
   <div class="card">
     <h2>Owned ({{ game_count }} game(s){% if movie_count %}, {{ movie_count }} movie(s){% endif %})</h2>
-    {% if games %}
-    <div class="table-scroll">
-    <table>
-      <thead><tr><th></th><th scope="col">Title</th><th scope="col">Type</th></tr></thead>
-      <tbody>
-        {% for g in games %}
-        <tr>
-          <td>{% if g.image_url %}<img class="owned-item-icon" src="{{ g.image_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
-          <td>{{ g.title }}</td>
-          <td><span class="badge badge-pending">{{ g.content_type | title }}</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    </div>
-    {% else %}
-    <p class="muted">No games loaded yet — click Refresh.</p>
-    {% endif %}
+    {% include "gog/_games_table.html" %}
   </div>
   {% endif %}
 </div>

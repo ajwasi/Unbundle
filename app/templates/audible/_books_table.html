@@ -1,0 +1,34 @@
+{% macro sort_link(col, label) %}
+{% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
+<a href="#"
+   hx-get="/audible?q={{ q | urlencode }}&owned={{ owned | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-target="#audible-books-table" hx-swap="outerHTML">
+  {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
+</a>
+{% endmacro %}
+
+<div id="audible-books-table">
+  <p class="muted">Showing {{ books|length }} of {{ book_count }} book(s)</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th></th><th scope="col">{{ sort_link('title', 'Title') }}</th><th scope="col">{{ sort_link('author', 'Author') }}</th><th scope="col">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th></th></tr></thead>
+      <tbody>
+        {% for b in books %}
+        <tr class="{{ 'audible-row-credit' if not is_owned(b.benefit_id) }}">
+          <td>{% if b.cover_url %}<img class="owned-item-icon" src="{{ b.cover_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
+          <td><a href="/audible/{{ b.asin }}">{{ b.title }}</a></td>
+          <td>{{ b.author }}</td>
+          <td>{% if b.series_title %}{{ b.series_title }}{% if b.series_sequence %} #{{ b.series_sequence }}{% endif %}{% endif %}</td>
+          <td>{{ (b.runtime_minutes // 60) }}h {{ (b.runtime_minutes % 60) }}m</td>
+          <td>{% if b.purchase_date %}{{ b.purchase_date.strftime('%Y-%m-%d') }}{% endif %}</td>
+          <td>{% if b.price_amount %}{{ "%.2f"|format(b.price_amount) }} {{ b.price_currency }}{% endif %}</td>
+          <td>{% if b.rating_average %}{{ "%.1f"|format(b.rating_average) }}{% endif %}</td>
+          <td><span class="badge {{ 'badge-ok' if is_owned(b.benefit_id) else 'badge-pending' }}">{{ 'Owned' if is_owned(b.benefit_id) else 'Plus Catalog' }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="muted">{{ "No books match." if (q or owned) else "No books loaded yet — click Refresh." }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

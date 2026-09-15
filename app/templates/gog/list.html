@@ -7,6 +7,22 @@
 <p class="muted">GOG isn't connected yet. Connect it in <a href="/settings">Settings</a>.</p>
 {% else %}
 <div class="toolbar">
+  <form hx-get="/gog" hx-target="#gog-games-table" hx-swap="outerHTML"
+        hx-trigger="keyup changed delay:300ms from:input, change from:select" style="display: flex; gap: 0.75rem; flex: 1; margin: 0;">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="dir" value="{{ dir }}">
+    <label for="gog-search" class="sr-only">Search titles</label>
+    <input id="gog-search" type="search" name="q" placeholder="Search titles..." value="{{ q }}" style="flex: 1;">
+    <select name="content_type">
+      <option value="">All types</option>
+      <option value="game" {{ "selected" if content_type == "game" else "" }}>Games</option>
+      <option value="movie" {{ "selected" if content_type == "movie" else "" }}>Movies</option>
+      <option value="other" {{ "selected" if content_type == "other" else "" }}>Other</option>
+    </select>
+  </form>
+  {% if q or content_type %}
+  <a href="/gog" hx-get="/gog" hx-target="#gog-games-table" hx-swap="outerHTML">Clear filters</a>
+  {% endif %}
   <form hx-post="/gog/refresh" hx-target="#gog-content" hx-swap="outerHTML" style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="secondary">Refresh</button>

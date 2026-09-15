@@ -82,6 +82,73 @@ def test_audible_page_shows_ownership_badge(authed_client, db):
     assert "audible-row-credit" in resp.text
 
 
+def test_audible_page_search_matches_title_or_author(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="A Great Book", author="Jane Author", runtime_minutes=0))
+    db.add(AudibleBook(asin="B002", title="Another Title", author="Someone Else", runtime_minutes=0))
+    db.commit()
+
+    resp_by_title = authed_client.get("/audible", params={"q": "great"})
+    assert "A Great Book" in resp_by_title.text
+    assert "Another Title" not in resp_by_title.text
+
+    resp_by_author = authed_client.get("/audible", params={"q": "jane"})
+    assert "A Great Book" in resp_by_author.text
+    assert "Another Title" not in resp_by_author.text
+    # Library-wide stats stay the true total, unaffected by the search filter.
+    assert "2 book(s) owned" in resp_by_author.text
+
+
+def test_audible_page_owned_filter(authed_client, db):
+    # Titles deliberately avoid the substring "Owned Book" — the page's own
+    # always-present "Owned Books (N)" header would make that a false-positive
+    # match regardless of which filter is active.
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Library Title", benefit_id="LIBRARY"))
+    db.add(AudibleBook(asin="B002", title="Freebie Title", benefit_id="AYCL"))
+    db.commit()
+
+    resp_owned = authed_client.get("/audible", params={"owned": "owned"})
+    assert "Library Title" in resp_owned.text
+    assert "Freebie Title" not in resp_owned.text
+
+    resp_plus = authed_client.get("/audible", params={"owned": "plus"})
+    assert "Freebie Title" in resp_plus.text
+    assert "Library Title" not in resp_plus.text
+
+
+def test_audible_page_sort_by_price(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Cheap Book", price_amount=5.0))
+    db.add(AudibleBook(asin="B002", title="Pricey Book", price_amount=50.0))
+    db.commit()
+
+    resp_asc = authed_client.get("/audible", params={"sort": "price", "dir": "asc"})
+    assert resp_asc.text.index("Cheap Book") < resp_asc.text.index("Pricey Book")
+
+    resp_desc = authed_client.get("/audible", params={"sort": "price", "dir": "desc"})
+    assert resp_desc.text.index("Pricey Book") < resp_desc.text.index("Cheap Book")
+
+
+def test_audible_page_clear_filters_link_only_shown_when_filtered(authed_client, db):
+    _connect_audible(db)
+    db.commit()
+
+    assert "Clear filters" not in authed_client.get("/audible").text
+    assert "Clear filters" in authed_client.get("/audible", params={"owned": "owned"}).text
+
+
+def test_audible_page_hx_request_returns_just_the_table(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="A Great Book", author="Jane Author", runtime_minutes=0))
+    db.commit()
+
+    resp = authed_client.get("/audible", headers={"HX-Request": "true"})
+    assert 'id="audible-books-table"' in resp.text
+    assert "A Great Book" in resp.text
+    assert "<h1>Audible Library</h1>" not in resp.text
+
+
 def test_audible_detail_requires_auth(client):
     resp = client.get("/audible/B001", follow_redirects=False)
     assert resp.status_code == 303
