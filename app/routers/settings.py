@@ -47,35 +47,23 @@ def _account_context(db: Session, account_error: str | None = None) -> dict:
 
 
 def _humble_credential(db: Session) -> Credential | None:
-    return db.query(Credential).filter(Credential.source == SOURCE_HUMBLE).one_or_none()
+    return Credential.get(db, SOURCE_HUMBLE)
 
 
 def _get_or_create_humble_credential(db: Session) -> Credential:
-    cred = _humble_credential(db)
-    if cred is None:
-        cred = Credential(source=SOURCE_HUMBLE)
-        db.add(cred)
-    return cred
+    return Credential.get_or_create(db, SOURCE_HUMBLE)
 
 
 def _get_or_create_oidc_credential(db: Session) -> Credential:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one_or_none()
-    if cred is None:
-        cred = Credential(source=SOURCE_OIDC)
-        db.add(cred)
-    return cred
+    return Credential.get_or_create(db, SOURCE_OIDC)
 
 
 def _get_or_create_steam_credential(db: Session) -> Credential:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_STEAM).one_or_none()
-    if cred is None:
-        cred = Credential(source=SOURCE_STEAM)
-        db.add(cred)
-    return cred
+    return Credential.get_or_create(db, SOURCE_STEAM)
 
 
 def _steam_context(db: Session, steam_error: str | None = None) -> dict:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_STEAM).one_or_none()
+    cred = Credential.get(db, SOURCE_STEAM)
     payload = decrypt_json(cred.encrypted_payload) if cred and cred.encrypted_payload else {}
     return {
         "steam_status": cred.status if cred else STATUS_NOT_CONFIGURED,
@@ -86,15 +74,11 @@ def _steam_context(db: Session, steam_error: str | None = None) -> dict:
 
 
 def _get_or_create_gog_credential(db: Session) -> Credential:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none()
-    if cred is None:
-        cred = Credential(source=SOURCE_GOG)
-        db.add(cred)
-    return cred
+    return Credential.get_or_create(db, SOURCE_GOG)
 
 
 def _gog_context(db: Session) -> dict:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none()
+    cred = Credential.get(db, SOURCE_GOG)
     return {
         "gog_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "gog_error": cred.last_error if cred else None,
@@ -104,11 +88,7 @@ def _gog_context(db: Session) -> dict:
 
 
 def _get_or_create_audible_credential(db: Session) -> Credential:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
-    if cred is None:
-        cred = Credential(source=SOURCE_AUDIBLE)
-        db.add(cred)
-    return cred
+    return Credential.get_or_create(db, SOURCE_AUDIBLE)
 
 
 def _audible_context(db: Session, error: str | None = None) -> dict:
@@ -118,7 +98,7 @@ def _audible_context(db: Session, error: str | None = None) -> dict:
     audible_connector.login_status), or connected/error (the normal
     status+disconnect view every other connector card uses).
     """
-    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
+    cred = Credential.get(db, SOURCE_AUDIBLE)
     return {
         "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "audible_error": error if error is not None else (cred.last_error if cred else None),
@@ -340,7 +320,7 @@ def disconnect_humble(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/steam/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def disconnect_steam(request: Request, db: Session = Depends(get_db)):
-    cred = db.query(Credential).filter(Credential.source == SOURCE_STEAM).one_or_none()
+    cred = Credential.get(db, SOURCE_STEAM)
     if cred:
         db.delete(cred)
         db.commit()
@@ -372,7 +352,7 @@ async def save_gog(request: Request, pasted_code: str = Form(""), db: Session = 
 
 @router.post("/gog/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def disconnect_gog(request: Request, db: Session = Depends(get_db)):
-    cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none()
+    cred = Credential.get(db, SOURCE_GOG)
     if cred:
         db.delete(cred)
         db.commit()
@@ -424,7 +404,7 @@ def audible_login_status(request: Request, db: Session = Depends(get_db)):
         auth, error = result
         if auth is not None:
             audible_sync.save_authenticator(db, auth)
-            cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one()
+            cred = Credential.get(db, SOURCE_AUDIBLE)
             cred.status = STATUS_OK
             cred.last_error = None
             just_connected = True
@@ -446,7 +426,7 @@ def answer_audible_login(request: Request, pasted_url: str = Form(""), db: Sessi
 
 @router.post("/audible/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 def disconnect_audible(request: Request, db: Session = Depends(get_db)):
-    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
+    cred = Credential.get(db, SOURCE_AUDIBLE)
     if cred:
         db.delete(cred)
         db.commit()

@@ -22,12 +22,12 @@ from app.config import settings
 from app.connectors.base import (
     BaseConnector,
     ConnectorAuthError,
-    CredentialStatus,
     LogCallback,
     NormalizedBundle,
     NormalizedDownloadItem,
     NormalizedEntitlement,
 )
+from app.connectors.types import CredentialStatus
 
 BASE_URL = "https://www.humblebundle.com/api/v1"
 SITE_BASE_URL = "https://www.humblebundle.com"

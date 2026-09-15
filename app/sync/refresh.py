@@ -16,6 +16,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.asyncio_utils import spawn_background_task
 from app.connectors.base import ConnectorAuthError, LogCallback
 from app.connectors.humble_connector import HumbleConnector
 from app.db import SessionLocal
@@ -23,7 +24,6 @@ from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import SOURCE_HUMBLE, STATUS_ERROR, STATUS_OK, Credential
 from app.models.sync_run import STATUS_FAILED, STATUS_RUNNING, STATUS_SUCCESS, SyncRun
-from app.security import decrypt_json
 
 _refresh_lock = asyncio.Lock()
 
@@ -76,7 +76,7 @@ async def start_refresh() -> int:
     finally:
         db.close()
 
-    asyncio.create_task(_run_refresh(run_id))
+    spawn_background_task(_run_refresh(run_id))
     return run_id
 
 
@@ -106,10 +106,10 @@ async def _run_refresh(run_id: int) -> None:
 
 
 def _get_connector(db: Session) -> HumbleConnector:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_HUMBLE).one_or_none()
-    if cred is None or not cred.encrypted_payload:
+    payload = Credential.get_payload(db, SOURCE_HUMBLE)
+    if payload is None:
         raise NotConnectedError("Humble is not connected yet — add your session key in Settings.")
-    return HumbleConnector(decrypt_json(cred.encrypted_payload))
+    return HumbleConnector(payload)
 
 
 async def refresh_library(db: Session, log: LogCallback) -> int:
@@ -186,8 +186,4 @@ async def refresh_library(db: Session, log: LogCallback) -> int:
 
 
 def _set_credential_status(db: Session, status: str, error: str | None) -> None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_HUMBLE).one_or_none()
-    if cred:
-        cred.status = status
-        cred.last_error = error
-        db.commit()
+    Credential.set_status(db, SOURCE_HUMBLE, status, error)

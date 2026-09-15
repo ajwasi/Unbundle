@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.connectors import audible_connector
 from app.models.audible_book import AudibleBook
 from app.models.credential import SOURCE_AUDIBLE, STATUS_ERROR, STATUS_OK, Credential
-from app.security import decrypt_json, encrypt_json
+from app.security import encrypt_json
 
 import audible
 
@@ -29,17 +29,11 @@ class NotConnectedError(Exception):
 
 
 def get_audible_credential(db: Session) -> dict | None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
-    if cred is None or not cred.encrypted_payload:
-        return None
-    return decrypt_json(cred.encrypted_payload)
+    return Credential.get_payload(db, SOURCE_AUDIBLE)
 
 
 def save_authenticator(db: Session, auth: audible.Authenticator) -> None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
-    if cred is None:
-        cred = Credential(source=SOURCE_AUDIBLE)
-        db.add(cred)
+    cred = Credential.get_or_create(db, SOURCE_AUDIBLE)
     cred.encrypted_payload = encrypt_json(auth.to_dict())
     db.commit()
 
@@ -93,8 +87,4 @@ async def refresh_audible_library(db: Session) -> int:
 
 
 def _set_credential_status(db: Session, status: str, error: str | None) -> None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
-    if cred:
-        cred.status = status
-        cred.last_error = error
-        db.commit()
+    Credential.set_status(db, SOURCE_AUDIBLE, status, error)

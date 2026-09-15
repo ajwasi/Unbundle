@@ -19,7 +19,7 @@ _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 
 def _context(db: Session) -> dict:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_AUDIBLE).one_or_none()
+    cred = Credential.get(db, SOURCE_AUDIBLE)
     books = db.query(AudibleBook).order_by(AudibleBook.title).all()
     total_runtime_hours = round(sum(b.runtime_minutes for b in books) / 60, 1)
     return {
