@@ -2,10 +2,11 @@
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   {% if item_groups %}
   <div class="toolbar">
-    <button type="submit">Download Selected</button>
-    <span class="muted">
-      (nothing checked = everything; check items, formats, or both to narrow it down)
-    </span>
+    <button type="submit" id="download-selected-btn" disabled>Download Selected</button>
+    <button type="submit" id="download-all-btn"
+            onclick="document.querySelectorAll('#item-form .item-check, #item-form input[name=formats]').forEach(function (c) { c.checked = false; })">
+      Download All ({{ footer.item_count }} item{{ "s" if footer.item_count != 1 else "" }})
+    </button>
   </div>
   {% endif %}
 
@@ -24,7 +25,7 @@
     <table>
       <thead>
         <tr>
-          <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#item-form .item-check').forEach(c => c.checked = this.checked)"></th>
+          <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#item-form .item-check').forEach(c => c.checked = this.checked); updateSelectedButton();"></th>
           <th scope="col">Item</th>
           {% for key, label in all_formats %}<th scope="col">{{ label }}</th>{% endfor %}
           <th scope="col">Total Size</th>
@@ -89,3 +90,15 @@
     </table>
   </div>
 </form>
+
+{% if item_groups %}
+<script>
+  function updateSelectedButton() {
+    var form = document.getElementById('item-form');
+    var btn = document.getElementById('download-selected-btn');
+    var anyChecked = form.querySelectorAll('.item-check:checked, input[name=formats]:checked').length > 0;
+    btn.disabled = !anyChecked;
+  }
+  document.getElementById('item-form').addEventListener('change', updateSelectedButton);
+</script>
+{% endif %}
