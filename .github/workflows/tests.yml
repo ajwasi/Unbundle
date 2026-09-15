@@ -10,6 +10,13 @@ on:
       - main
   pull_request:
 
+# This job only checks out code and runs pytest — no need for the default
+# GITHUB_TOKEN permissions (which can be broader than "read" depending on
+# repo/org settings) it would otherwise get. Matches docker-publish.yml's
+# own explicit permissions block.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
