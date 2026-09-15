@@ -121,10 +121,8 @@ def verify_password_hash(candidate: str, stored: str) -> bool:
 
 
 def _stored_password_hash(db: Session) -> str | None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_APP_AUTH).one_or_none()
-    if not cred or not cred.encrypted_payload:
-        return None
-    return decrypt_json(cred.encrypted_payload).get("password_hash")
+    payload = Credential.get_payload(db, SOURCE_APP_AUTH)
+    return payload.get("password_hash") if payload else None
 
 
 def has_db_password(db: Session) -> bool:

@@ -1,0 +1,3 @@
+{% macro status_badge(status) -%}
+<span class="badge badge-{{ 'ok' if status == 'ok' else 'error' if status == 'error' else 'not-configured' }}">{{ status | replace('_', ' ') }}</span>
+{%- endmacro %}

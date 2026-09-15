@@ -19,7 +19,7 @@
     <button type="submit" class="secondary">Re-download</button>
   </form>
   {% else %}
-  {% if pdf_job and pdf_job.error_message %}<p style="color: var(--error);">{{ pdf_job.error_message }}</p>{% endif %}
+  {% if pdf_job and pdf_job.error_message %}<p class="text-error">{{ pdf_job.error_message }}</p>{% endif %}
   <form hx-post="/audible/{{ asin }}/pdf/download" hx-target="#pdf-status" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit">Download PDF</button>

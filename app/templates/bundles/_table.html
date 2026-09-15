@@ -16,6 +16,7 @@
     {%- if redeemed == "unredeemed" %} with unredeemed keys{% elif redeemed == "redeemed" %} fully redeemed{% endif -%}
     &mdash; ${{ "%.2f"|format(filtered_total_spent) }} spent{% if q or category or min_items or redeemed %} (this view){% endif %}
   </p>
+  <div class="table-scroll">
   <table>
     <thead>
       <tr>
@@ -77,4 +78,5 @@
     </tfoot>
     {% endif %}
   </table>
+  </div>
 </div>

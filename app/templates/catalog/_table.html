@@ -11,14 +11,15 @@
 
 <div id="catalog-table">
   <p class="muted" id="catalog-count" data-total="{{ total_items }}">Showing {{ shown_so_far }} of {{ total_items }} item(s)</p>
+  <div class="table-scroll">
   <table>
     <thead>
       <tr>
-        <th>{{ sort_link('name', 'Item') }}</th>
-        <th>{{ sort_link('purchased', 'First Purchased') }}</th>
-        <th>{{ sort_link('count', 'Copies Owned') }}</th>
-        <th>Downloaded</th>
-        <th>Tags</th>
+        <th scope="col">{{ sort_link('name', 'Item') }}</th>
+        <th scope="col">{{ sort_link('purchased', 'First Purchased') }}</th>
+        <th scope="col">{{ sort_link('count', 'Copies Owned') }}</th>
+        <th scope="col">Downloaded</th>
+        <th scope="col">Tags</th>
       </tr>
     </thead>
     <tbody>
@@ -28,4 +29,5 @@
       {% if has_more %}{{ rowmacro.sentinel(q, dupes_only, tag_id, sort, dir, next_offset) }}{% endif %}
     </tbody>
   </table>
+  </div>
 </div>
