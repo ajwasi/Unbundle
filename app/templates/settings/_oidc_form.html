@@ -5,7 +5,7 @@
   </span>
   {% if oidc_disable_password %}<span class="badge badge-pending">password login disabled</span>{% endif %}
 </p>
-{% if oidc_error %}<p style="color: var(--error);">{{ oidc_error }}</p>{% endif %}
+{% if oidc_error %}<p class="text-error">{{ oidc_error }}</p>{% endif %}
 
 <p class="muted">
   Redirect URI to register in your identity provider:

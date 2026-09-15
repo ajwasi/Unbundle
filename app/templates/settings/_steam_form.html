@@ -3,8 +3,8 @@
   Status:
   {{ status_badge(steam_status) }}
 </p>
-{% if steam_error %}<p style="color: var(--error);">{{ steam_error }}</p>{% endif %}
-{% if steam_connected_as %}<p style="color: var(--success);">{{ steam_connected_as }}</p>{% endif %}
+{% if steam_error %}<p class="text-error">{{ steam_error }}</p>{% endif %}
+{% if steam_connected_as %}<p class="text-success">{{ steam_connected_as }}</p>{% endif %}
 
 <form hx-post="/settings/steam" hx-target="#steam-card-body" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">

@@ -4,7 +4,7 @@
   <td>{{ (r.first_purchased.strftime("%Y-%m-%d") if r.first_purchased else "&mdash;") | safe }}</td>
   <td>
     {% if r.count > 1 %}
-    <button type="button" class="secondary" style="padding: 0.1rem 0.5rem;"
+    <button type="button" class="secondary btn-sm"
             hx-get="/catalog/item/{{ r.key }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"
             onclick="document.getElementById('bundles-modal').showModal()">
       &times;{{ r.count }} bundles

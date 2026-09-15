@@ -3,7 +3,7 @@
   Status:
   {{ status_badge(gog_status) }}
 </p>
-{% if gog_error %}<p style="color: var(--error);">{{ gog_error }}</p>{% endif %}
+{% if gog_error %}<p class="text-error">{{ gog_error }}</p>{% endif %}
 
 {% if demo_mode %}
 <p class="muted">
@@ -27,8 +27,9 @@
 
 <form hx-post="/settings/gog" hx-target="#gog-card-body" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <div style="display: flex; gap: 0.5rem; max-width: 480px;">
-    <input type="text" name="pasted_code" placeholder="Paste the redirected URL or code here" style="flex: 1;">
+  <div class="form-row" style="max-width: 480px;">
+    <label for="gog-pasted-code" class="sr-only">Pasted GOG redirect URL or code</label>
+    <input id="gog-pasted-code" type="text" name="pasted_code" placeholder="Paste the redirected URL or code here" style="flex: 1;">
     <button type="submit">Connect</button>
   </div>
 </form>

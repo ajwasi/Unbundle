@@ -38,7 +38,7 @@
           {% if row.owned %}
           <span class="badge badge-ok">Already owned</span>
           {% if row.owned_count > 1 %}
-          <button type="button" class="secondary" style="padding: 0.1rem 0.5rem;"
+          <button type="button" class="secondary btn-sm"
                   hx-get="/catalog/item/{{ row.machine_name }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"
                   onclick="document.getElementById('bundles-modal').showModal()">
             &times;{{ row.owned_count }}
