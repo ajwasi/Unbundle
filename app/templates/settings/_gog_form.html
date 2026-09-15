@@ -1,10 +1,9 @@
+{% from "_macros.html" import status_badge %}
 <p>
   Status:
-  <span class="badge badge-{{ 'ok' if gog_status == 'ok' else 'error' if gog_status == 'error' else 'not-configured' }}">
-    {{ gog_status | replace('_', ' ') }}
-  </span>
+  {{ status_badge(gog_status) }}
 </p>
-{% if gog_error %}<p style="color: var(--error);">{{ gog_error }}</p>{% endif %}
+{% if gog_error %}<p class="text-error">{{ gog_error }}</p>{% endif %}
 
 <div class="toolbar" style="justify-content: flex-start;">
   <button type="button" onclick="document.getElementById('gog-login-modal').showModal()">

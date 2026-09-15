@@ -2,7 +2,7 @@
 <div id="download-active" hx-get="/downloads/active" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
   <table>
     <thead>
-      <tr><th>Bundle</th><th>Status</th><th>Progress</th><th>Speed</th></tr>
+      <tr><th scope="col">Bundle</th><th scope="col">Status</th><th scope="col">Progress</th><th scope="col">Speed</th></tr>
     </thead>
     <tbody>
       {% for job in active_jobs %}

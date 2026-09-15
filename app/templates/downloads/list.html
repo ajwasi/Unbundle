@@ -11,13 +11,14 @@
   {% include "downloads/_active.html" %}
 </div>
 
-<div class="card" style="margin-top: 1rem; overflow-x: auto;">
+<div class="card table-scroll" style="margin-top: 1rem;">
   <h2 style="margin-top: 0;">History</h2>
   <div class="toolbar">
     <form hx-get="/downloads/history" hx-target="#download-history" hx-swap="outerHTML"
           hx-trigger="keyup changed delay:300ms from:input, change from:select"
           style="display: flex; gap: 0.75rem; flex: 1; margin: 0;">
-      <input type="search" name="q" placeholder="Search bundle name..." value="{{ q }}" style="flex: 1;">
+      <label for="download-history-search" class="sr-only">Search bundle name</label>
+      <input id="download-history-search" type="search" name="q" placeholder="Search bundle name..." value="{{ q }}" style="flex: 1;">
       <select name="status">
         <option value="">All statuses</option>
         {% for s in ["queued", "running", "verifying", "completed", "failed", "canceled"] %}
@@ -35,7 +36,7 @@
   {% include "downloads/_history.html" %}
 </div>
 
-<div class="card" style="margin-top: 1rem; overflow-x: auto;">
+<div class="card table-scroll" style="margin-top: 1rem;">
   <h2 style="margin-top: 0;">Destinations</h2>
   <p class="muted">
     Where a completed download moves to, based on its format and (optionally) one of its
@@ -48,7 +49,7 @@
   </div>
 </div>
 
-<div class="card" style="margin-top: 1rem; overflow-x: auto;">
+<div class="card table-scroll" style="margin-top: 1rem;">
   <h2 style="margin-top: 0;">Scan a folder</h2>
   <p class="muted">
     Mark files that already exist on disk as downloaded, without re-downloading or moving

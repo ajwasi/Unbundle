@@ -12,6 +12,7 @@
 </datalist>
 
 <div class="toolbar">
+  <label for="catalog-q" class="sr-only">Search items</label>
   <input type="search" id="catalog-q" name="q" placeholder="Search items..." value="{{ q }}"
          hx-get="/catalog" hx-trigger="keyup changed delay:300ms" hx-target="#catalog-table" hx-swap="outerHTML"
          hx-include="#dupes-only,#catalog-tag" style="flex: 1;">

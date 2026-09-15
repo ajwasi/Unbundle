@@ -13,16 +13,13 @@ from authlib.integrations.starlette_client import OAuth
 from sqlalchemy.orm import Session
 
 from app.models.credential import SOURCE_OIDC, Credential
-from app.security import decrypt_json, has_db_password
+from app.security import has_db_password
 
 OIDC_SCOPES = "openid profile email"
 
 
 def get_oidc_config(db: Session) -> dict | None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one_or_none()
-    if not cred or not cred.encrypted_payload:
-        return None
-    return decrypt_json(cred.encrypted_payload)
+    return Credential.get_payload(db, SOURCE_OIDC)
 
 
 def is_oidc_enabled(db: Session, cfg: dict | None = None) -> bool:

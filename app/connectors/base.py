@@ -1,12 +1,17 @@
 """Common interface for external-source connectors. Mirrors
-audiobook-tracker/app/connectors/base.py's shape — only one connector exists
-today (Humble), but a phase-2 Steam connector will plug into the same
-interface, so sync/refresh.py and any future matcher never branch on source.
+audiobook-tracker/app/connectors/base.py's shape. Humble is the only
+connector that actually implements this (HumbleConnector) — Steam, GOG, and
+Audible each deliberately stayed outside it (see their own module
+docstrings for why: no bundle concept, no registrable OAuth redirect, and a
+synchronous callback-driven login respectively), so sync/refresh.py's
+"never branch on source" goal only ever applied to Humble-shaped sources.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Callable, Literal
+
+from app.connectors.types import CredentialStatus
 
 LogCallback = Callable[[str, str], None]  # (level, message) -> None
 
@@ -64,12 +69,6 @@ class NormalizedBundle:
     amount_spent: float = 0.0
     downloads: list[NormalizedDownloadItem] = field(default_factory=list)
     entitlements: list[NormalizedEntitlement] = field(default_factory=list)
-
-
-@dataclass
-class CredentialStatus:
-    ok: bool
-    message: str = ""
 
 
 class ConnectorAuthError(Exception):

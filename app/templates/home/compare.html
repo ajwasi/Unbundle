@@ -18,7 +18,7 @@
   <p class="muted">{{ tier.owned_count }} of {{ tier.rows|length }} already in your catalog</p>
   <table class="compare-table">
     <thead>
-      <tr><th>Item</th><th>Type</th><th>Value</th><th>Status</th></tr>
+      <tr><th scope="col">Item</th><th scope="col">Type</th><th scope="col">Value</th><th scope="col">Status</th></tr>
     </thead>
     <tbody>
       {% for row in tier.rows %}
@@ -38,7 +38,7 @@
           {% if row.owned %}
           <span class="badge badge-ok">Already owned</span>
           {% if row.owned_count > 1 %}
-          <button type="button" class="secondary" style="padding: 0.1rem 0.5rem;"
+          <button type="button" class="secondary btn-sm"
                   hx-get="/catalog/item/{{ row.machine_name }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"
                   onclick="document.getElementById('bundles-modal').showModal()">
             &times;{{ row.owned_count }}

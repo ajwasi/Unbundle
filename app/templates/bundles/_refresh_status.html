@@ -1,9 +1,9 @@
 {% if running %}
-<span id="refresh-status" hx-get="/bundles/refresh/status" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
+<span id="refresh-status" aria-live="polite" hx-get="/bundles/refresh/status" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
   Refreshing your library from Humble Bundle&hellip; this can take a minute or two for a large library.
 </span>
 {% elif message %}
-<span id="refresh-status">{{ message }} <a href="/bundles">Reload the list</a></span>
+<span id="refresh-status" aria-live="polite">{{ message }} <a href="/bundles">Reload the list</a></span>
 {% else %}
-<span id="refresh-status"></span>
+<span id="refresh-status" aria-live="polite"></span>
 {% endif %}

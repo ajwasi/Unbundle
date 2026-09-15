@@ -1,6 +1,6 @@
-<div id="steam-content">
+<div id="steam-content" aria-live="polite">
   {% if steam_status == "error" %}
-  <p style="color: var(--error);">{{ steam_error }}</p>
+  <p class="text-error">{{ steam_error }}</p>
   {% endif %}
 
   {% if steam_status != "not_configured" %}
@@ -14,8 +14,9 @@
     <h2>Never Redeemed on Steam ({{ unredeemed|length }})</h2>
     <p class="muted">Steam keys granted by your bundles that don't match anything in your Steam library.</p>
     {% if unredeemed %}
+    <div class="table-scroll">
     <table class="unredeemed-table">
-      <thead><tr><th>Key</th><th>From Bundle</th><th>Revealed on Humble</th><th>Expires</th><th>Possibly owned</th><th></th></tr></thead>
+      <thead><tr><th scope="col">Key</th><th scope="col">From Bundle</th><th scope="col">Revealed on Humble</th><th scope="col">Expires</th><th scope="col">Possibly owned</th><th></th></tr></thead>
       <tbody>
         {% for row in unredeemed %}
         <tr class="{{ 'row-expired' if row.is_expired else '' }}">
@@ -40,6 +41,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <p class="muted">{{ "Every checked Steam key is already in your library — nothing to redeem." if game_count else "No games loaded yet — click Refresh." }}</p>
     {% endif %}
@@ -48,8 +50,9 @@
   <div class="card">
     <h2>Owned Games ({{ game_count }})</h2>
     {% if games %}
+    <div class="table-scroll">
     <table>
-      <thead><tr><th></th><th>Name</th><th>Playtime</th></tr></thead>
+      <thead><tr><th></th><th scope="col">Name</th><th scope="col">Playtime</th></tr></thead>
       <tbody>
         {% for g in games %}
         <tr>
@@ -60,6 +63,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <p class="muted">No games loaded yet — click Refresh.</p>
     {% endif %}
