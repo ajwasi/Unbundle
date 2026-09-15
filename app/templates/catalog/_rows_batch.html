@@ -1,13 +1,14 @@
 {% import "catalog/_row_macro.html" as rowmacro with context %}
 {# No hx-swap-oob element here: htmx parses an outerHTML response targeting
    a <tr> using special table-context wrapping, and mixing that with a
-   non-table OOB element (tried here for a live "Showing X of Y" update)
-   breaks that parsing outright — confirmed via a real browser console:
-   htmx:swapError + "e.querySelectorAll is not a function". The request
-   itself fires and succeeds; only the swap fails. Not worth fighting
-   htmx's internals for a cosmetic count update — the count now simply
-   stays at the first page's total until the next full page load/filter
-   change, same as every other value on this page that isn't part of the
-   swapped fragment. #}
+   non-table OOB element (tried here originally for a live "Showing X of Y"
+   update) breaks that parsing outright — confirmed via a real browser
+   console: htmx:swapError + "e.querySelectorAll is not a function". This is
+   a genuine HTML-parsing-context constraint (a table-context fragment can't
+   carry an unrelated sibling element alongside it), not just an htmx quirk,
+   so no response-shape change here can fix it. The count is instead kept
+   correct client-side: list.html's own inline script recomputes "Showing X
+   of Y" straight from the DOM (counting .catalog-row elements) after every
+   htmx swap on this page, sidestepping the table-context response entirely. #}
 {% for r in rows %}{{ rowmacro.render_row(r) }}{% endfor %}
 {% if has_more %}{{ rowmacro.sentinel(q, dupes_only, tag_id, sort, dir, next_offset) }}{% endif %}

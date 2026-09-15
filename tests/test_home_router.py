@@ -58,10 +58,20 @@ def test_home_bundle_tile_image_has_a_fallback_for_a_broken_cover_image(authed_c
     assert 'onerror="unbundleImgFallback(this)"' in resp.text
 
 
-def test_home_shows_empty_state_for_category_with_no_bundles(authed_client):
+def test_home_shows_empty_state_when_no_bundles_in_any_category(authed_client):
     with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=[])):
         resp = authed_client.get("/")
-    assert "No games bundles currently listed" in resp.text
+    assert "Nothing currently listed for sale" in resp.text
+
+
+def test_home_collapses_empty_categories_when_others_have_bundles(authed_client):
+    # Only "games" has a bundle — "books"/"software"/etc. categories should
+    # be skipped entirely rather than each rendering their own empty card.
+    bundles = [_bundle(category="games", name="Game One")]
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):
+        resp = authed_client.get("/")
+    assert "Game One" in resp.text
+    assert "currently listed" not in resp.text
 
 
 def test_home_sorts_bundles_newest_first_within_category(authed_client):

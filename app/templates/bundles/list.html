@@ -41,6 +41,9 @@
       {% endfor %}
     </select>
   </form>
+  {% if q or category or redeemed or min_items or tag_id %}
+  <a href="/bundles" hx-get="/bundles" hx-target="#bundle-table" hx-swap="outerHTML">Clear filters</a>
+  {% endif %}
   <form hx-post="/bundles/refresh" hx-target="#refresh-status" hx-swap="outerHTML" style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit">Refresh from Humble</button>

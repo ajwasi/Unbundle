@@ -6,7 +6,6 @@
   {% if audible_status != "not_configured" %}
   <p class="muted">
     {{ book_count }} book(s) owned &mdash; {{ total_runtime_hours }} hour(s) total runtime.
-    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>.{% else %}Never refreshed.{% endif %}
   </p>
 
   <div class="card">
