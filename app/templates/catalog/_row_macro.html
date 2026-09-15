@@ -1,5 +1,5 @@
 {% macro render_row(r) %}
-<tr>
+<tr class="catalog-row">
   <td>{{ r.item_name }}</td>
   <td>{{ (r.first_purchased.strftime("%Y-%m-%d") if r.first_purchased else "&mdash;") | safe }}</td>
   <td>
@@ -13,7 +13,7 @@
     <span class="muted">1</span>
     {% endif %}
   </td>
-  <td>{{ r.downloaded_count }}/{{ r.count }}</td>
+  <td><span class="badge {{ 'badge-ok' if r.downloaded_count == r.count else 'badge-pending' }}">{{ r.downloaded_count }}/{{ r.count }}</span></td>
   <td>{% with machine_name = r.key, tags = r.tags %}{% include "catalog/_item_tags.html" %}{% endwith %}</td>
 </tr>
 {% endmacro %}

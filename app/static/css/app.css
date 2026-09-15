@@ -610,6 +610,42 @@ th a { text-decoration: none; color: var(--text); }
   align-items: flex-start;
 }
 
+/* The two tile actions ("Compare to my catalog", "Buy on Humble Bundle")
+   were plain default-styled text links with no visual hierarchy between
+   them or the surrounding body copy — styled as real buttons here (first =
+   primary/filled, matching the app's default <button>; second = outlined),
+   scoped to this component rather than a generic reusable class since
+   there are always exactly these two, in this exact order. */
+.bundle-tile-actions a {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.bundle-tile-actions a:first-child {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+.bundle-tile-actions a:last-child {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* Label/value metadata pairs (Audible detail's Series/Runtime/Rating/etc.)
+   — a <dl> is the semantically correct element for this shape (was a
+   layout-only <table> before), styled here as the same two-column grid the
+   table gave for free. */
+.detail-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 1rem;
+  margin: 0.5rem 0;
+}
+.detail-dl dt, .detail-dl dd { margin: 0; }
+
 dialog {
   border: 1px solid var(--border);
   border-radius: var(--radius);

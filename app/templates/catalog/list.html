@@ -27,6 +27,9 @@
     <option value="{{ t.id }}" {{ "selected" if tag_id == t.id else "" }}>{{ t.name }}</option>
     {% endfor %}
   </select>
+  {% if q or dupes_only or tag_id %}
+  <a href="/catalog" hx-get="/catalog" hx-target="#catalog-table" hx-swap="outerHTML">Clear filters</a>
+  {% endif %}
 </div>
 
 {% include "catalog/_table.html" %}
@@ -37,4 +40,21 @@
     <button type="submit" class="secondary">Close</button>
   </form>
 </dialog>
+
+<script>
+  // catalog/_rows_batch.html's own comment explains why the "Showing X of Y"
+  // count can't be updated via an htmx OOB swap from within the infinite-
+  // scroll response (a real HTML table-parsing-context constraint, not just
+  // an htmx quirk) — recomputed here from the live DOM instead, after every
+  // htmx swap on this page, which is correct regardless of whether that swap
+  // was the sentinel appending more rows or a filter/sort replacing the
+  // whole table.
+  function updateCatalogCount() {
+    const countEl = document.getElementById('catalog-count');
+    if (!countEl) return;
+    const shown = document.querySelectorAll('#catalog-table .catalog-row').length;
+    countEl.textContent = `Showing ${shown} of ${countEl.dataset.total} item(s)`;
+  }
+  document.body.addEventListener('htmx:afterSwap', updateCatalogCount);
+</script>
 {% endblock %}

@@ -11,6 +11,9 @@
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="secondary">Refresh</button>
   </form>
+  <span class="muted">
+    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% else %}Never refreshed{% endif %}
+  </span>
 </div>
 {% endif %}
 

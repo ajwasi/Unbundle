@@ -18,13 +18,13 @@
         {% elif book.percent_complete %}<span class="badge badge-not-configured">{{ (book.percent_complete * 100) | round | int }}% complete</span>{% endif %}
       </p>
 
-      <table style="border: none;">
-        {% if book.series_title %}<tr><td class="muted">Series</td><td>{{ book.series_title }}{% if book.series_sequence %}, Book {{ book.series_sequence }}{% endif %}</td></tr>{% endif %}
-        <tr><td class="muted">Runtime</td><td>{{ (book.runtime_minutes // 60) }}h {{ (book.runtime_minutes % 60) }}m</td></tr>
-        {% if book.rating_average %}<tr><td class="muted">Rating</td><td>{{ "%.1f"|format(book.rating_average) }} / 5</td></tr>{% endif %}
-        {% if book.purchase_date %}<tr><td class="muted">Purchased</td><td>{{ book.purchase_date.strftime('%Y-%m-%d') }}</td></tr>{% endif %}
-        {% if book.price_amount %}<tr><td class="muted">List price</td><td>{{ "%.2f"|format(book.price_amount) }} {{ book.price_currency }}</td></tr>{% endif %}
-      </table>
+      <dl class="detail-dl">
+        {% if book.series_title %}<dt class="muted">Series</dt><dd>{{ book.series_title }}{% if book.series_sequence %}, Book {{ book.series_sequence }}{% endif %}</dd>{% endif %}
+        <dt class="muted">Runtime</dt><dd>{{ (book.runtime_minutes // 60) }}h {{ (book.runtime_minutes % 60) }}m</dd>
+        {% if book.rating_average %}<dt class="muted">Rating</dt><dd>{{ "%.1f"|format(book.rating_average) }} / 5</dd>{% endif %}
+        {% if book.purchase_date %}<dt class="muted">Purchased</dt><dd>{{ book.purchase_date.strftime('%Y-%m-%d') }}</dd>{% endif %}
+        {% if book.price_amount %}<dt class="muted">List price</dt><dd>{{ "%.2f"|format(book.price_amount) }} {{ book.price_currency }}</dd>{% endif %}
+      </dl>
 
       {% if book.description %}<p style="margin-top: 1rem;">{{ book.description }}</p>{% endif %}
     </div>

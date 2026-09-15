@@ -1,14 +1,11 @@
 <div id="storefront-bundles">
-  <p class="muted">
-    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% else %}Not refreshed yet{% endif %}
-  </p>
+  {% set ns = namespace(any_items=false) %}
   {% for key, label in category_labels %}
   {% set items = by_category.get(key, []) %}
+  {% if items %}
+  {% set ns.any_items = true %}
   <div class="card">
     <h2>{{ label }}</h2>
-    {% if not items %}
-      <p class="muted">No {{ label|lower }} bundles currently listed.</p>
-    {% else %}
     <div class="bundle-grid">
       {% for b in items %}
       <div class="bundle-tile">
@@ -27,9 +24,12 @@
       </div>
       {% endfor %}
     </div>
-    {% endif %}
   </div>
+  {% endif %}
   {% endfor %}
+  {% if not ns.any_items %}
+  <p class="muted">Nothing currently listed for sale, in any category.</p>
+  {% endif %}
 </div>
 
 <script>
@@ -73,6 +73,11 @@
     }
 
     tick();
-    window.__humbleCountdownInterval = setInterval(tick, 1000);
+    // Several tiles can be counting down on this page at once — respecting
+    // prefers-reduced-motion means updating far less often (still accurate,
+    // just not visibly "alive" every second) rather than not updating at
+    // all, since the remaining time is real information, not decoration.
+    const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.__humbleCountdownInterval = setInterval(tick, reducedMotion ? 60000 : 1000);
   })();
 </script>

@@ -8,6 +8,9 @@
     <button type="submit" class="secondary">Refresh</button>
     <span class="muted htmx-indicator">Refreshing&hellip;</span>
   </form>
+  <span class="muted">
+    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% else %}Not refreshed yet{% endif %}
+  </span>
 </div>
 
 {% include "home/_bundles.html" %}
