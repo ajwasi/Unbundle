@@ -1,6 +1,6 @@
 <div id="audible-content">
   {% if audible_status == "error" %}
-  <p style="color: var(--error);">{{ audible_error }}</p>
+  <p class="text-error">{{ audible_error }}</p>
   {% endif %}
 
   {% if audible_status != "not_configured" %}
@@ -12,8 +12,9 @@
   <div class="card">
     <h2>Owned Books ({{ book_count }})</h2>
     {% if books %}
+    <div class="table-scroll">
     <table>
-      <thead><tr><th></th><th>Title</th><th>Author</th><th>Series</th><th>Runtime</th><th>Purchased</th><th>Price</th><th>Rating</th><th></th></tr></thead>
+      <thead><tr><th></th><th scope="col">Title</th><th scope="col">Author</th><th scope="col">Series</th><th scope="col">Runtime</th><th scope="col">Purchased</th><th scope="col">Price</th><th scope="col">Rating</th><th></th></tr></thead>
       <tbody>
         {% for b in books %}
         <tr class="{{ 'audible-row-credit' if not is_owned(b.benefit_id) }}">
@@ -30,6 +31,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <p class="muted">No books loaded yet — click Refresh.</p>
     {% endif %}

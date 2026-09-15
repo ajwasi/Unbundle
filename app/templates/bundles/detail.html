@@ -38,8 +38,9 @@
     Ownership comes from your synced <a href="/steam">Steam</a>/<a href="/gog">GOG</a>
     libraries — connect them in Settings if this always shows "unknown."
   </p>
-  <table>
-    <thead><tr><th class="table-lead-col"></th><th>Key</th><th>Platform</th><th>Revealed on Humble</th><th>Ownership</th></tr></thead>
+  <div class="table-scroll">
+  <table class="stacked-cell-table">
+    <thead><tr><th class="table-lead-col"></th><th scope="col">Key</th><th scope="col">Platform</th><th scope="col">Revealed on Humble</th><th scope="col">Ownership</th></tr></thead>
     <tbody>
       {% for e in entitlements %}
       <tr>
@@ -74,5 +75,6 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endblock %}
