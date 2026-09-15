@@ -3,6 +3,7 @@ Alembic's autogenerate and for Base.metadata.create_all() in tests.
 """
 
 from app.models.account_settings import AccountSettings
+from app.models.api_token import ApiToken
 from app.models.audible_book import AudibleBook
 from app.models.audible_pdf_download import AudiblePdfDownload
 from app.models.backup_settings import BackupSettings
@@ -18,7 +19,7 @@ from app.models.steam_game import SteamGame
 from app.models.sync_run import SyncRun
 
 __all__ = [
-    "AccountSettings", "AudibleBook", "AudiblePdfDownload", "BackupSettings", "Bundle", "BundleEntitlement",
+    "AccountSettings", "ApiToken", "AudibleBook", "AudiblePdfDownload", "BackupSettings", "Bundle", "BundleEntitlement",
     "Credential", "Download", "DownloadDestination", "DownloadJob", "DownloadSettings", "GogGame", "SteamGame",
     "SyncRun",
 ]

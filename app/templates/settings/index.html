@@ -138,11 +138,17 @@
   <p class="muted">
     FastAPI generates interactive API documentation for every route this app exposes.
     It's the same login-protected session as the rest of the app — open one of these in
-    a browser tab where you're already logged in.
+    a browser tab where you're already logged in. For scripts and other non-browser
+    clients, create a token below and send it as an
+    <code>Authorization: Bearer &lt;token&gt;</code> header instead — it can reach every
+    route a logged-in session can, with no CSRF token needed.
   </p>
   <div class="toolbar" style="margin-top: 0;">
     <a href="/docs" target="_blank" rel="noopener">Swagger UI (/docs)</a>
     <a href="/redoc" target="_blank" rel="noopener">ReDoc (/redoc)</a>
+  </div>
+  <div id="api-card-body" style="margin-top: 0.75rem;">
+    {% include "settings/_api_form.html" %}
   </div>
 </div>
 {% endblock %}

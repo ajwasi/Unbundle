@@ -1,0 +1,29 @@
+name: Tests
+
+# Runs the suite on every push to main and every PR — separate from
+# docker-publish.yml, which only triggers on a version tag and keeps its
+# own embedded test gate (GitHub Actions has no cross-workflow `needs:`,
+# so that gate can't be pointed at this workflow instead).
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12" # matches the Dockerfile's base image
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" # SQLite only — the suite never touches Postgres, see conftest.py
+
+      - name: Run tests
+        run: pytest

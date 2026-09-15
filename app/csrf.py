@@ -37,6 +37,11 @@ def ensure_csrf_cookie(request: Request) -> str:
 
 
 async def require_csrf(request: Request) -> None:
+    # A bearer-token-authed request (see deps.py's AuthMiddleware) isn't a
+    # browser carrying the victim's cookie — there's no confused-deputy
+    # scenario here for a double-submit cookie to defend against.
+    if getattr(request.state, "api_token_authed", False):
+        return
     cookie_token = request.cookies.get(COOKIE_NAME)
     submitted = request.headers.get(HEADER_NAME)
     if submitted is None:

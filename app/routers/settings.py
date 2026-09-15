@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
-from app import accounts, applog, backup
+from app import accounts, api_tokens, applog, backup
 from app.cli import _set_password
 from app.config import settings
 from app.connectors import audible_connector, gog_connector, steam_connector
@@ -16,6 +16,7 @@ from app.connectors.humble_connector import HumbleConnector
 from app.csrf import require_csrf
 from app.db import SessionLocal
 from app.deps import get_db
+from app.models.api_token import ApiToken
 from app.models.credential import (
     SOURCE_AUDIBLE,
     SOURCE_GOG,
@@ -139,6 +140,13 @@ def _oidc_context(request: Request, db: Session, oidc_error: str | None = None) 
     }
 
 
+def _api_context(db: Session, new_token_plaintext: str | None = None) -> dict:
+    return {
+        "api_tokens": db.query(ApiToken).order_by(ApiToken.created_at.desc()).all(),
+        "new_token_plaintext": new_token_plaintext,
+    }
+
+
 def _backup_context(db: Session, backup_error: str | None = None) -> dict:
     cfg = backup.get_or_create_backup_settings(db)
     return {
@@ -171,6 +179,7 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     context.update(_gog_context(db))
     context.update(_audible_context(db))
     context.update(_backup_context(db))
+    context.update(_api_context(db))
     return templates.TemplateResponse(request, "settings/index.html", context)
 
 
@@ -578,6 +587,21 @@ async def restore_backup_route(request: Request, backup_file: UploadFile = File(
     finally:
         fresh_db.close()
     return templates.TemplateResponse(request, "settings/_backup_form.html", context)
+
+
+@router.post("/api-tokens", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def create_api_token(request: Request, name: str = Form(""), db: Session = Depends(get_db)):
+    name = name.strip()
+    new_token_plaintext = None
+    if name:
+        _row, new_token_plaintext = api_tokens.create_token(db, name)
+    return templates.TemplateResponse(request, "settings/_api_form.html", _api_context(db, new_token_plaintext))
+
+
+@router.post("/api-tokens/{token_id}/delete", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def delete_api_token(request: Request, token_id: int, db: Session = Depends(get_db)):
+    api_tokens.delete_token(db, token_id)
+    return templates.TemplateResponse(request, "settings/_api_form.html", _api_context(db))
 
 
 @router.get("/logs", response_class=HTMLResponse)

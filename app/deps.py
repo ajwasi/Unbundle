@@ -1,8 +1,8 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
-from app import accounts
+from app import accounts, api_tokens
 from app.config import settings
 from app.csrf import COOKIE_NAME as CSRF_COOKIE_NAME, ensure_csrf_cookie
 from app.db import SessionLocal, get_db  # get_db re-exported: routers do `db: Session = Depends(get_db)`
@@ -60,6 +60,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
     this app's original default, per explicit user decision (see
     routers/auth.py's /setup docstring for the full reasoning).
 
+    An `Authorization: Bearer <token>` header (see app/api_tokens.py, created
+    from Settings) is an alternate, equally-privileged path in for a
+    non-browser client — checked first, and its own failure mode (401 JSON,
+    not a redirect) rather than falling back to the cookie check, since a
+    client that already sent a bearer token is unambiguously not a browser.
+
     request.state.auth_configured is still stashed here so base.html's warning
     banner and main.py's startup check keep working as a defense-in-depth
     fallback (harmless, and covers the pre-/setup "unknown" instant a process
@@ -107,16 +113,29 @@ class AuthMiddleware(BaseHTTPMiddleware):
             auth_configured = is_auth_configured(db)
             request.state.auth_configured = auth_configured
             request.state.identity_label = None  # overwritten below once a session is confirmed valid
+            request.state.api_token_authed = False  # overwritten below on a valid bearer token
 
             if not auth_configured and not request.url.path.startswith("/setup"):
                 return _finish(RedirectResponse(url="/setup", status_code=303))
 
             if not request.url.path.startswith(_PUBLIC_PATH_PREFIXES):
-                token = request.cookies.get(SESSION_COOKIE_NAME)
-                session_payload = decode_session_token(token)
-                if session_payload is None:
-                    return _finish(RedirectResponse(url=f"/login?next={request.url.path}", status_code=303))
-                request.state.identity_label = accounts.resolve_identity_label(session_payload.get("identity"), db)
+                auth_header = request.headers.get("Authorization", "")
+                if auth_header.startswith("Bearer "):
+                    # An explicit bearer token unambiguously marks this as a
+                    # non-browser client — on failure it gets a 401, never the
+                    # redirect-to-/login a browser would get, which would be
+                    # meaningless to a script anyway.
+                    token_row = api_tokens.verify_token(db, auth_header[len("Bearer "):])
+                    if token_row is None:
+                        return _finish(JSONResponse({"detail": "Invalid or missing API token"}, status_code=401))
+                    request.state.identity_label = f"API token: {token_row.name}"
+                    request.state.api_token_authed = True
+                else:
+                    token = request.cookies.get(SESSION_COOKIE_NAME)
+                    session_payload = decode_session_token(token)
+                    if session_payload is None:
+                        return _finish(RedirectResponse(url=f"/login?next={request.url.path}", status_code=303))
+                    request.state.identity_label = accounts.resolve_identity_label(session_payload.get("identity"), db)
         finally:
             db.close()
 
