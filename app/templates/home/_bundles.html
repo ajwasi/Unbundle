@@ -56,10 +56,10 @@
       const hours = Math.floor((totalSeconds % 86400) / 3600);
       const minutes = Math.floor((totalSeconds % 3600) / 60);
       const seconds = totalSeconds % 60;
-      // Seconds are always shown, even with weeks left — most real bundles run for
-      // many days, and without a per-second-changing digit the countdown looks
-      // completely frozen even though it's ticking correctly underneath.
-      if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s left`;
+      // Seconds are dropped once more than a day remains — a per-second-
+      // changing digit on a tile that's realistically not getting checked
+      // again for hours is just visual noise, not useful precision.
+      if (days > 0) return `${days}d ${hours}h ${minutes}m left`;
       if (hours > 0) return `${hours}h ${minutes}m ${seconds}s left`;
       if (minutes > 0) return `${minutes}m ${seconds}s left`;
       return `${seconds}s left`;
