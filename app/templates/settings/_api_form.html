@@ -1,0 +1,41 @@
+{% if new_token_plaintext %}
+<div class="card" style="border-color: var(--success); margin-bottom: 0.75rem;">
+  <strong>Token created — copy it now, it won't be shown again:</strong>
+  <div class="form-row" style="margin-top: 0.4rem;">
+    <code id="new-api-token" style="flex: 1; overflow-wrap: anywhere;">{{ new_token_plaintext }}</code>
+    <button type="button" class="secondary"
+            onclick="var t = document.getElementById('new-api-token').textContent; if (navigator.clipboard) { navigator.clipboard.writeText(t); this.textContent = 'Copied!'; }">Copy</button>
+  </div>
+</div>
+{% endif %}
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th scope="col">Name</th><th scope="col">Created</th><th scope="col">Last used</th><th></th></tr></thead>
+  <tbody>
+    {% for t in api_tokens %}
+    <tr>
+      <td>{{ t.name }}</td>
+      <td>{{ t.created_at.strftime('%Y-%m-%d') }}</td>
+      <td>{% if t.last_used_at %}{{ t.last_used_at | time_since }}{% else %}Never{% endif %}</td>
+      <td>
+        <form hx-post="/settings/api-tokens/{{ t.id }}/delete" hx-target="#api-card-body" hx-swap="innerHTML"
+              hx-confirm="Revoke token '{{ t.name }}'? Anything using it will stop working immediately.">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+          <button type="submit" class="secondary">Revoke</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">No API tokens yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<form hx-post="/settings/api-tokens" hx-target="#api-card-body" hx-swap="innerHTML" class="form-row" style="margin-top: 0.75rem;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <label for="api-token-name" class="sr-only">Token name</label>
+  <input id="api-token-name" type="text" name="name" placeholder="Token name (e.g. Homelab script)" required style="flex: 1;">
+  <button type="submit">Create token</button>
+</form>

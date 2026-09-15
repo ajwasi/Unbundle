@@ -58,7 +58,9 @@ Docker-based, no external services required beyond the ones you choose to connec
   verified working. An emergency CLI recovery tool (see below) covers both "locked
   out of SSO" and "forgot the password." The top-right user menu has your display
   identity, a link to change your password/email (Settings), the dark-mode toggle,
-  and Log out.
+  and Log out. For scripts and other non-browser clients, the API card in Settings
+  can create bearer tokens — equally privileged to a logged-in session, revocable
+  individually, shown once at creation and never stored in recoverable form.
 - **Backups** — automatic daily backups on a schedule you set from Settings (how many
   to keep, what time UTC), a manual "Back up now," one-click download of any existing
   backup, and upload-to-restore for disaster recovery. See Backups below.
@@ -224,7 +226,11 @@ top of every page:
   latter so a stuck browser tab or script can't get this app's outbound IP rate-limited
   or blocked by Humble/Steam/GOG.
 - Every mutating request requires a CSRF token (double-submit cookie) in addition to
-  `SameSite=Lax` on the session cookie.
+  `SameSite=Lax` on the session cookie — except a request authenticated via an API
+  token (Settings > API), where CSRF doesn't apply (there's no browser/cookie
+  involved to forge). A token is exactly as privileged as a logged-in session, with
+  no scoping or roles (this is a single-user app) — treat one exactly like a
+  password, and revoke it from Settings if it's ever exposed.
 - This app talks to Humble's, Steam's, and GOG's real APIs using your real credentials.
   Humble's API is undocumented (`app/connectors/humble_connector.py` parses fields
   based on humble-cli's own source and widely-used reverse-engineered shapes); GOG's is
