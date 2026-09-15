@@ -1,5 +1,5 @@
 <table>
-  <thead><tr><th>Name</th><th>Formats</th><th>Tag</th><th>Path</th><th></th></tr></thead>
+  <thead><tr><th scope="col">Name</th><th scope="col">Formats</th><th scope="col">Tag</th><th scope="col">Path</th><th></th></tr></thead>
   <tbody>
     {% for dest in destinations %}
     <tr>
@@ -26,14 +26,17 @@
 <form hx-post="/downloads/destinations" hx-target="#download-destinations" hx-swap="innerHTML"
       style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 0.75rem;">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <input type="text" name="name" placeholder="Name (e.g. Comics)" required style="flex: 1; min-width: 10rem;">
-  <input type="text" name="formats" placeholder="Formats, comma-separated (blank = any)" style="flex: 1; min-width: 12rem;">
+  <label for="dest-name" class="sr-only">Destination name</label>
+  <input id="dest-name" type="text" name="name" placeholder="Name (e.g. Comics)" required style="flex: 1; min-width: 10rem;">
+  <label for="dest-formats" class="sr-only">Formats</label>
+  <input id="dest-formats" type="text" name="formats" placeholder="Formats, comma-separated (blank = any)" style="flex: 1; min-width: 12rem;">
   <select name="tag_id">
     <option value="">(any tag)</option>
     {% for t in all_tags %}
     <option value="{{ t.id }}">{{ t.name }}</option>
     {% endfor %}
   </select>
-  <input type="text" name="path" placeholder="/mnt/library/comics" required style="flex: 2; min-width: 14rem;">
+  <label for="dest-path" class="sr-only">Destination path</label>
+  <input id="dest-path" type="text" name="path" placeholder="/mnt/library/comics" required style="flex: 2; min-width: 14rem;">
   <button type="submit">Add destination</button>
 </form>

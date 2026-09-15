@@ -21,7 +21,7 @@ import re
 import httpx
 
 from app.config import settings
-from app.connectors.base import CredentialStatus
+from app.connectors.types import CredentialStatus
 
 BASE_URL = "https://api.steampowered.com"
 _STEAM_ID_RE = re.compile(r"^\d{17}$")

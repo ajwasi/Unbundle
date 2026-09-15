@@ -18,7 +18,8 @@
         style="display: flex; gap: 0.75rem; flex: 1; margin: 0;">
     <input type="hidden" name="sort" value="{{ sort }}">
     <input type="hidden" name="dir" value="{{ dir }}">
-    <input type="search" name="q" placeholder="Search bundle name..." value="{{ q }}" style="flex: 1;">
+    <label for="bundle-search" class="sr-only">Search bundle name</label>
+    <input id="bundle-search" type="search" name="q" placeholder="Search bundle name..." value="{{ q }}" style="flex: 1;">
     <select name="category">
       <option value="">All categories</option>
       {% for c in categories %}
@@ -30,7 +31,8 @@
       <option value="unredeemed" {{ "selected" if redeemed == "unredeemed" else "" }}>Has unredeemed</option>
       <option value="redeemed" {{ "selected" if redeemed == "redeemed" else "" }}>Fully redeemed</option>
     </select>
-    <input type="number" name="min_items" placeholder="Min items" min="0"
+    <label for="bundle-min-items" class="sr-only">Minimum items</label>
+    <input id="bundle-min-items" type="number" name="min_items" placeholder="Min items" min="0"
            value="{{ min_items if min_items is not none else '' }}" style="width: 8rem;">
     <select name="tag_id">
       <option value="">All tags</option>

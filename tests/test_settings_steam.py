@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, patch
 
-from app.connectors.base import CredentialStatus
+from app.connectors.types import CredentialStatus
 from app.models.credential import SOURCE_STEAM, STATUS_ERROR, STATUS_OK, Credential
 from app.security import decrypt_json
 

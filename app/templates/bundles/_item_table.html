@@ -21,15 +21,15 @@
   </div>
   {% endif %}
 
-  <div style="overflow-x: auto;">
+  <div class="table-scroll">
     <table>
       <thead>
         <tr>
           <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#item-form .item-check').forEach(c => c.checked = this.checked); updateSelectedButton();"></th>
-          <th>Item</th>
-          {% for key, label in all_formats %}<th>{{ label }}</th>{% endfor %}
-          <th>Total Size</th>
-          <th>Status</th>
+          <th scope="col">Item</th>
+          {% for key, label in all_formats %}<th scope="col">{{ label }}</th>{% endfor %}
+          <th scope="col">Total Size</th>
+          <th scope="col">Status</th>
         </tr>
       </thead>
       <tbody>

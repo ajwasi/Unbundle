@@ -1,4 +1,4 @@
-{% if account_error %}<p style="color: var(--error);">{{ account_error }}</p>{% endif %}
+{% if account_error %}<p class="text-error">{{ account_error }}</p>{% endif %}
 
 <form hx-post="/settings/account" hx-target="#account-card-body" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">

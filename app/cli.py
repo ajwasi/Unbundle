@@ -36,7 +36,7 @@ def _disable_oidc() -> bool:
     directly. Returns whether OIDC was actually configured (and thus changed)."""
     db = SessionLocal()
     try:
-        cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one_or_none()
+        cred = Credential.get(db, SOURCE_OIDC)
         if not cred or not cred.encrypted_payload:
             return False
         payload = decrypt_json(cred.encrypted_payload)
@@ -63,10 +63,7 @@ def _set_password(password: str) -> None:
     directly without going through the interactive getpass prompt."""
     db = SessionLocal()
     try:
-        cred = db.query(Credential).filter(Credential.source == SOURCE_APP_AUTH).one_or_none()
-        if cred is None:
-            cred = Credential(source=SOURCE_APP_AUTH)
-            db.add(cred)
+        cred = Credential.get_or_create(db, SOURCE_APP_AUTH)
         cred.encrypted_payload = encrypt_json({"password_hash": hash_password(password)})
         cred.status = STATUS_OK
         cred.last_error = None

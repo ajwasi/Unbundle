@@ -8,7 +8,7 @@
     continuing — this is the only thing standing between anyone who can reach this
     app and your full Humble/Steam/GOG library.
   </p>
-  {% if error %}<p style="color: var(--error);">{{ error }}</p>{% endif %}
+  {% if error %}<p class="text-error">{{ error }}</p>{% endif %}
 
   <form method="post" action="/setup" id="setup-form">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">

@@ -1,10 +1,9 @@
+{% from "_macros.html" import status_badge %}
 <p>
   Status:
-  <span class="badge badge-{{ 'ok' if audible_status == 'ok' else 'error' if audible_status == 'error' else 'not-configured' }}">
-    {{ audible_status | replace('_', ' ') }}
-  </span>
+  {{ status_badge(audible_status) }}
 </p>
-{% if audible_error %}<p style="color: var(--error);">{{ audible_error }}</p>{% endif %}
+{% if audible_error %}<p class="text-error">{{ audible_error }}</p>{% endif %}
 
 <div class="toolbar" style="justify-content: flex-start;">
   <button type="button" onclick="document.getElementById('audible-login-modal').showModal()">
