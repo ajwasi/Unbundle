@@ -48,6 +48,23 @@ def test_tags_page_shows_bundle_and_item_counts(authed_client, db, make_bundle):
     assert "Favorites" in resp.text
 
 
+def test_tags_page_rename_form_is_hidden_behind_an_explicit_toggle(authed_client, db):
+    # Regression: the rename input used to be permanently visible/editable for
+    # every row. It's now revealed only after clicking "Rename", matching the
+    # rest of the app's "gate mutating actions behind an explicit click"
+    # pattern — verified here via the form's initial display:none, since the
+    # click-to-reveal itself is client-side JS not exercised by this
+    # server-rendered test.
+    tag = Tag(name="Old Name")
+    db.add(tag)
+    db.commit()
+
+    resp = authed_client.get("/tags")
+    assert f'id="tag-name-form-{tag.id}"' in resp.text
+    assert "display: none" in resp.text
+    assert ">Rename<" in resp.text
+
+
 def test_rename_tag(authed_client, db):
     tag = Tag(name="Old Name")
     db.add(tag)

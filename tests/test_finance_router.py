@@ -49,6 +49,17 @@ def test_finance_page_shows_total_spent(authed_client, make_bundle):
     assert "$15.50" in resp.text
 
 
+def test_finance_charts_use_a_shrinkable_min_width_on_narrow_viewports(authed_client, make_bundle):
+    # Regression: a bare min-width: 320px exceeds the ~287px of content width
+    # a 375px phone actually has inside main's + .card's padding, forcing
+    # horizontal scroll. min(320px, 100%) keeps the same floor on desktop
+    # while letting the chart shrink to fit on mobile.
+    make_bundle(gamekey="GK1", order=make_order(amount_spent=10.0, created="2024-01-01T00:00:00"))
+    resp = authed_client.get("/finance")
+    assert "min-width: 320px;" not in resp.text
+    assert "min-width: min(320px, 100%);" in resp.text
+
+
 def test_finance_year_filter(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(amount_spent=10.0, created="2023-06-01T00:00:00"))
     make_bundle(gamekey="GK2", order=make_order(amount_spent=20.0, created="2024-06-01T00:00:00"))

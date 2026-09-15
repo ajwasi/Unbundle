@@ -150,6 +150,17 @@ def test_setup_page_shows_form_when_not_configured(client, monkeypatch):
     assert 'name="confirm_password"' in resp.text
 
 
+def test_setup_page_has_client_side_password_match_validation(client, monkeypatch):
+    # The server has always rejected a mismatch (test_setup_rejects_mismatched_passwords
+    # below) — this checks the page also ships the inline JS that catches it
+    # before a round trip, since that JS itself isn't exercised by this
+    # server-rendered test.
+    monkeypatch.setattr("app.config.settings.app_password", "")
+    resp = client.get("/setup")
+    assert 'id="setup-password-mismatch"' in resp.text
+    assert "password.value === confirm.value" in resp.text
+
+
 def test_setup_page_redirects_to_root_when_already_configured(client):
     resp = client.get("/setup", follow_redirects=False)
     assert resp.status_code == 303

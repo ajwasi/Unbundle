@@ -417,6 +417,33 @@ def test_bundle_detail_tables_share_a_leading_column_width_for_alignment(authed_
     assert resp.text.count('class="table-lead-col"') >= 2
 
 
+def test_bundle_detail_download_selected_starts_disabled_until_something_is_checked(authed_client, make_bundle):
+    # Regression: "Download Selected" used to be a single always-enabled button
+    # where an empty selection silently meant "download everything" — easy to
+    # trigger by accident. It's now paired with an explicit "Download All"
+    # button and starts disabled until the user actually checks something
+    # (enabled client-side by app/templates/bundles/_item_table.html's own
+    # inline script, which isn't exercised by this server-rendered test).
+    make_bundle(gamekey="GK1")
+
+    resp = authed_client.get("/bundles/GK1")
+
+    assert 'id="download-selected-btn" disabled' in resp.text
+    assert "nothing checked = everything" not in resp.text
+
+
+def test_bundle_detail_shows_explicit_download_all_button_with_item_count(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[
+        make_subproduct("Item One", machine_name="one"),
+        make_subproduct("Item Two", machine_name="two"),
+    ]))
+
+    resp = authed_client.get("/bundles/GK1")
+
+    assert 'id="download-all-btn"' in resp.text
+    assert "Download All (2 items)" in resp.text
+
+
 def test_bundle_detail_shows_steam_platform_and_ownership(authed_client, make_bundle, db):
     import json
 

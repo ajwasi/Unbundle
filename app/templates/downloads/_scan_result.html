@@ -10,7 +10,7 @@
 
 {% if result.matched %}
 {% if result.matched|length > preview_limit %}
-<p class="muted">Showing the first {{ preview_limit }} of {{ result.matched|length }} matches. Leave every box unchecked and click Commit to include all {{ result.matched|length }} — checking "select all" only selects these {{ preview_limit }} shown, not the rest. Committing removes matched items from this list (they no longer need review), so the next batch shows up automatically once you commit again.</p>
+<p class="muted">Showing the first {{ preview_limit }} of {{ result.matched|length }} matches. Committing removes matched items from this list (they no longer need review), so the next batch shows up automatically once you commit again.</p>
 {% endif %}
 <form id="scan-commit-form" hx-post="/downloads/scan/commit" hx-target="#scan-result" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
@@ -19,7 +19,7 @@
   <table class="scan-matched-table">
     <thead>
       <tr>
-        <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#scan-commit-form .scan-item-check').forEach(c => c.checked = this.checked)" title="{% if result.matched|length > preview_limit %}Selects only the {{ preview_limit }} rows shown here, not all {{ result.matched|length }} matches{% else %}Select all{% endif %}"></th>
+        <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#scan-commit-form .scan-item-check').forEach(c => c.checked = this.checked); updateCommitSelectedButton();" title="{% if result.matched|length > preview_limit %}Selects only the {{ preview_limit }} rows shown here, not all {{ result.matched|length }} matches{% else %}Select all{% endif %}"></th>
         <th>File</th><th>Bundle</th><th>Item</th><th>Format</th><th>Found at</th>
       </tr>
     </thead>
@@ -37,10 +37,21 @@
     </tbody>
   </table>
   <div class="toolbar" style="margin-top: 0.75rem;">
-    <button type="submit">Commit selected</button>
-    <span class="muted">(nothing checked = all {{ result.matched|length }} match(es))</span>
+    <button type="submit" id="commit-selected-btn" disabled>Commit Selected</button>
+    <button type="submit" id="commit-all-btn"
+            onclick="document.querySelectorAll('#scan-commit-form .scan-item-check').forEach(function (c) { c.checked = false; })">
+      Commit All ({{ result.matched|length }} match{{ "es" if result.matched|length != 1 else "" }})
+    </button>
   </div>
 </form>
+<script>
+  function updateCommitSelectedButton() {
+    var form = document.getElementById('scan-commit-form');
+    var btn = document.getElementById('commit-selected-btn');
+    btn.disabled = form.querySelectorAll('.scan-item-check:checked').length === 0;
+  }
+  document.getElementById('scan-commit-form').addEventListener('change', updateCommitSelectedButton);
+</script>
 {% endif %}
 
 {% if result.ambiguous %}

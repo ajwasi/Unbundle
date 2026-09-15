@@ -260,6 +260,35 @@ def test_scan_commit_matched_table_has_checkbox_column(authed_client, db, make_b
     assert 'class="scan-item-check"' in resp.text
 
 
+def test_scan_preview_commit_selected_button_starts_disabled(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    # Regression: "Commit selected" used to be a single always-enabled button
+    # where an empty selection silently committed every match (including ones
+    # beyond the previewed page) — easy to trigger by accident. It's now
+    # paired with an explicit "Commit All" button and starts disabled until
+    # the user actually checks something (enabled client-side by this
+    # template's own inline script, which isn't exercised by this
+    # server-rendered test).
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
+    (tmp_path / "book.epub").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": str(tmp_path)})
+    assert 'id="commit-selected-btn" disabled' in resp.text
+    assert "nothing checked = all" not in resp.text
+
+
+def test_scan_preview_shows_explicit_commit_all_button_with_match_count(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Book One", "machine_name": "book-one", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book-one.epub"}}]}]}]))
+    make_bundle(gamekey="GK2", order=make_order(subproducts=[{"human_name": "Book Two", "machine_name": "book-two", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book-two.epub"}}]}]}]))
+    (tmp_path / "book-one.epub").write_bytes(b"x" * 5)
+    (tmp_path / "book-two.epub").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": str(tmp_path)})
+    assert 'id="commit-all-btn"' in resp.text
+    assert "Commit All (2 matches)" in resp.text
+
+
 def test_scan_allows_a_subdirectory_of_the_configured_root(authed_client, db, make_bundle, tmp_path, monkeypatch):
     monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
     make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))

@@ -4,7 +4,7 @@
 </p>
 
 <div class="card" style="display: flex; gap: 2rem; flex-wrap: wrap;">
-  <div style="flex: 2; min-width: 320px;">
+  <div style="flex: 2; min-width: min(320px, 100%);">
     <h3 style="margin-top: 0;">Spending by {{ "month" if granularity == "month" else "year" }}</h3>
     {% if chart_labels %}
     <canvas id="time-chart" height="220"></canvas>
@@ -12,7 +12,7 @@
     <p class="muted">No data to chart.</p>
     {% endif %}
   </div>
-  <div style="flex: 1; min-width: 220px;">
+  <div style="flex: 1; min-width: min(220px, 100%);">
     <h3 style="margin-top: 0;">By type</h3>
     {% if category_labels %}
     <canvas id="category-chart" height="220"></canvas>
