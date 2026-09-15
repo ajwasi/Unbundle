@@ -6,39 +6,15 @@
 </p>
 {% if gog_error %}<p style="color: var(--error);">{{ gog_error }}</p>{% endif %}
 
-{% if demo_mode %}
-<p class="muted">
-  Demo mode is on — this app is talking to a fake backend, not the real GOG, so
-  there's no real login to do. Just click Connect below.
-</p>
-<form hx-post="/settings/gog" hx-target="#gog-card-body" hx-swap="innerHTML">
-  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <input type="hidden" name="pasted_code" value="demo">
-  <button type="submit">Connect with demo data</button>
-</form>
-{% else %}
-<ol class="muted" style="padding-left: 1.2rem;">
-  <li><a href="{{ gog_login_url }}" target="_blank" rel="noopener">Log in to GOG &rarr;</a> (opens in a new tab)</li>
-  <li>After logging in, GOG shows a mostly-blank page. Copy the full URL from your
-      browser's address bar — it will contain <code>on_login_success</code> and a
-      <code>code=</code> value.</li>
-  <li>Paste it below right away and submit — the code expires quickly, so if this fails,
-      just repeat step 1 for a fresh one.</li>
-</ol>
-
-<form hx-post="/settings/gog" hx-target="#gog-card-body" hx-swap="innerHTML">
-  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <div style="display: flex; gap: 0.5rem; max-width: 480px;">
-    <input type="text" name="pasted_code" placeholder="Paste the redirected URL or code here" style="flex: 1;">
-    <button type="submit">Connect</button>
-  </div>
-</form>
-{% endif %}
-
-{% if gog_status != 'not_configured' %}
-<form hx-post="/settings/gog/disconnect" hx-target="#gog-card-body" hx-swap="innerHTML"
-      hx-confirm="Disconnect GOG? This removes the saved refresh token; already-matched ownership data is kept." style="margin-top: 0.6rem;">
-  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <button type="submit" class="secondary">Disconnect</button>
-</form>
-{% endif %}
+<div class="toolbar" style="justify-content: flex-start;">
+  <button type="button" onclick="document.getElementById('gog-login-modal').showModal()">
+    {{ 'Reconnect' if gog_status != 'not_configured' else 'Connect' }}
+  </button>
+  {% if gog_status != 'not_configured' %}
+  <form hx-post="/settings/gog/disconnect" hx-target="#gog-modal-content" hx-swap="innerHTML"
+        hx-confirm="Disconnect GOG? This removes the saved refresh token; already-matched ownership data is kept." style="margin: 0;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="secondary">Disconnect</button>
+  </form>
+  {% endif %}
+</div>

@@ -12,6 +12,39 @@ def test_settings_page_shows_gog_card_with_login_link(authed_client):
     assert 'name="pasted_code"' in resp.text
 
 
+def test_settings_page_renders_the_gog_login_dialog(authed_client):
+    # The paste-URL flow lives in a floating <dialog>, opened from a plain
+    # button in the card rather than showing full reconnect instructions on
+    # every page load regardless of connection status — matches Audible's
+    # own dialog pattern.
+    resp = authed_client.get("/settings")
+    assert '<dialog id="gog-login-modal">' in resp.text
+    assert 'id="gog-modal-content"' in resp.text
+    assert "showModal()" in resp.text
+
+
+def test_gog_actions_oob_update_the_card_behind_the_modal(authed_client, db):
+    with patch("app.routers.settings.gog_connector.exchange_code", new=AsyncMock(return_value={"access_token": "AT", "refresh_token": "RT"})):
+        resp = authed_client.post("/settings/gog", data={"pasted_code": "abc123"})
+    assert 'id="gog-card-body" hx-swap-oob="true"' in resp.text
+
+
+def test_save_gog_success_shows_connected_as_account_id(authed_client, db):
+    with patch(
+        "app.routers.settings.gog_connector.exchange_code",
+        new=AsyncMock(return_value={"access_token": "AT", "refresh_token": "RT", "user_id": "9999999"}),
+    ):
+        resp = authed_client.post("/settings/gog", data={"pasted_code": "abc123"})
+    assert "Connected to GOG" in resp.text
+    assert "9999999" in resp.text
+
+
+def test_save_gog_success_without_user_id_shows_plain_connected_message(authed_client, db):
+    with patch("app.routers.settings.gog_connector.exchange_code", new=AsyncMock(return_value={"access_token": "AT", "refresh_token": "RT"})):
+        resp = authed_client.post("/settings/gog", data={"pasted_code": "abc123"})
+    assert "Connected to GOG." in resp.text
+
+
 def test_settings_page_shows_demo_shortcut_instead_of_real_login_link_in_demo_mode(authed_client, monkeypatch):
     from app.config import settings
 

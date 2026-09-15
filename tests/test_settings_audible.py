@@ -77,17 +77,30 @@ def test_start_login_shows_login_url_prompt(authed_client, db):
 def test_completed_login_shows_confirmation_in_the_modal(authed_client, db):
     with patch("audible.Authenticator.from_login_external") as mock_from_login:
         mock_from_login.return_value.to_dict.return_value = {"access_token": "AT", "locale_code": "us"}
+        mock_from_login.return_value.customer_info = None  # real Authenticator default — see settings.py's own comment
         authed_client.post("/settings/audible/login", data={"locale": "us"})
         assert _wait_until(lambda: audible_connector.login_result() is not None)
 
         resp = authed_client.get("/settings/audible/login/status")
-    assert "Connected to Audible" in resp.text
+    assert "Connected to Audible." in resp.text
+
+
+def test_completed_login_shows_connected_as_name_when_available(authed_client, db):
+    with patch("audible.Authenticator.from_login_external") as mock_from_login:
+        mock_from_login.return_value.to_dict.return_value = {"access_token": "AT", "locale_code": "us"}
+        mock_from_login.return_value.customer_info = {"name": "Jane Reader", "user_id": "AXXXXXXXXX"}
+        authed_client.post("/settings/audible/login", data={"locale": "us"})
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+
+        resp = authed_client.get("/settings/audible/login/status")
+    assert "Connected to Audible as Jane Reader." in resp.text
 
 
 def test_completed_login_saves_credential_and_clears_pending(authed_client, db):
     with patch("audible.Authenticator.from_login_external") as mock_from_login:
         fake_auth = mock_from_login.return_value
         fake_auth.to_dict.return_value = {"access_token": "AT", "locale_code": "us"}
+        fake_auth.customer_info = None
 
         authed_client.post("/settings/audible/login", data={"locale": "us"})
         assert _wait_until(lambda: audible_connector.login_result() is not None)

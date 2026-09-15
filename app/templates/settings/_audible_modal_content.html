@@ -13,7 +13,7 @@
   </form>
 </div>
 {% elif just_connected %}
-<p>Connected to Audible.</p>
+<p>Connected to Audible{% if audible_connected_as %} as {{ audible_connected_as }}{% endif %}.</p>
 <form method="dialog"><button type="submit" class="secondary">Close</button></form>
 {% else %}
 {% if audible_error %}<p style="color: var(--error);">{{ audible_error }}</p>{% endif %}
