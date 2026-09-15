@@ -15,7 +15,7 @@ from app.connectors.gog_connector import CONTENT_TYPE_GAME
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import SOURCE_GOG, STATUS_ERROR, STATUS_OK, Credential
 from app.models.gog_game import GogGame
-from app.security import decrypt_json, encrypt_json
+from app.security import encrypt_json
 
 
 class NotConnectedError(Exception):
@@ -23,10 +23,7 @@ class NotConnectedError(Exception):
 
 
 def get_gog_credential(db: Session) -> dict | None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none()
-    if cred is None or not cred.encrypted_payload:
-        return None
-    return decrypt_json(cred.encrypted_payload)
+    return Credential.get_payload(db, SOURCE_GOG)
 
 
 def match_entitlements_to_gog(db: Session) -> int:
@@ -85,10 +82,7 @@ def match_entitlements_to_gog(db: Session) -> int:
 
 
 def save_refresh_token(db: Session, refresh_token: str) -> None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none()
-    if cred is None:
-        cred = Credential(source=SOURCE_GOG)
-        db.add(cred)
+    cred = Credential.get_or_create(db, SOURCE_GOG)
     cred.encrypted_payload = encrypt_json({"refresh_token": refresh_token})
     db.commit()
 
@@ -124,8 +118,4 @@ async def refresh_gog_library(db: Session) -> int:
 
 
 def _set_credential_status(db: Session, status: str, error: str | None) -> None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none()
-    if cred:
-        cred.status = status
-        cred.last_error = error
-        db.commit()
+    Credential.set_status(db, SOURCE_GOG, status, error)

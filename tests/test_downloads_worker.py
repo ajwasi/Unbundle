@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.asyncio_utils import _background_tasks
 from app.config import settings
 from app.downloads import paths, worker
 from app.models.download import STATUS_COMPLETED, STATUS_FAILED, Download
@@ -304,19 +305,21 @@ async def test_spawned_download_tasks_are_tracked_until_they_finish(db, make_bun
     # under a busy full-suite run, for a spawned _run_job task getting
     # collected before its own `finally: _running_job_ids.discard(...)` ran,
     # leaving that id stuck for whatever test happened to run next. This locks
-    # in that a reference is held in _background_tasks while a job runs and
-    # released (via task.add_done_callback) once it finishes — not just that
-    # the job completes, which the test above already covers.
+    # in that a reference is held (now in the shared app.asyncio_utils
+    # registry, see its own docstring) while a job runs and released once it
+    # finishes — not just that the job completes, which the test above
+    # already covers.
     bundle = _seed_bundle(make_bundle)
+    before = len(_background_tasks)
     with patch("app.downloads.worker.runner.run_download_job", new=AsyncMock(return_value=(0, "ok"))):
         await worker.start_download(bundle.gamekey, bundle.name, [1], ["EPUB"])
-        assert len(worker._background_tasks) == 1
+        assert len(_background_tasks) == before + 1
 
         for _ in range(100):  # up to 2s, polled rather than a fixed guess
-            if not worker._background_tasks:
+            if len(_background_tasks) == before:
                 break
             await asyncio.sleep(0.02)
-        assert worker._background_tasks == set()
+        assert len(_background_tasks) == before
 
 
 def test_sweep_stale_jobs_marks_running_as_failed(db):

@@ -15,7 +15,6 @@ from app.connectors import steam_connector
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import SOURCE_STEAM, STATUS_ERROR, STATUS_OK, Credential
 from app.models.steam_game import SteamGame
-from app.security import decrypt_json
 
 
 class NotConnectedError(Exception):
@@ -23,10 +22,7 @@ class NotConnectedError(Exception):
 
 
 def get_steam_credential(db: Session) -> dict | None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_STEAM).one_or_none()
-    if cred is None or not cred.encrypted_payload:
-        return None
-    return decrypt_json(cred.encrypted_payload)
+    return Credential.get_payload(db, SOURCE_STEAM)
 
 
 def match_entitlements_to_steam(db: Session) -> int:
@@ -73,8 +69,4 @@ async def refresh_steam_library(db: Session) -> int:
 
 
 def _set_credential_status(db: Session, status: str, error: str | None) -> None:
-    cred = db.query(Credential).filter(Credential.source == SOURCE_STEAM).one_or_none()
-    if cred:
-        cred.status = status
-        cred.last_error = error
-        db.commit()
+    Credential.set_status(db, SOURCE_STEAM, status, error)

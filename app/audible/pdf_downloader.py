@@ -7,19 +7,18 @@ of which applies here. There is no existing plain-httpx-streamed-file-to-disk
 code anywhere else in this app to reuse either — Steam/GOG/Audible's other
 connectors only ever fetch JSON.
 
-Same "module-level background-task set to prevent GC" pattern
-downloads/worker.py documents (_background_tasks there) — an asyncio.Task
-with no other live reference can be garbage-collected mid-run, silently
-killing the download.
+Uses asyncio_utils.spawn_background_task() (the same GC-safety fix
+downloads/worker.py needed) so a download can't be silently killed by the
+task getting garbage-collected mid-run.
 """
 
-import asyncio
 import time
 from datetime import datetime
 
 import httpx
 from sqlalchemy.orm import Session
 
+from app.asyncio_utils import spawn_background_task
 from app.config import settings
 from app.db import SessionLocal
 from app.downloads.paths import sanitize_dir_name
@@ -32,7 +31,6 @@ from app.models.audible_pdf_download import (
     AudiblePdfDownload,
 )
 
-_background_tasks: set[asyncio.Task] = set()
 _active_asins: set[str] = set()
 
 
@@ -58,9 +56,7 @@ def start_download(db: Session, asin: str) -> AudiblePdfDownload:
     db.refresh(job)
 
     _active_asins.add(asin)
-    task = asyncio.create_task(_run(job.id, asin, book.pdf_url, book.title))
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    spawn_background_task(_run(job.id, asin, book.pdf_url, book.title))
     return job
 
 
