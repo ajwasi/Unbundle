@@ -82,21 +82,104 @@ def test_audible_page_shows_ownership_badge(authed_client, db):
     assert "audible-row-credit" in resp.text
 
 
-def test_audible_page_search_matches_title_or_author(authed_client, db):
+def test_audible_page_title_filter(authed_client, db):
     _connect_audible(db)
     db.add(AudibleBook(asin="B001", title="A Great Book", author="Jane Author", runtime_minutes=0))
     db.add(AudibleBook(asin="B002", title="Another Title", author="Someone Else", runtime_minutes=0))
     db.commit()
 
-    resp_by_title = authed_client.get("/audible", params={"q": "great"})
-    assert "A Great Book" in resp_by_title.text
-    assert "Another Title" not in resp_by_title.text
+    resp = authed_client.get("/audible", params={"title": "great"})
+    assert "A Great Book" in resp.text
+    assert "Another Title" not in resp.text
+    # Library-wide stats stay the true total, unaffected by the filter.
+    assert "2 book(s) owned" in resp.text
 
-    resp_by_author = authed_client.get("/audible", params={"q": "jane"})
-    assert "A Great Book" in resp_by_author.text
-    assert "Another Title" not in resp_by_author.text
-    # Library-wide stats stay the true total, unaffected by the search filter.
-    assert "2 book(s) owned" in resp_by_author.text
+
+def test_audible_page_author_filter_is_independent_of_title(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="A Great Book", author="Jane Author", runtime_minutes=0))
+    db.add(AudibleBook(asin="B002", title="Another Title", author="Someone Else", runtime_minutes=0))
+    db.commit()
+
+    # A title-matching string in the author field must not match here — the
+    # whole point of splitting title/author is that they're independent now.
+    resp = authed_client.get("/audible", params={"author": "jane"})
+    assert "A Great Book" in resp.text
+    assert "Another Title" not in resp.text
+
+    resp_no_match = authed_client.get("/audible", params={"author": "great"})
+    assert "A Great Book" not in resp_no_match.text
+
+
+def test_audible_page_series_filter(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Book One", series_title="The Great Series"))
+    db.add(AudibleBook(asin="B002", title="Book Two", series_title="Unrelated Series"))
+    db.commit()
+
+    resp = authed_client.get("/audible", params={"series": "great"})
+    assert "Book One" in resp.text
+    assert "Book Two" not in resp.text
+
+
+def test_audible_page_filters_by_runtime_range_hours(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Short Book", runtime_minutes=60))  # 1 hr
+    db.add(AudibleBook(asin="B002", title="Long Book", runtime_minutes=1200))  # 20 hrs
+    db.commit()
+
+    resp_min = authed_client.get("/audible", params={"runtime_min": "10"})
+    assert "Long Book" in resp_min.text
+    assert "Short Book" not in resp_min.text
+
+    resp_max = authed_client.get("/audible", params={"runtime_max": "10"})
+    assert "Short Book" in resp_max.text
+    assert "Long Book" not in resp_max.text
+
+
+def test_audible_page_filters_by_purchased_date_range(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Old Book", purchase_date=datetime(2020, 1, 1)))
+    db.add(AudibleBook(asin="B002", title="New Book", purchase_date=datetime(2024, 1, 1)))
+    db.commit()
+
+    resp = authed_client.get("/audible", params={"purchased_from": "2023-01-01"})
+    assert "New Book" in resp.text
+    assert "Old Book" not in resp.text
+
+
+def test_audible_page_filters_by_price_range(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Cheap Book", price_amount=5.0))
+    db.add(AudibleBook(asin="B002", title="Pricey Book", price_amount=50.0))
+    db.commit()
+
+    resp = authed_client.get("/audible", params={"price_max": "10"})
+    assert "Cheap Book" in resp.text
+    assert "Pricey Book" not in resp.text
+
+
+def test_audible_page_filters_by_rating_range(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Mediocre Book", rating_average=2.5))
+    db.add(AudibleBook(asin="B002", title="Great Book", rating_average=4.8))
+    db.commit()
+
+    resp = authed_client.get("/audible", params={"rating_min": "4"})
+    assert "Great Book" in resp.text
+    assert "Mediocre Book" not in resp.text
+
+
+def test_audible_page_ignores_invalid_range_filter_input(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    resp = authed_client.get(
+        "/audible", params={"runtime_min": "not-a-number", "purchased_from": "not-a-date"}
+    )
+    assert resp.status_code == 200
+    assert "Some Book" in resp.text
 
 
 def test_audible_page_owned_filter(authed_client, db):

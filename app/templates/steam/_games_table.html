@@ -1,7 +1,7 @@
 {% macro sort_link(col, label) %}
 {% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
 <a href="#"
-   hx-get="/steam?q={{ q | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-get="/steam?name={{ name | urlencode }}&playtime_min={{ playtime_min if playtime_min is not none else '' }}&playtime_max={{ playtime_max if playtime_max is not none else '' }}&sort={{ col }}&dir={{ next_dir }}"
    hx-target="#steam-games-table" hx-swap="outerHTML">
   {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
 </a>
@@ -11,7 +11,28 @@
   <p class="muted">Showing {{ games|length }} of {{ game_count }} game(s)</p>
   <div class="table-scroll">
     <table>
-      <thead><tr><th></th><th scope="col">{{ sort_link('name', 'Name') }}</th><th scope="col">{{ sort_link('playtime', 'Playtime') }}</th></tr></thead>
+      <thead>
+        <tr><th></th><th scope="col">{{ sort_link('name', 'Name') }}</th><th scope="col">{{ sort_link('playtime', 'Playtime') }}</th></tr>
+        <tr>
+          <th>
+            <input type="hidden" name="sort" value="{{ sort }}" class="steam-filter">
+            <input type="hidden" name="dir" value="{{ dir }}" class="steam-filter">
+          </th>
+          <th>
+            <input type="search" name="name" value="{{ name }}" placeholder="Filter..." class="steam-filter" style="width: 100%;"
+                   hx-get="/steam" hx-target="#steam-games-table" hx-swap="outerHTML"
+                   hx-trigger="keyup changed delay:300ms" hx-include=".steam-filter">
+          </th>
+          <th style="white-space: nowrap;">
+            <input type="number" name="playtime_min" value="{{ playtime_min if playtime_min is not none else '' }}" placeholder="min hrs" class="steam-filter" style="width: 4.5rem;"
+                   hx-get="/steam" hx-target="#steam-games-table" hx-swap="outerHTML"
+                   hx-trigger="keyup changed delay:300ms" hx-include=".steam-filter">
+            <input type="number" name="playtime_max" value="{{ playtime_max if playtime_max is not none else '' }}" placeholder="max hrs" class="steam-filter" style="width: 4.5rem;"
+                   hx-get="/steam" hx-target="#steam-games-table" hx-swap="outerHTML"
+                   hx-trigger="keyup changed delay:300ms" hx-include=".steam-filter">
+          </th>
+        </tr>
+      </thead>
       <tbody>
         {% for g in games %}
         <tr>
@@ -20,7 +41,7 @@
           <td>{{ (g.playtime_forever_minutes / 60) | round(1) }} hrs</td>
         </tr>
         {% else %}
-        <tr><td colspan="3" class="muted">{{ "No games match." if q else "No games loaded yet — click Refresh." }}</td></tr>
+        <tr><td colspan="3" class="muted">{{ "No games match." if (name or playtime_min is not none or playtime_max is not none) else "No games loaded yet — click Refresh." }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

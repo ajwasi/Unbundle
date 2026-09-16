@@ -7,6 +7,8 @@ would cost more in indirection than the near-duplicate copies it'd replace
 call sites that genuinely don't fit this shape).
 """
 
+from datetime import datetime
+
 from sqlalchemy import asc, desc
 
 
@@ -24,3 +26,33 @@ def sorted_query(query, sort_columns: dict, sort: str, dir: str, default_column)
     sort_columns, falling back to default_column for an unrecognized key."""
     column = sort_columns.get(sort, default_column)
     return query.order_by(desc(column) if dir == "desc" else asc(column))
+
+
+def apply_range_filter(query, column, min_value, max_value):
+    """column >= min_value and/or column <= max_value, whichever are given
+    (either or both may be None, meaning that side is unbounded)."""
+    if min_value is not None:
+        query = query.filter(column >= min_value)
+    if max_value is not None:
+        query = query.filter(column <= max_value)
+    return query
+
+
+def parse_optional_float(value: str) -> float | None:
+    """Blank or non-numeric input silently ignored rather than 422ing — same
+    convention as bundles.py's own `int(min_items) if min_items.isdigit()
+    else None` for its min-items filter, extended to floats (a plain
+    .isdigit() check doesn't handle decimals or negative numbers)."""
+    try:
+        return float(value) if value.strip() else None
+    except ValueError:
+        return None
+
+
+def parse_optional_date(value: str) -> datetime | None:
+    """Same silently-ignored-on-bad-input convention as parse_optional_float,
+    for an <input type="date">'s "YYYY-MM-DD" value."""
+    try:
+        return datetime.strptime(value, "%Y-%m-%d") if value else None
+    except ValueError:
+        return None

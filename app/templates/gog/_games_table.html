@@ -1,7 +1,7 @@
 {% macro sort_link(col, label) %}
 {% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
 <a href="#"
-   hx-get="/gog?q={{ q | urlencode }}&content_type={{ content_type | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-get="/gog?title={{ title | urlencode }}&content_type={{ content_type | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
    hx-target="#gog-games-table" hx-swap="outerHTML">
   {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
 </a>
@@ -11,7 +11,30 @@
   <p class="muted">Showing {{ games|length }} of {{ total_count }} item(s)</p>
   <div class="table-scroll">
     <table>
-      <thead><tr><th></th><th scope="col">{{ sort_link('title', 'Title') }}</th><th scope="col">{{ sort_link('type', 'Type') }}</th></tr></thead>
+      <thead>
+        <tr><th></th><th scope="col">{{ sort_link('title', 'Title') }}</th><th scope="col">{{ sort_link('type', 'Type') }}</th></tr>
+        <tr>
+          <th>
+            <input type="hidden" name="sort" value="{{ sort }}" class="gog-filter">
+            <input type="hidden" name="dir" value="{{ dir }}" class="gog-filter">
+          </th>
+          <th>
+            <input type="search" name="title" value="{{ title }}" placeholder="Filter..." class="gog-filter" style="width: 100%;"
+                   hx-get="/gog" hx-target="#gog-games-table" hx-swap="outerHTML"
+                   hx-trigger="keyup changed delay:300ms" hx-include=".gog-filter">
+          </th>
+          <th>
+            <select name="content_type" class="gog-filter" style="width: 100%;"
+                    hx-get="/gog" hx-target="#gog-games-table" hx-swap="outerHTML"
+                    hx-trigger="change" hx-include=".gog-filter">
+              <option value="">All types</option>
+              <option value="game" {{ "selected" if content_type == "game" else "" }}>Games</option>
+              <option value="movie" {{ "selected" if content_type == "movie" else "" }}>Movies</option>
+              <option value="other" {{ "selected" if content_type == "other" else "" }}>Other</option>
+            </select>
+          </th>
+        </tr>
+      </thead>
       <tbody>
         {% for g in games %}
         <tr>
@@ -20,7 +43,7 @@
           <td><span class="badge badge-pending">{{ g.content_type | title }}</span></td>
         </tr>
         {% else %}
-        <tr><td colspan="3" class="muted">{{ "No items match." if (q or content_type) else "No games loaded yet — click Refresh." }}</td></tr>
+        <tr><td colspan="3" class="muted">{{ "No items match." if (title or content_type) else "No games loaded yet — click Refresh." }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

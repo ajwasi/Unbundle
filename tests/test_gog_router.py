@@ -190,7 +190,7 @@ def test_gog_page_search_filters_by_title(authed_client, db):
     db.add(GogGame(product_id=2, title="Some Movie", image_url="", content_type="movie"))
     db.commit()
 
-    resp = authed_client.get("/gog", params={"q": "shadowrun"})
+    resp = authed_client.get("/gog", params={"title": "shadowrun"})
     assert "Shadowrun Returns" in resp.text
     assert "Some Movie" not in resp.text
     # Library-wide stats stay the true total, unaffected by the search filter.
