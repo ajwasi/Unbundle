@@ -33,4 +33,4 @@ jobs:
         run: pip install -e ".[dev]" # SQLite only — the suite never touches Postgres, see conftest.py
 
       - name: Run tests
-        run: pytest
+        run: pytest -n auto

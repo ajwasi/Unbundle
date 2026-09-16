@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import asc, desc, exists, func, or_
+from sqlalchemy import exists, func, or_
 from sqlalchemy.orm import Session, defer
 
 from app.connectors.humble_connector import order_page_url, parse_bundle
@@ -14,6 +14,7 @@ from app.deps import get_db
 from app.downloads import worker
 from app.downloads.progress import bundle_download_progress
 from app.entitlement_status import parse_expiration
+from app.list_views import render_list_or_partial, sorted_query
 from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.download import STATUS_COMPLETED as FILE_COMPLETED, STATUS_FAILED as FILE_FAILED, Download
@@ -105,8 +106,7 @@ def _bundles_with_unredeemed(db: Session, gamekeys: list[str]) -> set[str]:
 
 
 def _apply_sort(query, sort: str, direction: str):
-    column = _SORT_COLUMNS.get(sort, Bundle.name)
-    return query.order_by(desc(column) if direction == "desc" else asc(column))
+    return sorted_query(query, _SORT_COLUMNS, sort, direction, Bundle.name)
 
 
 def _category_breakdown(db: Session) -> list[dict]:
@@ -181,9 +181,7 @@ def list_bundles(
         "last_synced": db.query(func.max(Bundle.fetched_at)).scalar(),
         "download_progress": bundle_download_progress(db),
     }
-    if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "bundles/_table.html", context)
-    return templates.TemplateResponse(request, "bundles/list.html", context)
+    return render_list_or_partial(request, templates, "bundles/list.html", "bundles/_table.html", context)
 
 
 @router.post("/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "bundles-refresh")), Depends(require_csrf)])

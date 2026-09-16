@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import asc, desc, func
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.entitlement_status import unredeemed_rows
+from app.list_views import render_list_or_partial, sorted_query
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_STEAM
 from app.models.steam_game import SteamGame
@@ -27,8 +28,7 @@ def _context(db: Session, q: str = "", sort: str = "name", dir: str = "asc") -> 
     query = db.query(SteamGame)
     if q:
         query = query.filter(SteamGame.name.ilike(f"%{q}%"))
-    column = _SORT_COLUMNS.get(sort, SteamGame.name)
-    games = query.order_by(desc(column) if dir == "desc" else asc(column)).all()
+    games = sorted_query(query, _SORT_COLUMNS, sort, dir, SteamGame.name).all()
 
     # Library-wide totals, independent of the current search filter — same
     # "stable overview vs. filtered table" split bundles/list.html's
@@ -56,9 +56,7 @@ def _context(db: Session, q: str = "", sort: str = "name", dir: str = "asc") -> 
 @router.get("", response_class=HTMLResponse)
 def steam_page(request: Request, q: str = "", sort: str = "name", dir: str = "asc", db: Session = Depends(get_db)):
     context = _context(db, q, sort, dir)
-    if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "steam/_games_table.html", context)
-    return templates.TemplateResponse(request, "steam/list.html", context)
+    return render_list_or_partial(request, templates, "steam/list.html", "steam/_games_table.html", context)
 
 
 @router.post("/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "steam-refresh")), Depends(require_csrf)])

@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.db import engine
 from app.deps import get_db
+from app.list_views import render_list_or_partial
 from app.models.bundle import Bundle
 from app.models.tag import BundleTag, Tag
 from app.templates_env import format_category, templates
@@ -135,6 +136,4 @@ def finance_page(
         "category_labels": category_labels,
         "category_values": category_values,
     }
-    if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "finance/_results.html", context)
-    return templates.TemplateResponse(request, "finance/list.html", context)
+    return render_list_or_partial(request, templates, "finance/list.html", "finance/_results.html", context)

@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from app.connectors.humble_connector import parse_bundle
 from app.csrf import require_csrf
 from app.deps import get_db
+from app.list_views import render_list_or_partial
 from app.models.bundle import Bundle
 from app.models.download import STATUS_COMPLETED, Download
 from app.models.tag import ItemTag, Tag
@@ -240,9 +241,7 @@ def catalog_page(
         "total_dupes": sum(1 for e in items.values() if len(e["bundles"]) > 1),
         "grand_total_spent": db.query(func.sum(Bundle.amount_spent)).scalar() or 0.0,
     }
-    if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "catalog/_table.html", context)
-    return templates.TemplateResponse(request, "catalog/list.html", context)
+    return render_list_or_partial(request, templates, "catalog/list.html", "catalog/_table.html", context)
 
 
 @router.get("/rows", response_class=HTMLResponse)

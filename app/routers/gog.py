@@ -7,6 +7,7 @@ from app.connectors import gog_connector
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.entitlement_status import unredeemed_rows
+from app.list_views import render_list_or_partial
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_GOG
 from app.models.gog_game import GogGame
@@ -73,9 +74,7 @@ def gog_page(
     db: Session = Depends(get_db),
 ):
     context = _context(db, q, content_type, sort, dir)
-    if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "gog/_games_table.html", context)
-    return templates.TemplateResponse(request, "gog/list.html", context)
+    return render_list_or_partial(request, templates, "gog/list.html", "gog/_games_table.html", context)
 
 
 @router.post("/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "gog-refresh")), Depends(require_csrf)])
