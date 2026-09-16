@@ -7,14 +7,7 @@
 <p class="muted">Steam isn't connected yet. Add your API key and SteamID in <a href="/settings">Settings</a>.</p>
 {% else %}
 <div class="toolbar">
-  <form hx-get="/steam" hx-target="#steam-games-table" hx-swap="outerHTML"
-        hx-trigger="keyup changed delay:300ms from:input" style="display: flex; gap: 0.75rem; flex: 1; margin: 0;">
-    <input type="hidden" name="sort" value="{{ sort }}">
-    <input type="hidden" name="dir" value="{{ dir }}">
-    <label for="steam-search" class="sr-only">Search games</label>
-    <input id="steam-search" type="search" name="q" placeholder="Search games..." value="{{ q }}" style="flex: 1;">
-  </form>
-  {% if q %}
+  {% if name or playtime_min is not none or playtime_max is not none %}
   <a href="/steam" hx-get="/steam" hx-target="#steam-games-table" hx-swap="outerHTML">Clear filters</a>
   {% endif %}
   <form hx-post="/steam/refresh" hx-target="#steam-content" hx-swap="outerHTML" style="margin: 0;">

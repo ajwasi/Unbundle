@@ -226,11 +226,44 @@ def test_steam_page_search_filters_by_name(authed_client, db):
     db.add(SteamGame(appid=221, name="Portal", playtime_forever_minutes=0, img_icon_url=""))
     db.commit()
 
-    resp = authed_client.get("/steam", params={"q": "half"})
+    resp = authed_client.get("/steam", params={"name": "half"})
     assert "Half-Life 2" in resp.text
     assert "Portal" not in resp.text
     # Library-wide stats stay the true total, unaffected by the search filter.
     assert "2 game(s) owned" in resp.text
+
+
+def test_steam_page_filters_by_playtime_range(authed_client, db):
+    _connect_steam(db)
+    db.add(SteamGame(appid=220, name="Short Game", playtime_forever_minutes=60))  # 1 hr
+    db.add(SteamGame(appid=221, name="Medium Game", playtime_forever_minutes=600))  # 10 hrs
+    db.add(SteamGame(appid=222, name="Long Game", playtime_forever_minutes=6000))  # 100 hrs
+    db.commit()
+
+    resp_min = authed_client.get("/steam", params={"playtime_min": "5"})
+    assert "Medium Game" in resp_min.text
+    assert "Long Game" in resp_min.text
+    assert "Short Game" not in resp_min.text
+
+    resp_max = authed_client.get("/steam", params={"playtime_max": "50"})
+    assert "Short Game" in resp_max.text
+    assert "Medium Game" in resp_max.text
+    assert "Long Game" not in resp_max.text
+
+    resp_both = authed_client.get("/steam", params={"playtime_min": "5", "playtime_max": "50"})
+    assert "Medium Game" in resp_both.text
+    assert "Short Game" not in resp_both.text
+    assert "Long Game" not in resp_both.text
+
+
+def test_steam_page_ignores_invalid_playtime_filter_input(authed_client, db):
+    _connect_steam(db)
+    db.add(SteamGame(appid=220, name="Some Game", playtime_forever_minutes=60))
+    db.commit()
+
+    resp = authed_client.get("/steam", params={"playtime_min": "not-a-number"})
+    assert resp.status_code == 200
+    assert "Some Game" in resp.text
 
 
 def test_steam_page_sort_by_playtime(authed_client, db):
@@ -251,7 +284,7 @@ def test_steam_page_clear_filters_link_only_shown_when_searching(authed_client, 
     db.commit()
 
     assert "Clear filters" not in authed_client.get("/steam").text
-    assert "Clear filters" in authed_client.get("/steam", params={"q": "x"}).text
+    assert "Clear filters" in authed_client.get("/steam", params={"name": "x"}).text
 
 
 def test_steam_page_hx_request_returns_just_the_table(authed_client, db):

@@ -1,13 +1,19 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.audible import pdf_downloader
 from app.connectors.audible_connector import is_owned
 from app.csrf import require_csrf
 from app.deps import get_db
-from app.list_views import render_list_or_partial, sorted_query
+from app.list_views import (
+    apply_range_filter,
+    parse_optional_date,
+    parse_optional_float,
+    render_list_or_partial,
+    sorted_query,
+)
 from app.models.audible_book import AudibleBook
 from app.models.audible_pdf_download import STATUS_COMPLETED, STATUS_QUEUED, STATUS_RUNNING
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_AUDIBLE
@@ -28,11 +34,54 @@ _SORT_COLUMNS = {
 }
 
 
-def _context(db: Session, q: str = "", owned: str = "", sort: str = "title", dir: str = "asc") -> dict:
+def _context(
+    db: Session,
+    title: str = "",
+    author: str = "",
+    series: str = "",
+    runtime_min: str = "",
+    runtime_max: str = "",
+    purchased_from: str = "",
+    purchased_to: str = "",
+    price_min: str = "",
+    price_max: str = "",
+    rating_min: str = "",
+    rating_max: str = "",
+    owned: str = "",
+    sort: str = "title",
+    dir: str = "asc",
+) -> dict:
     cred = Credential.get(db, SOURCE_AUDIBLE)
     query = db.query(AudibleBook)
-    if q:
-        query = query.filter(or_(AudibleBook.title.ilike(f"%{q}%"), AudibleBook.author.ilike(f"%{q}%")))
+    if title:
+        query = query.filter(AudibleBook.title.ilike(f"%{title}%"))
+    if author:
+        query = query.filter(AudibleBook.author.ilike(f"%{author}%"))
+    if series:
+        query = query.filter(AudibleBook.series_title.ilike(f"%{series}%"))
+
+    # Displayed/filtered in hours, stored in minutes.
+    runtime_min_hours = parse_optional_float(runtime_min)
+    runtime_max_hours = parse_optional_float(runtime_max)
+    query = apply_range_filter(
+        query,
+        AudibleBook.runtime_minutes,
+        runtime_min_hours * 60 if runtime_min_hours is not None else None,
+        runtime_max_hours * 60 if runtime_max_hours is not None else None,
+    )
+
+    purchased_from_date = parse_optional_date(purchased_from)
+    purchased_to_date = parse_optional_date(purchased_to)
+    query = apply_range_filter(query, AudibleBook.purchase_date, purchased_from_date, purchased_to_date)
+
+    price_min_val = parse_optional_float(price_min)
+    price_max_val = parse_optional_float(price_max)
+    query = apply_range_filter(query, AudibleBook.price_amount, price_min_val, price_max_val)
+
+    rating_min_val = parse_optional_float(rating_min)
+    rating_max_val = parse_optional_float(rating_max)
+    query = apply_range_filter(query, AudibleBook.rating_average, rating_min_val, rating_max_val)
+
     books = sorted_query(query, _SORT_COLUMNS, sort, dir, AudibleBook.title).all()
     # owned/Plus-Catalog is a plain Python membership check (is_owned(), on a
     # private module constant not worth importing into this router) applied
@@ -53,7 +102,17 @@ def _context(db: Session, q: str = "", owned: str = "", sort: str = "title", dir
         "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "audible_error": cred.last_error if cred else None,
         "books": books,
-        "q": q,
+        "title": title,
+        "author": author,
+        "series": series,
+        "runtime_min": runtime_min_hours,
+        "runtime_max": runtime_max_hours,
+        "purchased_from": purchased_from_date,
+        "purchased_to": purchased_to_date,
+        "price_min": price_min_val,
+        "price_max": price_max_val,
+        "rating_min": rating_min_val,
+        "rating_max": rating_max_val,
         "owned": owned,
         "sort": sort,
         "dir": dir,
@@ -83,13 +142,39 @@ def _detail_context(db: Session, book: AudibleBook) -> dict:
 @router.get("", response_class=HTMLResponse)
 def audible_page(
     request: Request,
-    q: str = "",
+    title: str = "",
+    author: str = "",
+    series: str = "",
+    runtime_min: str = "",
+    runtime_max: str = "",
+    purchased_from: str = "",
+    purchased_to: str = "",
+    price_min: str = "",
+    price_max: str = "",
+    rating_min: str = "",
+    rating_max: str = "",
     owned: str = "",
     sort: str = "title",
     dir: str = "asc",
     db: Session = Depends(get_db),
 ):
-    context = _context(db, q, owned, sort, dir)
+    context = _context(
+        db,
+        title=title,
+        author=author,
+        series=series,
+        runtime_min=runtime_min,
+        runtime_max=runtime_max,
+        purchased_from=purchased_from,
+        purchased_to=purchased_to,
+        price_min=price_min,
+        price_max=price_max,
+        rating_min=rating_min,
+        rating_max=rating_max,
+        owned=owned,
+        sort=sort,
+        dir=dir,
+    )
     return render_list_or_partial(request, templates, "audible/list.html", "audible/_books_table.html", context)
 
 

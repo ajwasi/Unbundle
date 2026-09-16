@@ -24,11 +24,11 @@ _SORT_COLUMNS = {
 }
 
 
-def _context(db: Session, q: str = "", content_type: str = "", sort: str = "title", dir: str = "asc") -> dict:
+def _context(db: Session, title: str = "", content_type: str = "", sort: str = "title", dir: str = "asc") -> dict:
     cred = Credential.get(db, SOURCE_GOG)
     query = db.query(GogGame)
-    if q:
-        query = query.filter(GogGame.title.ilike(f"%{q}%"))
+    if title:
+        query = query.filter(GogGame.title.ilike(f"%{title}%"))
     if content_type:
         query = query.filter(GogGame.content_type == content_type)
     if sort == "type":
@@ -51,7 +51,7 @@ def _context(db: Session, q: str = "", content_type: str = "", sort: str = "titl
         "gog_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "gog_error": cred.last_error if cred else None,
         "games": items,
-        "q": q,
+        "title": title,
         "content_type": content_type,
         "sort": sort,
         "dir": dir,
@@ -67,13 +67,13 @@ def _context(db: Session, q: str = "", content_type: str = "", sort: str = "titl
 @router.get("", response_class=HTMLResponse)
 def gog_page(
     request: Request,
-    q: str = "",
+    title: str = "",
     content_type: str = "",
     sort: str = "title",
     dir: str = "asc",
     db: Session = Depends(get_db),
 ):
-    context = _context(db, q, content_type, sort, dir)
+    context = _context(db, title, content_type, sort, dir)
     return render_list_or_partial(request, templates, "gog/list.html", "gog/_games_table.html", context)
 
 

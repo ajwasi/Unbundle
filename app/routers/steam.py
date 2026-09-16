@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.entitlement_status import unredeemed_rows
-from app.list_views import render_list_or_partial, sorted_query
+from app.list_views import apply_range_filter, parse_optional_float, render_list_or_partial, sorted_query
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_STEAM
 from app.models.steam_game import SteamGame
@@ -23,11 +23,22 @@ _SORT_COLUMNS = {
 }
 
 
-def _context(db: Session, q: str = "", sort: str = "name", dir: str = "asc") -> dict:
+def _context(
+    db: Session, name: str = "", playtime_min: str = "", playtime_max: str = "", sort: str = "name", dir: str = "asc"
+) -> dict:
     cred = Credential.get(db, SOURCE_STEAM)
     query = db.query(SteamGame)
-    if q:
-        query = query.filter(SteamGame.name.ilike(f"%{q}%"))
+    if name:
+        query = query.filter(SteamGame.name.ilike(f"%{name}%"))
+    # Displayed/filtered in hours, stored in minutes.
+    playtime_min_hours = parse_optional_float(playtime_min)
+    playtime_max_hours = parse_optional_float(playtime_max)
+    query = apply_range_filter(
+        query,
+        SteamGame.playtime_forever_minutes,
+        playtime_min_hours * 60 if playtime_min_hours is not None else None,
+        playtime_max_hours * 60 if playtime_max_hours is not None else None,
+    )
     games = sorted_query(query, _SORT_COLUMNS, sort, dir, SteamGame.name).all()
 
     # Library-wide totals, independent of the current search filter — same
@@ -42,7 +53,9 @@ def _context(db: Session, q: str = "", sort: str = "name", dir: str = "asc") -> 
         "steam_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "steam_error": cred.last_error if cred else None,
         "games": games,
-        "q": q,
+        "name": name,
+        "playtime_min": playtime_min_hours,
+        "playtime_max": playtime_max_hours,
         "sort": sort,
         "dir": dir,
         "game_count": total_game_count,
@@ -54,8 +67,16 @@ def _context(db: Session, q: str = "", sort: str = "name", dir: str = "asc") -> 
 
 
 @router.get("", response_class=HTMLResponse)
-def steam_page(request: Request, q: str = "", sort: str = "name", dir: str = "asc", db: Session = Depends(get_db)):
-    context = _context(db, q, sort, dir)
+def steam_page(
+    request: Request,
+    name: str = "",
+    playtime_min: str = "",
+    playtime_max: str = "",
+    sort: str = "name",
+    dir: str = "asc",
+    db: Session = Depends(get_db),
+):
+    context = _context(db, name, playtime_min, playtime_max, sort, dir)
     return render_list_or_partial(request, templates, "steam/list.html", "steam/_games_table.html", context)
 
 
