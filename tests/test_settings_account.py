@@ -109,6 +109,18 @@ def test_save_account_password_change_ignored_when_sso_only(authed_client, db):
     assert check_app_password("test-password", db)
 
 
+def test_settings_page_gives_step_by_step_connection_instructions(authed_client):
+    resp = authed_client.get("/settings")
+    # Humble: how to actually find the session cookie, not just "paste it".
+    assert "_simpleauth_sess" in resp.text
+    assert "developer tools" in resp.text.lower()
+    # Steam: a real clickable link to the API key page, not just styled text.
+    assert 'href="https://steamcommunity.com/dev/apikey"' in resp.text
+    assert 'href="https://steamcommunity.com/my/edit/settings"' in resp.text
+    # GOG: leads with the action (click Connect), not just the "why".
+    assert "Click <strong>Connect</strong>" in resp.text
+
+
 def test_settings_page_links_to_the_api_docs(authed_client):
     resp = authed_client.get("/settings")
     assert 'href="/docs"' in resp.text

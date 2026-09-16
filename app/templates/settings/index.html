@@ -29,14 +29,20 @@
 
 <div class="card" id="humble-card">
   <h3>Humble Bundle</h3>
+  <ol class="muted" style="padding-left: 1.2rem;">
+    <li>Log in at <a href="https://www.humblebundle.com" target="_blank" rel="noopener">humblebundle.com</a> in this browser, if you aren't already.</li>
+    <li>Open developer tools (press <code>F12</code>, or right-click the page &rarr; Inspect), then find
+        <strong>Application</strong> (Chrome/Edge) or <strong>Storage</strong> (Firefox) &rarr; Cookies &rarr;
+        <code>https://www.humblebundle.com</code> in the panel that opens.</li>
+    <li>Find the cookie named <code>_simpleauth_sess</code> in that list and copy its <strong>Value</strong>.</li>
+    <li>Paste it below and click Save.</li>
+  </ol>
   <p class="muted">
-    Paste your <code>_simpleauth_sess</code> session cookie from a logged-in
-    humblebundle.com browser tab. There's no username/password login here —
-    Humble's login is behind Cloudflare's bot protection, which blocks
-    non-browser login attempts outright — so this is the same manual cookie
-    handoff humble-cli itself uses. It doesn't expire on a fixed schedule, but
-    Humble may invalidate it eventually; if actions start failing, come back
-    here and paste a fresh one.
+    There's no username/password login here — Humble's own login is behind Cloudflare's bot
+    protection, which blocks non-browser login attempts outright, so this manual cookie handoff
+    (the same one humble-cli itself uses) is the only way in. It doesn't expire on a fixed
+    schedule, but Humble may invalidate it eventually; if actions start failing, come back here
+    and paste a fresh one.
   </p>
   <div id="humble-card-body">
     {% include "settings/_humble_form.html" %}
@@ -47,11 +53,19 @@
   <h3>Steam</h3>
   <p class="muted">
     Compares your bundles' Steam keys against your actual Steam library, so you can see
-    which ones you've never redeemed. Get a free API key at
-    <code>steamcommunity.com/dev/apikey</code>, and either your SteamID64 or your profile
-    URL/vanity name (e.g. <code>steamcommunity.com/id/yourname</code>). Your Steam profile
-    and game details need to be set to Public for the owned-games list to be readable.
+    which ones you've never redeemed.
   </p>
+  <ol class="muted" style="padding-left: 1.2rem;">
+    <li>Get a free API key at
+        <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a>
+        &mdash; any domain name works for personal use, e.g. <code>localhost</code>.</li>
+    <li>Enter that key below, plus either your SteamID64 or your profile URL/vanity name (e.g.
+        <code>steamcommunity.com/id/yourname</code>) &mdash; whichever you already have works, no
+        need to look up the numeric ID separately.</li>
+    <li>Make sure your profile and game details are set to Public in your
+        <a href="https://steamcommunity.com/my/edit/settings" target="_blank" rel="noopener">Steam privacy settings</a>,
+        or the owned-games list won't be readable.</li>
+  </ol>
   <div id="steam-card-body">
     {% include "settings/_steam_form.html" %}
   </div>
@@ -60,14 +74,15 @@
 <div class="card" id="gog-card">
   <h3>GOG</h3>
   <p class="muted">
-    Compares your bundles' GOG keys against your actual GOG library. Unlike Steam, GOG has
-    no public API key or a redirect URI this app can register for itself — connecting means
-    a one-time manual step (log in on GOG's real site, then copy the resulting URL back
-    here), similar in spirit to the Humble cookie above but for a code that expires within
-    a minute or two, so it may take a try or two. See the steps below. Note: very few Humble
-    bundles actually expose a matchable GOG key today (confirmed against this library: 2
-    GOG-type keys total, neither matchable), so don't expect much from the "never redeemed"
-    comparison yet — the games catalog itself still works regardless.
+    Compares your bundles' GOG keys against your actual GOG library. Click <strong>Connect</strong>
+    below and follow the 3 steps in the popup — GOG has no public API key like Steam's, so this is
+    a one-time manual log-in-and-paste-the-URL-back step instead. The code GOG gives you expires
+    within a minute or two, so it may take a try or two to get through in time.
+  </p>
+  <p class="muted">
+    Note: very few Humble bundles actually expose a matchable GOG key today (confirmed against
+    this library: 2 GOG-type keys total, neither matchable), so don't expect much from the
+    "never redeemed" comparison yet — the games catalog itself still works regardless.
   </p>
   <div id="gog-card-body">
     {% include "settings/_gog_form.html" %}
