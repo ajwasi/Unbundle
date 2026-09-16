@@ -9,7 +9,7 @@
     <div class="bundle-grid">
       {% for t in items %}
       {% set b = t.bundle %}
-      <div class="bundle-tile">
+      <div class="bundle-tile{{ ' already-purchased' if t.already_purchased else '' }}">
         {% if b.end_date %}
         <div class="countdown-timer" data-countdown-end="{{ b.end_date.isoformat() }}Z">calculating&hellip;</div>
         {% endif %}

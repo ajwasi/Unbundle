@@ -186,6 +186,7 @@ def test_home_marks_a_bundle_already_purchased_by_machine_name(authed_client, ma
          patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.get("/")
     assert "Already purchased" in resp.text
+    assert 'class="bundle-tile already-purchased"' in resp.text
 
 
 def test_home_does_not_flag_already_purchased_for_a_different_machine_name(authed_client, make_bundle):
@@ -195,6 +196,7 @@ def test_home_does_not_flag_already_purchased_for_a_different_machine_name(authe
          patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.get("/")
     assert "Already purchased" not in resp.text
+    assert "already-purchased" not in resp.text
 
 
 def test_home_ignores_blank_machine_names_when_matching_purchased(authed_client, make_bundle):

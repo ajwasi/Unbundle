@@ -616,6 +616,19 @@ th a { text-decoration: none; color: var(--text); }
   box-shadow: var(--shadow);
 }
 
+/* Whole-tile shading (not just the "Already purchased" badge already on
+   it) for a bundle you've bought outright — a stronger callout than a
+   same-sized badge sitting among the owned-ratio one. Same color-mix
+   technique .badge-ok already uses for its own tint, so this tracks
+   --success automatically in dark mode too. A lighter mix than the
+   badge's 20% (12%) since this tints the whole tile behind the title/
+   blurb text, not a small isolated chip — full opacity would fight
+   their contrast. */
+.bundle-tile.already-purchased {
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  border-color: var(--success);
+}
+
 .bundle-tile img {
   width: 100%;
   aspect-ratio: 16 / 9;
