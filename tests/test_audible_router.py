@@ -170,6 +170,18 @@ def test_audible_page_filters_by_rating_range(authed_client, db):
     assert "Mediocre Book" not in resp.text
 
 
+def test_audible_page_shows_progress_column(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Finished Book", is_finished=True, percent_complete=100))
+    db.add(AudibleBook(asin="B002", title="Partial Book", is_finished=False, percent_complete=42))
+    db.add(AudibleBook(asin="B003", title="Unstarted Book", is_finished=False, percent_complete=0))
+    db.commit()
+
+    resp = authed_client.get("/audible")
+    assert "Finished" in resp.text
+    assert "42%" in resp.text
+
+
 def test_audible_page_ignores_invalid_range_filter_input(authed_client, db):
     _connect_audible(db)
     db.add(AudibleBook(asin="B001", title="Some Book"))

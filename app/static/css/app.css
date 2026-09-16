@@ -459,6 +459,7 @@ th a { text-decoration: none; color: var(--text); }
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 600;
+  text-decoration: none;
 }
 
 .badge-ok { background: color-mix(in srgb, var(--success) 20%, transparent); color: var(--success); }

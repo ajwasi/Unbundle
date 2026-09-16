@@ -44,16 +44,16 @@ def test_responses_are_gzip_compressed_above_the_size_threshold(authed_client):
     assert resp.headers.get("content-encoding") == "gzip"
 
 
-def test_update_available_link_points_at_the_latest_tag_not_main(authed_client, monkeypatch):
+def test_update_available_link_points_at_the_tags_page(authed_client, monkeypatch):
+    # A fixed link to the tags listing, not a per-version compare URL — simpler
+    # and always correct regardless of whether a check has ever run.
     import app.version as version_module
 
     monkeypatch.setattr(version_module, "_update_available", True)
-    monkeypatch.setattr(version_module, "_latest_tag", "v1.3.0")
 
     resp = authed_client.get("/")
     assert "Update available" in resp.text
-    assert "...v1.3.0" in resp.text
-    assert "...main" not in resp.text
+    assert 'href="https://github.com/ajwasi/Unbundle/tags"' in resp.text
 
 
 def test_no_update_link_shown_when_already_current(authed_client, monkeypatch):
