@@ -60,6 +60,7 @@ class NormalizedBundle:
     gamekey: str
     name: str
     category: str
+    machine_name: str
     raw_json: dict
     # Top-level "things in this bundle" count (games/ebooks/etc.) — NOT the same
     # as len(downloads), which is flattened to one entry per format/platform

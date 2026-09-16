@@ -7,7 +7,8 @@
   <div class="card">
     <h2>{{ label }}</h2>
     <div class="bundle-grid">
-      {% for b in items %}
+      {% for t in items %}
+      {% set b = t.bundle %}
       <div class="bundle-tile">
         {% if b.end_date %}
         <div class="countdown-timer" data-countdown-end="{{ b.end_date.isoformat() }}Z">calculating&hellip;</div>
@@ -15,6 +16,14 @@
         {% if b.image_url %}<img src="{{ b.image_url }}" alt="" loading="lazy" onerror="unbundleImgFallback(this)">{% endif %}
         <div class="bundle-tile-body">
           <strong>{{ b.name }}</strong>
+          {% if t.already_purchased or t.total_count %}
+          <p class="muted" style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+            {% if t.already_purchased %}<span class="badge badge-ok">Already purchased</span>{% endif %}
+            {% if t.total_count %}
+            <span class="badge {{ 'badge-ok' if t.owned_count == t.total_count else 'badge-pending' }}">{{ t.owned_count }}/{{ t.total_count }} owned</span>
+            {% endif %}
+          </p>
+          {% endif %}
           <p class="muted">{{ b.blurb | safe }}</p>
           <div class="bundle-tile-actions">
             <a href="/storefront/compare?url={{ b.product_url | urlencode }}">Compare to my catalog</a>

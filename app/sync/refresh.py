@@ -148,6 +148,7 @@ async def refresh_library(db: Session, log: LogCallback) -> int:
             db.add(bundle)
         bundle.name = normalized.name
         bundle.category = normalized.category
+        bundle.machine_name = normalized.machine_name
         bundle.subproduct_count = normalized.item_count
         # Distinct subproducts with at least one actual file — NOT len(normalized.downloads),
         # which is flattened to one entry per format variant (a single item available as
