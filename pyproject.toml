@@ -36,6 +36,7 @@ dependencies = [
 dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
+    "pytest-xdist==3.8.0",
 ]
 # psycopg3, not psycopg2 (SQLAlchemy 2.0's actively-recommended modern driver).
 # [binary] vendors a statically-linked libpq in the wheel, so no apt-get

@@ -453,7 +453,10 @@ python -m venv .venv
 
 Tests run against a throwaway temp SQLite DB and a test-only secret key — no real
 credentials or network access needed. This is true regardless of which database
-you run the app itself against; the automated suite always uses SQLite.
+you run the app itself against; the automated suite always uses SQLite. Each
+test gets its own isolated temp DB, so `pytest -n auto` (parallel workers, via
+`pytest-xdist`) runs the same suite in a fraction of the time — CI uses this
+too.
 
 To develop against a real local PostgreSQL instead of SQLite (outside Docker —
 see the Quick start section for the Docker Compose route): install Postgres

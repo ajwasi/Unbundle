@@ -254,7 +254,17 @@ async def test_start_download_never_raises_it_queues_instead(db, make_bundle):
         assert statuses == sorted([STATUS_QUEUED, STATUS_RUNNING, STATUS_RUNNING])
 
         release.set()
-        await asyncio.sleep(0.1)  # let all three finish, including the one that was queued
+        # Polled rather than a fixed sleep — same reasoning as the neighboring
+        # test below: under pytest-xdist, N worker processes contend for the
+        # same CPU cores, so a fixed 0.1s guess is exactly the kind of wait
+        # that gets flaky under real parallel load (confirmed: this line used
+        # to be `await asyncio.sleep(0.1)` and intermittently saw a job still
+        # STATUS_RUNNING under `-n auto`, never under serial execution).
+        for _ in range(100):  # up to 2s
+            db.expire_all()
+            if all(j.status == JOB_COMPLETED for j in db.query(DownloadJob).all()):
+                break
+            await asyncio.sleep(0.02)
 
     db.expire_all()
     assert {j.status for j in db.query(DownloadJob).all()} == {JOB_COMPLETED}

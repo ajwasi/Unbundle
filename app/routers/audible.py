@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse
-from sqlalchemy import asc, desc, func, or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.audible import pdf_downloader
 from app.connectors.audible_connector import is_owned
 from app.csrf import require_csrf
 from app.deps import get_db
+from app.list_views import render_list_or_partial, sorted_query
 from app.models.audible_book import AudibleBook
 from app.models.audible_pdf_download import STATUS_COMPLETED, STATUS_QUEUED, STATUS_RUNNING
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_AUDIBLE
@@ -32,8 +33,7 @@ def _context(db: Session, q: str = "", owned: str = "", sort: str = "title", dir
     query = db.query(AudibleBook)
     if q:
         query = query.filter(or_(AudibleBook.title.ilike(f"%{q}%"), AudibleBook.author.ilike(f"%{q}%")))
-    column = _SORT_COLUMNS.get(sort, AudibleBook.title)
-    books = query.order_by(desc(column) if dir == "desc" else asc(column)).all()
+    books = sorted_query(query, _SORT_COLUMNS, sort, dir, AudibleBook.title).all()
     # owned/Plus-Catalog is a plain Python membership check (is_owned(), on a
     # private module constant not worth importing into this router) applied
     # to the already-fetched, single-account-sized list — see the same
@@ -90,9 +90,7 @@ def audible_page(
     db: Session = Depends(get_db),
 ):
     context = _context(db, q, owned, sort, dir)
-    if request.headers.get("HX-Request") == "true":
-        return templates.TemplateResponse(request, "audible/_books_table.html", context)
-    return templates.TemplateResponse(request, "audible/list.html", context)
+    return render_list_or_partial(request, templates, "audible/list.html", "audible/_books_table.html", context)
 
 
 @router.post(
