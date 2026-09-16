@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
-from app.version import get_version, is_tagged_build, is_update_available, last_checked_at, latest_tag
+from app.version import get_version, is_tagged_build, is_update_available, last_checked_at
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -13,7 +13,6 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 # be called fresh on every render, not baked in at import time.
 templates.env.globals["app_version"] = get_version()
 templates.env.globals["is_update_available"] = is_update_available
-templates.env.globals["latest_version_tag"] = latest_tag
 templates.env.globals["is_tagged_build"] = is_tagged_build
 templates.env.globals["update_last_checked_at"] = last_checked_at
 

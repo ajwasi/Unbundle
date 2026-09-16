@@ -46,11 +46,11 @@ async def _fetch_detail_safe(bundle: storefront.StorefrontBundle) -> storefront.
 
 
 async def _build_tiles(bundles: list[storefront.StorefrontBundle], db: Session) -> list[dict]:
-    """One dict per currently-listed bundle: the bundle itself, whether this
-    exact bundle has already been purchased (by machine_name — see Bundle's
-    own docstring), and how many of its items are already owned via *any*
-    purchase (owned_count/total_count, both None when that bundle's detail
-    fetch failed — distinct from a real 0/0).
+    """One dict per currently-listed bundle: the bundle itself, the gamekey of
+    the already-purchased order for this *exact* bundle if any (by
+    machine_name — see Bundle's own docstring), and how many of its items are
+    already owned via *any* purchase (owned_count/total_count, both None when
+    that bundle's detail fetch failed — distinct from a real 0/0).
 
     Every bundle's detail is fetched concurrently rather than one at a time —
     fetch_bundle_detail() already caches per-URL for 30 min, so only a cold
@@ -58,8 +58,9 @@ async def _build_tiles(bundles: list[storefront.StorefrontBundle], db: Session) 
     """
     details = await asyncio.gather(*(_fetch_detail_safe(b) for b in bundles))
     catalog = _build_catalog(db)
-    purchased_machine_names = {
-        name for (name,) in db.query(Bundle.machine_name).filter(Bundle.machine_name != "").all()
+    purchased_gamekeys_by_machine_name = {
+        name: gamekey
+        for name, gamekey in db.query(Bundle.machine_name, Bundle.gamekey).filter(Bundle.machine_name != "").all()
     }
 
     tiles = []
@@ -68,10 +69,12 @@ async def _build_tiles(bundles: list[storefront.StorefrontBundle], db: Session) 
         if detail is not None:
             total_count = len(detail.items)
             owned_count = sum(1 for item in detail.items if item.machine_name in catalog)
+        owned_gamekey = purchased_gamekeys_by_machine_name.get(bundle.machine_name)
         tiles.append(
             {
                 "bundle": bundle,
-                "already_purchased": bool(bundle.machine_name) and bundle.machine_name in purchased_machine_names,
+                "already_purchased": owned_gamekey is not None,
+                "owned_gamekey": owned_gamekey,
                 "owned_count": owned_count,
                 "total_count": total_count,
             }

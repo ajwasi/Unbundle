@@ -18,7 +18,7 @@
           <strong>{{ b.name }}</strong>
           {% if t.already_purchased or t.total_count %}
           <p class="muted" style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
-            {% if t.already_purchased %}<span class="badge badge-ok">Already purchased</span>{% endif %}
+            {% if t.already_purchased %}<a class="badge badge-ok" href="/bundles/{{ t.owned_gamekey }}">Already purchased</a>{% endif %}
             {% if t.total_count %}
             <span class="badge {{ 'badge-ok' if t.owned_count == t.total_count else 'badge-pending' }}">{{ t.owned_count }}/{{ t.total_count }} owned</span>
             {% endif %}

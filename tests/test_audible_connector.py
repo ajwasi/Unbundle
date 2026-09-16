@@ -182,6 +182,7 @@ async def test_fetch_library_parses_real_shape():
                 "asin": "B001",
                 "title": "A Great Book",
                 "authors": [{"name": "Jane Author"}],
+                "narrators": [{"name": "Nora Narrator"}],
                 "runtime_length_min": 605,
                 "product_images": {"500": "https://example.com/cover.jpg"},
             },
@@ -207,6 +208,7 @@ async def test_fetch_library_parses_real_shape():
     assert books[0].asin == "B001"
     assert books[0].title == "A Great Book"
     assert books[0].author == "Jane Author"
+    assert books[0].narrator == "Nora Narrator"
     assert books[0].runtime_minutes == 605
     assert books[0].cover_url == "https://example.com/cover.jpg"
 
@@ -265,6 +267,7 @@ async def test_fetch_library_parses_all_new_fields_when_present():
 async def test_fetch_library_defaults_new_fields_when_missing():
     book = await _fetch_one({"asin": "B002", "title": "Bare Item"})
 
+    assert book.narrator == ""
     assert book.purchase_date is None
     assert book.price_amount is None
     assert book.price_currency == ""

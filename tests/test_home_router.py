@@ -187,6 +187,7 @@ def test_home_marks_a_bundle_already_purchased_by_machine_name(authed_client, ma
         resp = authed_client.get("/")
     assert "Already purchased" in resp.text
     assert 'class="bundle-tile already-purchased"' in resp.text
+    assert 'href="/bundles/GK1"' in resp.text
 
 
 def test_home_does_not_flag_already_purchased_for_a_different_machine_name(authed_client, make_bundle):

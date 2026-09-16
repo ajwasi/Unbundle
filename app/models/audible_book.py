@@ -11,9 +11,9 @@ class AudibleBook(Base):
     refresh caching role SteamGame/GogGame play for their own libraries — see
     connectors/audible_connector.py for the real request shape.
 
-    Most fields below (price/series/rating/benefit_id) are best-effort:
-    Audible's API is undocumented and reverse-engineered, so their exact
-    shape hasn't been confirmed against a real account yet — see
+    Most fields below (price/series/rating/benefit_id/narrator) are best-
+    effort: Audible's API is undocumented and reverse-engineered, so their
+    exact shape hasn't been confirmed against a real account yet — see
     audible_connector.py's own comments on each. Kept as plain nullable/
     defaulted columns specifically so a wrong guess is a cheap follow-up
     fix, not a migration.
@@ -24,6 +24,9 @@ class AudibleBook(Base):
     asin: Mapped[str] = mapped_column(String(20), primary_key=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     author: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    # Same "contributors" response_group author is parsed from — see
+    # audible_connector.py's fetch_library() for the parsing itself.
+    narrator: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     runtime_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cover_url: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
