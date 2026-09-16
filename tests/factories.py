@@ -35,13 +35,14 @@ def make_tpk(human_name="Test Game - Steam", machine_name="testgame", keyindex=0
 def make_order(
     name="Test Bundle",
     category="bundle",
+    machine_name="",
     created="2024-01-15T00:00:00",
     amount_spent=10.0,
     subproducts=None,
     tpks=None,
 ):
     return {
-        "product": {"human_name": name, "category": category},
+        "product": {"human_name": name, "category": category, "machine_name": machine_name},
         "created": created,
         "amount_spent": amount_spent,
         "subproducts": subproducts if subproducts is not None else [make_subproduct()],

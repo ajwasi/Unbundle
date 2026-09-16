@@ -224,6 +224,7 @@ def make_bundle(db):
             gamekey=gamekey,
             name=order["product"]["human_name"],
             category=order["product"].get("category", ""),
+            machine_name=order["product"].get("machine_name", ""),
             subproduct_count=len(order.get("subproducts") or []),
             downloadable_item_count=downloadable_item_count,
             key_count=len((order.get("tpkd_dict") or {}).get("all_tpks") or []),

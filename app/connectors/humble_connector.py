@@ -141,6 +141,7 @@ def parse_bundle(gamekey: str, order: dict) -> NormalizedBundle:
     product = order.get("product") or {}
     name = product.get("human_name") or order.get("gamekey", gamekey)
     category = product.get("category", "")
+    bundle_machine_name = product.get("machine_name") or ""
 
     subproducts = order.get("subproducts", []) or []
     downloads: list[NormalizedDownloadItem] = []
@@ -183,6 +184,7 @@ def parse_bundle(gamekey: str, order: dict) -> NormalizedBundle:
         gamekey=gamekey,
         name=name,
         category=category,
+        machine_name=bundle_machine_name,
         raw_json=order,
         item_count=len(subproducts),
         purchased_at=order.get("created"),

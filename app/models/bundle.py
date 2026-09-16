@@ -36,6 +36,16 @@ class Bundle(Base):
     pay-what-you-want tier threshold rather than the exact charge; confirmed
     both fields present with zero missing/unparseable values across the full
     550-bundle library, so no fallback handling was needed for either).
+
+    `machine_name` is `product.machine_name` — confirmed present on real
+    order data (e.g. "thqbundle", "cosplayersbookshelf_bookbundle"), the
+    same identity connectors/storefront.py's StorefrontBundle.machine_name
+    carries for a *currently listed* bundle. Used to flag "you already
+    bought this exact bundle" on the Home page — unconfirmed whether Humble
+    reuses the same machine_name for a listing and its own order record
+    long after the sale ends (no bundle in this account is both currently
+    listed and owned to prove it against), but `category` behaves that way
+    and there's no reason to expect this field wouldn't too.
     """
 
     __tablename__ = "bundle"
@@ -43,6 +53,7 @@ class Bundle(Base):
     gamekey: Mapped[str] = mapped_column(String(20), primary_key=True)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     category: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    machine_name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     subproduct_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     downloadable_item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     key_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

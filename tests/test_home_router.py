@@ -3,6 +3,15 @@ from unittest.mock import AsyncMock, patch
 from app.connectors.storefront import StorefrontBundle, StorefrontBundleDetail, StorefrontItem, StorefrontTier
 from tests.factories import make_order, make_subproduct
 
+# Home fetches every listed bundle's detail (for the owned-ratio) concurrently
+# with the listing itself — any test with a non-empty bundle list needs this
+# mocked too, or it'd attempt a real (sandbox-blocked) network call. This
+# stand-in has zero items, so _build_tiles() reports total_count=0 (falsy),
+# keeping the ratio line suppressed and every pre-existing assertion below
+# unaffected. Tests with an empty bundle list don't need this at all —
+# asyncio.gather() over zero tasks never calls fetch_bundle_detail.
+_EMPTY_DETAIL = StorefrontBundleDetail(name="", msrp_total=None, items=[], tiers=[])
+
 
 def _bundle(category="games", name="Some Bundle", machine_name="somebundle", start_date=None, end_date=None):
     return StorefrontBundle(
@@ -24,7 +33,8 @@ def test_home_requires_auth(client):
 
 def test_home_shows_bundles_grouped_by_category(authed_client):
     bundles = [_bundle(category="games", name="Game One"), _bundle(category="books", name="Book One")]
-    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.get("/")
     assert resp.status_code == 200
     assert "Game One" in resp.text
@@ -53,7 +63,8 @@ def test_home_shows_last_refreshed_time(authed_client):
 
 def test_home_bundle_tile_image_has_a_fallback_for_a_broken_cover_image(authed_client):
     bundles = [_bundle(category="games", name="Game One")]
-    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.get("/")
     assert 'onerror="unbundleImgFallback(this)"' in resp.text
 
@@ -68,7 +79,8 @@ def test_home_collapses_empty_categories_when_others_have_bundles(authed_client)
     # Only "games" has a bundle — "books"/"software"/etc. categories should
     # be skipped entirely rather than each rendering their own empty card.
     bundles = [_bundle(category="games", name="Game One")]
-    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.get("/")
     assert "Game One" in resp.text
     assert "currently listed" not in resp.text
@@ -82,7 +94,8 @@ def test_home_sorts_bundles_newest_first_within_category(authed_client):
         _bundle(category="games", name="Newest", machine_name="newest", start_date=datetime(2026, 9, 1)),
         _bundle(category="games", name="Middle", machine_name="middle", start_date=datetime(2026, 5, 1)),
     ]
-    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.get("/")
     text = resp.text
     assert text.index("Newest") < text.index("Middle") < text.index("Oldest")
@@ -95,7 +108,8 @@ def test_home_sorts_bundles_with_no_start_date_last(authed_client):
         _bundle(category="games", name="No Date", machine_name="nodate", start_date=None),
         _bundle(category="games", name="Has Date", machine_name="hasdate", start_date=datetime(2026, 1, 1)),
     ]
-    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.get("/")
     text = resp.text
     assert text.index("Has Date") < text.index("No Date")
@@ -105,7 +119,8 @@ def test_home_shows_countdown_timer_when_end_date_present(authed_client):
     from datetime import datetime
 
     bundles = [_bundle(category="games", end_date=datetime(2026, 9, 22, 18, 0, 0))]
-    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.get("/")
     assert 'data-countdown-end="2026-09-22T18:00:00Z"' in resp.text
 
@@ -115,17 +130,93 @@ def test_home_omits_countdown_timer_when_no_end_date(authed_client):
     # in it regardless (harmless) — check for the real HTML attribute
     # assignment specifically, not just the bare substring.
     bundles = [_bundle(category="games", end_date=None)]
-    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.get("/")
     assert 'data-countdown-end="' not in resp.text
 
 
 def test_storefront_refresh_forces_a_fresh_fetch(authed_client):
     mock_fetch = AsyncMock(return_value=[_bundle()])
-    with patch("app.routers.home.storefront.fetch_current_bundles", new=mock_fetch):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=mock_fetch), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
         resp = authed_client.post("/storefront/refresh")
     assert resp.status_code == 200
     mock_fetch.assert_awaited_once_with(force=True)
+
+
+def test_home_shows_owned_ratio_for_a_bundle(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Owned Item", machine_name="owned")]))
+    bundles = [_bundle(category="games", name="Game One")]
+    detail = StorefrontBundleDetail(
+        name="Game One",
+        msrp_total=None,
+        items=[
+            StorefrontItem(machine_name="owned", name="Owned Item", content_type="ebook", msrp_amount=None),
+            StorefrontItem(machine_name="new_item", name="New Item", content_type="ebook", msrp_amount=None),
+        ],
+        tiers=[],
+    )
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=detail)):
+        resp = authed_client.get("/")
+    assert "1/2 owned" in resp.text
+    assert 'class="badge badge-pending">1/2 owned' in resp.text  # partial, not fully owned
+
+
+def test_home_owned_ratio_badge_is_ok_when_fully_owned(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Owned Item", machine_name="owned")]))
+    bundles = [_bundle(category="games", name="Game One")]
+    detail = StorefrontBundleDetail(
+        name="Game One",
+        msrp_total=None,
+        items=[StorefrontItem(machine_name="owned", name="Owned Item", content_type="ebook", msrp_amount=None)],
+        tiers=[],
+    )
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=detail)):
+        resp = authed_client.get("/")
+    assert 'class="badge badge-ok">1/1 owned' in resp.text
+
+
+def test_home_marks_a_bundle_already_purchased_by_machine_name(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(machine_name="samebundle"))
+    bundles = [_bundle(category="games", name="Game One", machine_name="samebundle")]
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
+        resp = authed_client.get("/")
+    assert "Already purchased" in resp.text
+
+
+def test_home_does_not_flag_already_purchased_for_a_different_machine_name(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(machine_name="someotherbundle"))
+    bundles = [_bundle(category="games", name="Game One", machine_name="samebundle")]
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
+        resp = authed_client.get("/")
+    assert "Already purchased" not in resp.text
+
+
+def test_home_ignores_blank_machine_names_when_matching_purchased(authed_client, make_bundle):
+    # A bundle synced before the machine_name column existed has "" for it —
+    # must never register as a false-positive match against a storefront
+    # listing that (in some edge case) also resolved to a blank machine_name.
+    make_bundle(gamekey="GK1", order=make_order(machine_name=""))
+    bundles = [_bundle(category="games", name="Game One", machine_name="")]
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_EMPTY_DETAIL)):
+        resp = authed_client.get("/")
+    assert "Already purchased" not in resp.text
+
+
+def test_home_degrades_gracefully_when_a_bundle_detail_fetch_fails(authed_client):
+    bundles = [_bundle(category="games", name="Game One")]
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)), \
+         patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(side_effect=ValueError("boom"))):
+        resp = authed_client.get("/")
+    assert resp.status_code == 200
+    assert "Game One" in resp.text
+    assert "owned</span>" not in resp.text  # no ratio badge for a bundle whose detail fetch failed
 
 
 def test_compare_rejects_url_not_on_humblebundle_domain(authed_client):
