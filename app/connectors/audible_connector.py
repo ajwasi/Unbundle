@@ -87,6 +87,7 @@ class AudibleBookData:
     author: str
     runtime_minutes: int
     cover_url: str
+    narrator: str = ""
     purchase_date: datetime | None = None
     price_amount: float | None = None
     price_currency: str = ""
@@ -291,6 +292,12 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
         if not asin:
             continue
         authors = ", ".join(a["name"] for a in item.get("authors") or [] if a.get("name"))
+        # Same "contributors" response_group as authors, parallel shape —
+        # not yet confirmed against a real account (no raw_json stored on
+        # AudibleBook to check it against), but well-established elsewhere
+        # (audible-cli et al) and free to parse since contributors is
+        # already being requested.
+        narrators = ", ".join(n["name"] for n in item.get("narrators") or [] if n.get("name"))
         images = item.get("product_images") or {}
         cover = images.get("500") or next(iter(images.values()), "")
         price_amount, price_currency = _parse_price(item)
@@ -301,6 +308,7 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
                 asin=asin,
                 title=item.get("title") or asin,
                 author=authors,
+                narrator=narrators,
                 runtime_minutes=int(item.get("runtime_length_min") or 0),
                 cover_url=cover,
                 purchase_date=_parse_purchase_date(item.get("purchase_date")),

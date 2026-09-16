@@ -111,6 +111,26 @@ def test_audible_page_author_filter_is_independent_of_title(authed_client, db):
     assert "A Great Book" not in resp_no_match.text
 
 
+def test_audible_page_narrator_filter(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Book One", author="Jane Author", narrator="Nora Narrator"))
+    db.add(AudibleBook(asin="B002", title="Book Two", author="Jane Author", narrator="Someone Else"))
+    db.commit()
+
+    resp = authed_client.get("/audible", params={"narrator": "Nora"})
+    assert "Book One" in resp.text
+    assert "Book Two" not in resp.text
+
+
+def test_audible_page_shows_narrator_column(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Book One", narrator="Nora Narrator"))
+    db.commit()
+
+    resp = authed_client.get("/audible")
+    assert "Nora Narrator" in resp.text
+
+
 def test_audible_page_series_filter(authed_client, db):
     _connect_audible(db)
     db.add(AudibleBook(asin="B001", title="Book One", series_title="The Great Series"))
@@ -260,6 +280,7 @@ def test_audible_detail_shows_book_metadata(authed_client, db):
             asin="B001",
             title="A Great Book",
             author="Jane Author",
+            narrator="Nora Narrator",
             series_title="The Great Series",
             series_sequence="3",
             rating_average=4.5,
@@ -273,9 +294,22 @@ def test_audible_detail_shows_book_metadata(authed_client, db):
     resp = authed_client.get("/audible/B001")
     assert resp.status_code == 200
     assert "A Great Book" in resp.text
+    assert "Narrated by Nora Narrator" in resp.text
     assert "The Great Series" in resp.text
     assert "Owned" in resp.text
     assert "14.99" in resp.text
+
+
+def test_audible_detail_shows_percent_complete_on_its_own_stored_scale(authed_client, db):
+    # percent_complete is stored 0-100 (same scale used everywhere else in
+    # this app — see the Progress column and test_audible_sync.py) — this
+    # page must not re-multiply it by 100.
+    db.add(AudibleBook(asin="B001", title="Partial Book", is_finished=False, percent_complete=42))
+    db.commit()
+
+    resp = authed_client.get("/audible/B001")
+    assert "42% complete" in resp.text
+    assert "4200" not in resp.text
 
 
 def test_audible_detail_shows_pdf_section_only_when_pdf_available(authed_client, db):

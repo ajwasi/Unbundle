@@ -11,11 +11,12 @@
     <div style="flex: 1; min-width: 240px;">
       <h1 style="margin-top: 0;">{{ book.title }}</h1>
       <p class="muted" style="margin: 0 0 0.5rem;">{{ book.author }}</p>
+      {% if book.narrator %}<p class="muted" style="margin: 0 0 0.5rem;">Narrated by {{ book.narrator }}</p>{% endif %}
 
       <p>
         <span class="badge {{ 'badge-ok' if owned else 'badge-pending' }}">{{ 'Owned' if owned else 'Plus Catalog' }}</span>
         {% if book.is_finished %}<span class="badge badge-ok">Finished</span>
-        {% elif book.percent_complete %}<span class="badge badge-not-configured">{{ (book.percent_complete * 100) | round | int }}% complete</span>{% endif %}
+        {% elif book.percent_complete %}<span class="badge badge-not-configured">{{ book.percent_complete | round | int }}% complete</span>{% endif %}
       </p>
 
       <dl class="detail-dl">

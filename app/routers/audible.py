@@ -38,6 +38,7 @@ def _context(
     db: Session,
     title: str = "",
     author: str = "",
+    narrator: str = "",
     series: str = "",
     runtime_min: str = "",
     runtime_max: str = "",
@@ -57,6 +58,8 @@ def _context(
         query = query.filter(AudibleBook.title.ilike(f"%{title}%"))
     if author:
         query = query.filter(AudibleBook.author.ilike(f"%{author}%"))
+    if narrator:
+        query = query.filter(AudibleBook.narrator.ilike(f"%{narrator}%"))
     if series:
         query = query.filter(AudibleBook.series_title.ilike(f"%{series}%"))
 
@@ -104,6 +107,7 @@ def _context(
         "books": books,
         "title": title,
         "author": author,
+        "narrator": narrator,
         "series": series,
         "runtime_min": runtime_min_hours,
         "runtime_max": runtime_max_hours,
@@ -144,6 +148,7 @@ def audible_page(
     request: Request,
     title: str = "",
     author: str = "",
+    narrator: str = "",
     series: str = "",
     runtime_min: str = "",
     runtime_max: str = "",
@@ -162,6 +167,7 @@ def audible_page(
         db,
         title=title,
         author=author,
+        narrator=narrator,
         series=series,
         runtime_min=runtime_min,
         runtime_max=runtime_max,

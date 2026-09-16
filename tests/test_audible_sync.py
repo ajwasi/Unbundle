@@ -64,6 +64,7 @@ async def test_refresh_audible_library_upserts_new_metadata_fields(db):
             author="Jane Author",
             runtime_minutes=605,
             cover_url="",
+            narrator="Nora Narrator",
             purchase_date=purchased,
             price_amount=14.99,
             price_currency="USD",
@@ -82,6 +83,7 @@ async def test_refresh_audible_library_upserts_new_metadata_fields(db):
             await audible_sync.refresh_audible_library(db)
 
     saved = db.get(AudibleBook, "B001")
+    assert saved.narrator == "Nora Narrator"
     assert saved.purchase_date == purchased
     assert saved.price_amount == 14.99
     assert saved.price_currency == "USD"

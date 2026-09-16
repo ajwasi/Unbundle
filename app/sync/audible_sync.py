@@ -64,6 +64,7 @@ async def refresh_audible_library(db: Session) -> int:
                 asin=b.asin,
                 title=b.title,
                 author=b.author,
+                narrator=b.narrator,
                 runtime_minutes=b.runtime_minutes,
                 cover_url=b.cover_url,
                 fetched_at=now,
