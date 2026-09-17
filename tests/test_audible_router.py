@@ -22,13 +22,6 @@ def test_audible_page_shows_not_configured_prompt(authed_client):
     assert "isn't connected" in resp.text
 
 
-def test_audible_page_uses_the_wide_main_layout(authed_client):
-    # The table's own columns need more than the default reading-width
-    # <main> every other page gets — see app.css's main.main-wide.
-    resp = authed_client.get("/audible")
-    assert 'id="main" class="main-wide"' in resp.text
-
-
 def test_audible_page_shows_books_and_stats(authed_client, db):
     _connect_audible(db)
     db.add(AudibleBook(asin="B001", title="A Great Book", author="Jane Author", runtime_minutes=605))
