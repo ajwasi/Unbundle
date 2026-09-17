@@ -19,7 +19,7 @@
   <div class="table-scroll">
     <table>
       <thead>
-        <tr><th></th><th scope="col" style="min-width: 11rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 8rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 8rem;">Narrator</th><th scope="col" style="min-width: 7rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('progress', 'Progress') }}</th><th></th></tr>
+        <tr><th></th><th scope="col" style="min-width: 9rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 7rem;">Narrator</th><th scope="col" style="min-width: 6rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 6rem;">{{ sort_link('progress', 'Progress') }}</th><th></th></tr>
         <tr>
           <th>
             <input type="hidden" name="sort" value="{{ sort }}" class="audible-filter">
@@ -30,20 +30,20 @@
           <th>{{ filter_input('narrator', narrator, 'Filter...') }}</th>
           <th>{{ filter_input('series', series, 'Filter...') }}</th>
           <th>
-            {{ filter_input('runtime_min', runtime_min, 'min hrs', '4.5rem', 'number') }}
-            {{ filter_input('runtime_max', runtime_max, 'max hrs', '4.5rem', 'number') }}
+            {{ filter_input('runtime_min', runtime_min, 'min hrs', '4rem', 'number') }}
+            {{ filter_input('runtime_max', runtime_max, 'max hrs', '4rem', 'number') }}
           </th>
           <th>
-            {{ filter_input('purchased_from', purchased_from.strftime('%Y-%m-%d') if purchased_from else '', '', '8rem', 'date') }}
-            {{ filter_input('purchased_to', purchased_to.strftime('%Y-%m-%d') if purchased_to else '', '', '8rem', 'date') }}
+            {{ filter_input('purchased_from', purchased_from.strftime('%Y-%m-%d') if purchased_from else '', '', '7rem', 'date') }}
+            {{ filter_input('purchased_to', purchased_to.strftime('%Y-%m-%d') if purchased_to else '', '', '7rem', 'date') }}
           </th>
           <th>
-            {{ filter_input('price_min', price_min, 'min $', '4rem', 'number') }}
-            {{ filter_input('price_max', price_max, 'max $', '4rem', 'number') }}
+            {{ filter_input('price_min', price_min, 'min $', '3.5rem', 'number') }}
+            {{ filter_input('price_max', price_max, 'max $', '3.5rem', 'number') }}
           </th>
           <th>
-            {{ filter_input('rating_min', rating_min, 'min ★', '3.5rem', 'number') }}
-            {{ filter_input('rating_max', rating_max, 'max ★', '3.5rem', 'number') }}
+            {{ filter_input('rating_min', rating_min, 'min ★', '3rem', 'number') }}
+            {{ filter_input('rating_max', rating_max, 'max ★', '3rem', 'number') }}
           </th>
           <th>
             <select name="progress" class="audible-filter" style="width: 100%;"

@@ -311,12 +311,15 @@ main {
   padding: 1.5rem;
 }
 
-/* Wider cap for pages whose own content genuinely needs the room (the
-   Audible table's 11 filterable columns, say) rather than the default
-   reading-width column every other page keeps for comfortable line
-   length. */
+/* No cap at all for pages whose own content genuinely needs the room
+   (the Audible table's 11 filterable columns, say) rather than the
+   default reading-width column every other page keeps for comfortable
+   line length. A fixed wider cap (tried first, 1600px) still wasn't
+   enough for a large real library — an 11-column table's natural width
+   only grows with more/longer real rows, so it needs "however much the
+   screen actually has," not another guessed number. */
 main.main-wide {
-  max-width: 1600px;
+  max-width: none;
 }
 
 .card {
@@ -437,6 +440,15 @@ th, td {
   padding: 0.6rem 0.5rem;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
+}
+
+/* Tighter horizontal padding specifically for the Audible table — it
+   already has more columns than any other list in this app, so every
+   column's padding directly competes with the room actual data gets. */
+#audible-books-table th,
+#audible-books-table td {
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
 }
 
 /* A fixed width for whichever column leads a table, so tables that don't
