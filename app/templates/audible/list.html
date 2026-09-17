@@ -7,7 +7,7 @@
 <p class="muted">Audible isn't connected yet. Connect it in <a href="/settings">Settings</a>.</p>
 {% else %}
 <div class="toolbar">
-  {% set any_filter = title or author or narrator or series or owned or runtime_min is not none or runtime_max is not none
+  {% set any_filter = title or author or narrator or series or owned or progress or runtime_min is not none or runtime_max is not none
                        or purchased_from or purchased_to or price_min is not none or price_max is not none
                        or rating_min is not none or rating_max is not none %}
   {% if any_filter %}

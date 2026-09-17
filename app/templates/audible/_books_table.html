@@ -1,7 +1,7 @@
 {% macro sort_link(col, label) %}
 {% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
 <a href="#"
-   hx-get="/audible?title={{ title | urlencode }}&author={{ author | urlencode }}&narrator={{ narrator | urlencode }}&series={{ series | urlencode }}&runtime_min={{ runtime_min if runtime_min is not none else '' }}&runtime_max={{ runtime_max if runtime_max is not none else '' }}&purchased_from={{ purchased_from.strftime('%Y-%m-%d') if purchased_from else '' }}&purchased_to={{ purchased_to.strftime('%Y-%m-%d') if purchased_to else '' }}&price_min={{ price_min if price_min is not none else '' }}&price_max={{ price_max if price_max is not none else '' }}&rating_min={{ rating_min if rating_min is not none else '' }}&rating_max={{ rating_max if rating_max is not none else '' }}&owned={{ owned | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-get="/audible?title={{ title | urlencode }}&author={{ author | urlencode }}&narrator={{ narrator | urlencode }}&series={{ series | urlencode }}&runtime_min={{ runtime_min if runtime_min is not none else '' }}&runtime_max={{ runtime_max if runtime_max is not none else '' }}&purchased_from={{ purchased_from.strftime('%Y-%m-%d') if purchased_from else '' }}&purchased_to={{ purchased_to.strftime('%Y-%m-%d') if purchased_to else '' }}&price_min={{ price_min if price_min is not none else '' }}&price_max={{ price_max if price_max is not none else '' }}&rating_min={{ rating_min if rating_min is not none else '' }}&rating_max={{ rating_max if rating_max is not none else '' }}&owned={{ owned | urlencode }}&progress={{ progress | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
    hx-target="#audible-books-table" hx-swap="outerHTML">
   {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
 </a>
@@ -19,7 +19,7 @@
   <div class="table-scroll">
     <table>
       <thead>
-        <tr><th></th><th scope="col" style="min-width: 11rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 8rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 8rem;">Narrator</th><th scope="col" style="min-width: 7rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col">Progress</th><th></th></tr>
+        <tr><th></th><th scope="col" style="min-width: 11rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 8rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 8rem;">Narrator</th><th scope="col" style="min-width: 7rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('progress', 'Progress') }}</th><th></th></tr>
         <tr>
           <th>
             <input type="hidden" name="sort" value="{{ sort }}" class="audible-filter">
@@ -45,7 +45,16 @@
             {{ filter_input('rating_min', rating_min, 'min ★', '3.5rem', 'number') }}
             {{ filter_input('rating_max', rating_max, 'max ★', '3.5rem', 'number') }}
           </th>
-          <th></th>
+          <th>
+            <select name="progress" class="audible-filter" style="width: 100%;"
+                    hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
+                    hx-trigger="change" hx-include=".audible-filter">
+              <option value="">All</option>
+              <option value="finished" {{ "selected" if progress == "finished" else "" }}>Finished</option>
+              <option value="in_progress" {{ "selected" if progress == "in_progress" else "" }}>In Progress</option>
+              <option value="not_started" {{ "selected" if progress == "not_started" else "" }}>Not Started</option>
+            </select>
+          </th>
           <th>
             <select name="owned" class="audible-filter" style="width: 100%;"
                     hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
@@ -73,7 +82,7 @@
           <td><span class="badge {{ 'badge-ok' if is_owned(b.benefit_id) else 'badge-pending' }}">{{ 'Owned' if is_owned(b.benefit_id) else 'Plus Catalog' }}</span></td>
         </tr>
         {% else %}
-        {% set any_filter = title or author or narrator or series or owned or runtime_min is not none or runtime_max is not none
+        {% set any_filter = title or author or narrator or series or owned or progress or runtime_min is not none or runtime_max is not none
                              or purchased_from or purchased_to or price_min is not none or price_max is not none
                              or rating_min is not none or rating_max is not none %}
         <tr><td colspan="11" class="muted">{{ "No books match." if any_filter else "No books loaded yet — click Refresh." }}</td></tr>
