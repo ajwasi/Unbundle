@@ -311,17 +311,6 @@ main {
   padding: 1.5rem;
 }
 
-/* No cap at all for pages whose own content genuinely needs the room
-   (the Audible table's 11 filterable columns, say) rather than the
-   default reading-width column every other page keeps for comfortable
-   line length. A fixed wider cap (tried first, 1600px) still wasn't
-   enough for a large real library — an 11-column table's natural width
-   only grows with more/longer real rows, so it needs "however much the
-   screen actually has," not another guessed number. */
-main.main-wide {
-  max-width: none;
-}
-
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
