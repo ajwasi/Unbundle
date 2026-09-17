@@ -232,6 +232,29 @@ def test_audible_page_owned_filter(authed_client, db):
     assert "Library Title" not in resp_plus.text
 
 
+def test_audible_page_progress_filter(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Finished Title", is_finished=True, percent_complete=100))
+    db.add(AudibleBook(asin="B002", title="Partial Title", is_finished=False, percent_complete=42))
+    db.add(AudibleBook(asin="B003", title="Unstarted Title", is_finished=False, percent_complete=0))
+    db.commit()
+
+    resp_finished = authed_client.get("/audible", params={"progress": "finished"})
+    assert "Finished Title" in resp_finished.text
+    assert "Partial Title" not in resp_finished.text
+    assert "Unstarted Title" not in resp_finished.text
+
+    resp_in_progress = authed_client.get("/audible", params={"progress": "in_progress"})
+    assert "Partial Title" in resp_in_progress.text
+    assert "Finished Title" not in resp_in_progress.text
+    assert "Unstarted Title" not in resp_in_progress.text
+
+    resp_not_started = authed_client.get("/audible", params={"progress": "not_started"})
+    assert "Unstarted Title" in resp_not_started.text
+    assert "Finished Title" not in resp_not_started.text
+    assert "Partial Title" not in resp_not_started.text
+
+
 def test_audible_page_sort_by_price(authed_client, db):
     _connect_audible(db)
     db.add(AudibleBook(asin="B001", title="Cheap Book", price_amount=5.0))
@@ -243,6 +266,19 @@ def test_audible_page_sort_by_price(authed_client, db):
 
     resp_desc = authed_client.get("/audible", params={"sort": "price", "dir": "desc"})
     assert resp_desc.text.index("Pricey Book") < resp_desc.text.index("Cheap Book")
+
+
+def test_audible_page_sort_by_progress(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Barely Started", is_finished=False, percent_complete=5))
+    db.add(AudibleBook(asin="B002", title="Almost Done", is_finished=False, percent_complete=90))
+    db.commit()
+
+    resp_asc = authed_client.get("/audible", params={"sort": "progress", "dir": "asc"})
+    assert resp_asc.text.index("Barely Started") < resp_asc.text.index("Almost Done")
+
+    resp_desc = authed_client.get("/audible", params={"sort": "progress", "dir": "desc"})
+    assert resp_desc.text.index("Almost Done") < resp_desc.text.index("Barely Started")
 
 
 def test_audible_page_clear_filters_link_only_shown_when_filtered(authed_client, db):

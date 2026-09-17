@@ -31,6 +31,7 @@ _SORT_COLUMNS = {
     "purchased": AudibleBook.purchase_date,
     "price": AudibleBook.price_amount,
     "rating": AudibleBook.rating_average,
+    "progress": AudibleBook.percent_complete,
 }
 
 
@@ -49,6 +50,7 @@ def _context(
     rating_min: str = "",
     rating_max: str = "",
     owned: str = "",
+    progress: str = "",
     sort: str = "title",
     dir: str = "asc",
 ) -> dict:
@@ -85,6 +87,13 @@ def _context(
     rating_max_val = parse_optional_float(rating_max)
     query = apply_range_filter(query, AudibleBook.rating_average, rating_min_val, rating_max_val)
 
+    if progress == "finished":
+        query = query.filter(AudibleBook.is_finished.is_(True))
+    elif progress == "in_progress":
+        query = query.filter(AudibleBook.is_finished.is_(False), AudibleBook.percent_complete > 0)
+    elif progress == "not_started":
+        query = query.filter(AudibleBook.is_finished.is_(False), AudibleBook.percent_complete == 0)
+
     books = sorted_query(query, _SORT_COLUMNS, sort, dir, AudibleBook.title).all()
     # owned/Plus-Catalog is a plain Python membership check (is_owned(), on a
     # private module constant not worth importing into this router) applied
@@ -118,6 +127,7 @@ def _context(
         "rating_min": rating_min_val,
         "rating_max": rating_max_val,
         "owned": owned,
+        "progress": progress,
         "sort": sort,
         "dir": dir,
         "book_count": total_book_count,
@@ -159,6 +169,7 @@ def audible_page(
     rating_min: str = "",
     rating_max: str = "",
     owned: str = "",
+    progress: str = "",
     sort: str = "title",
     dir: str = "asc",
     db: Session = Depends(get_db),
@@ -178,6 +189,7 @@ def audible_page(
         rating_min=rating_min,
         rating_max=rating_max,
         owned=owned,
+        progress=progress,
         sort=sort,
         dir=dir,
     )
