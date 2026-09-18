@@ -357,3 +357,25 @@ def test_compare_shows_multi_bundle_button_for_duplicates(authed_client, make_bu
     # would render it as.
     assert "&times;2" in resp.text
     assert "/catalog/item/dup/bundles" in resp.text
+
+
+def _connect_humble(db):
+    from app.models.credential import SOURCE_HUMBLE, STATUS_OK, Credential
+    from app.security import encrypt_json
+
+    db.add(Credential(source=SOURCE_HUMBLE, status=STATUS_OK, encrypted_payload=encrypt_json({"session_key": "x"})))
+    db.commit()
+
+
+def test_home_shows_getting_started_banner_before_humble_is_connected(authed_client):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=[])):
+        resp = authed_client.get("/")
+    assert "Welcome to Unbundle" in resp.text
+    assert 'href="/settings"' in resp.text
+
+
+def test_home_hides_getting_started_banner_once_humble_is_connected(authed_client, db):
+    _connect_humble(db)
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=[])):
+        resp = authed_client.get("/")
+    assert "Welcome to Unbundle" not in resp.text

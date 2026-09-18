@@ -1,6 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Home — Unbundle{% endblock %}
 {% block content %}
+{% if not humble_configured %}
+<div class="first-run">
+  <h2>Welcome to Unbundle</h2>
+  <p>
+    This page lists the bundles Humble is selling right now. To also track the bundles
+    you already own — their contents, what you paid, and your downloads — connect your
+    Humble account:
+  </p>
+  <ol>
+    <li>Add your Humble session key in <a href="/settings">Settings</a>.</li>
+    <li>Open <a href="/bundles">Bundles</a> and click <strong>Refresh from Humble</strong> to sync your library.</li>
+  </ol>
+  <p class="muted">Everything else — Catalog, Finance, Downloads — fills in from that sync.</p>
+</div>
+{% endif %}
 <h1>Currently for Sale</h1>
 <div class="toolbar">
   <form hx-post="/storefront/refresh" hx-target="#storefront-bundles" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
