@@ -16,6 +16,7 @@ from app.connectors import storefront
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.bundle import Bundle
+from app.models.credential import SOURCE_HUMBLE, Credential
 from app.ratelimit import RateLimiter, rate_limit
 from app.routers.catalog import _avg_item_value, _build_catalog
 from app.templates_env import templates
@@ -93,6 +94,10 @@ async def home(request: Request, db: Session = Depends(get_db)):
             "by_category": _grouped(tiles),
             "category_labels": CATEGORY_LABELS,
             "last_synced": storefront.last_fetched_at(),
+            # Absence of the row, not its status — a saved-but-failing key means
+            # the user has already been through setup and gets the error on the
+            # Settings card instead of a getting-started banner here.
+            "humble_configured": Credential.get(db, SOURCE_HUMBLE) is not None,
         },
     )
 

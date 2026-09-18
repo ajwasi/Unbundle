@@ -415,6 +415,22 @@ main {
   box-shadow: var(--shadow);
 }
 
+/* Getting-started card on Home, shown only until a Humble credential exists.
+   Accent-tinted rather than a plain .card so it reads as guidance instead of
+   another content panel, but stays quieter than .auth-warning-banner, which
+   is a real problem the user has to fix. */
+.first-run {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.first-run h2 { margin-top: 0; }
+.first-run ol { margin-bottom: 0.6rem; padding-left: 1.2rem; }
+.first-run li { margin-bottom: 0.3rem; }
+.first-run p:last-child { margin-bottom: 0; }
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
