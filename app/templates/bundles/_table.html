@@ -65,7 +65,8 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="muted">No bundles match.</td></tr>
+      {% set any_filter = q or category or min_items or tag_id or redeemed %}
+      <tr><td colspan="9" class="muted">{{ "No bundles match." if any_filter else 'No bundles yet — click "Refresh from Humble" above to sync your library.' }}</td></tr>
       {% endfor %}
     </tbody>
     {% if bundles %}
