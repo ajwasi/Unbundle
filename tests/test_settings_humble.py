@@ -13,6 +13,7 @@ def test_save_humble_key_success_encrypts_and_writes_key_file(authed_client, db,
 
     assert resp.status_code == 200
     assert "ok" in resp.text.lower()
+    assert 'class="badge badge-ok">Saved<' in resp.text
     cred = db.query(Credential).filter(Credential.source == SOURCE_HUMBLE).one()
     assert cred.status == STATUS_OK
     assert decrypt_json(cred.encrypted_payload) == {"session_key": "real-cookie-value"}
@@ -25,6 +26,7 @@ def test_save_humble_key_failure_stores_error_status(authed_client, db):
         resp = authed_client.post("/settings/humble-key", data={"session_key": "bad-cookie"})
 
     assert resp.status_code == 200
+    assert 'class="badge badge-ok">Saved<' not in resp.text
     cred = db.query(Credential).filter(Credential.source == SOURCE_HUMBLE).one()
     assert cred.status == STATUS_ERROR
     assert cred.last_error == "Humble rejected this session key."

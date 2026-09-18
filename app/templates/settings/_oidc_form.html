@@ -1,3 +1,4 @@
+{% from "_macros.html" import saved_badge %}
 <p>
   Status:
   <span class="badge badge-{{ 'ok' if oidc_enabled else 'not-configured' }}">
@@ -39,6 +40,9 @@
       If this ever locks you out (SSO misconfigured or the identity provider is unreachable), run
       <code>docker exec -it &lt;container&gt; python -m app.cli disable-oidc</code> to restore password login.
     </p>
-    <button type="submit" style="align-self: flex-start;">Save</button>
+    <p class="form-row" style="margin: 0;">
+      <button type="submit">Save</button>
+      {{ saved_badge(oidc_saved) }}
+    </p>
   </div>
 </form>

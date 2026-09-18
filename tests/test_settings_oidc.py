@@ -26,6 +26,7 @@ def test_save_oidc_enable_success(authed_client, db):
             data={"issuer": "https://auth.example.com", "client_id": "cid", "client_secret": "secret", "enabled": "true"},
         )
     assert resp.status_code == 200
+    assert 'class="badge badge-ok">Saved<' in resp.text
     cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one()
     assert cred.status == STATUS_OK
     payload = decrypt_json(cred.encrypted_payload)
@@ -37,6 +38,7 @@ def test_save_oidc_missing_fields_rejected(authed_client, db):
     resp = authed_client.post("/settings/oidc", data={"issuer": "", "client_id": "", "client_secret": "", "enabled": "true"})
     assert resp.status_code == 200
     assert "required" in resp.text.lower()
+    assert 'class="badge badge-ok">Saved<' not in resp.text
     cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one()
     assert cred.status == STATUS_ERROR
 

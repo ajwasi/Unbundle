@@ -38,12 +38,13 @@ router = APIRouter(prefix="/settings")
 _TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
 
-def _account_context(db: Session, account_error: str | None = None) -> dict:
+def _account_context(db: Session, account_error: str | None = None, saved: bool = False) -> dict:
     cfg = accounts.get_or_create_account_settings(db)
     return {
         "account_email": cfg.email or "",
         "account_password_active": is_password_login_active(db),
         "account_error": account_error,
+        "account_saved": saved,
     }
 
 
@@ -127,7 +128,7 @@ def _audible_context(db: Session, error: str | None = None) -> dict:
     }
 
 
-def _oidc_context(request: Request, db: Session, oidc_error: str | None = None) -> dict:
+def _oidc_context(request: Request, db: Session, oidc_error: str | None = None, saved: bool = False) -> dict:
     cfg = get_oidc_config(db) or {}
     return {
         "oidc_issuer": cfg.get("issuer", ""),
@@ -137,6 +138,7 @@ def _oidc_context(request: Request, db: Session, oidc_error: str | None = None) 
         "oidc_disable_password": cfg.get("disable_password", False),
         "oidc_error": oidc_error,
         "oidc_redirect_uri": str(request.url_for("oidc_callback")),
+        "oidc_saved": saved,
     }
 
 
@@ -215,7 +217,7 @@ def save_account(
     if wants_password_change and not error:
         _set_password(new_password)
 
-    return templates.TemplateResponse(request, "settings/_account_form.html", _account_context(db, error))
+    return templates.TemplateResponse(request, "settings/_account_form.html", _account_context(db, error, saved=not error))
 
 
 @router.post("/humble-key", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
@@ -244,7 +246,9 @@ async def save_humble_key(request: Request, session_key: str = Form(...), db: Se
         db.commit()
 
     return templates.TemplateResponse(
-        request, "settings/_humble_form.html", {"humble_status": cred.status, "humble_error": cred.last_error}
+        request,
+        "settings/_humble_form.html",
+        {"humble_status": cred.status, "humble_error": cred.last_error, "humble_saved": result.ok},
     )
 
 
@@ -292,7 +296,7 @@ async def save_oidc(
     cred.last_error = error
     db.commit()
 
-    return templates.TemplateResponse(request, "settings/_oidc_form.html", _oidc_context(request, db, error))
+    return templates.TemplateResponse(request, "settings/_oidc_form.html", _oidc_context(request, db, error, saved=not error))
 
 
 @router.post("/steam", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
