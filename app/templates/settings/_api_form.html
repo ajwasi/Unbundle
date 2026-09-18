@@ -22,7 +22,7 @@
         <form hx-post="/settings/api-tokens/{{ t.id }}/delete" hx-target="#api-card-body" hx-swap="innerHTML"
               hx-confirm="Revoke token '{{ t.name }}'? Anything using it will stop working immediately.">
           <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-          <button type="submit" class="secondary">Revoke</button>
+          <button type="submit" class="danger">Revoke</button>
         </form>
       </td>
     </tr>

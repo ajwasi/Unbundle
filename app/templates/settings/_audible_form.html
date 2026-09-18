@@ -13,7 +13,7 @@
   <form hx-post="/settings/audible/disconnect" hx-target="#audible-modal-content" hx-swap="innerHTML"
         hx-confirm="Disconnect Audible? This removes the saved login; your cached library list is kept." style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-    <button type="submit" class="secondary">Disconnect</button>
+    <button type="submit" class="danger">Disconnect</button>
   </form>
   {% endif %}
 </div>

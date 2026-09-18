@@ -13,7 +13,7 @@
   <form hx-post="/settings/gog/disconnect" hx-target="#gog-modal-content" hx-swap="innerHTML"
         hx-confirm="Disconnect GOG? This removes the saved refresh token; already-matched ownership data is kept." style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-    <button type="submit" class="secondary">Disconnect</button>
+    <button type="submit" class="danger">Disconnect</button>
   </form>
   {% endif %}
 </div>

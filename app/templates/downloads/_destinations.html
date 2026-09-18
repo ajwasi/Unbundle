@@ -13,7 +13,7 @@
         <form hx-post="/downloads/destinations/{{ dest.id }}/delete" hx-target="#download-destinations" hx-swap="innerHTML"
               hx-confirm="Delete this destination rule? Files already moved there are not affected." style="display: inline;">
           <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-          <button type="submit" class="secondary">Delete</button>
+          <button type="submit" class="danger">Delete</button>
         </form>
       </td>
     </tr>
