@@ -17,6 +17,6 @@
 <form hx-post="/settings/humble/disconnect" hx-target="#humble-card-body" hx-swap="innerHTML"
       hx-confirm="Disconnect Humble? This removes the saved session cookie everywhere, including humble-cli's own key file; your synced library data is kept." style="margin-top: 0.6rem;">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <button type="submit" class="secondary">Disconnect</button>
+  <button type="submit" class="danger">Disconnect</button>
 </form>
 {% endif %}

@@ -32,7 +32,7 @@
           <form hx-post="/tags/{{ t.id }}/delete" hx-target="#tags-table" hx-swap="outerHTML"
                 hx-confirm="Delete tag '{{ t.name }}'? This removes it from {{ t.bundle_count }} bundle(s) and {{ t.item_count }} item(s).">
             <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-            <button type="submit" class="secondary">Delete</button>
+            <button type="submit" class="danger">Delete</button>
           </form>
         </td>
       </tr>

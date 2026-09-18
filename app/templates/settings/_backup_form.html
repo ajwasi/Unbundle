@@ -42,7 +42,7 @@
         <form hx-post="/settings/backups/{{ b.name }}/delete" hx-target="#backup-card-body" hx-swap="innerHTML"
               hx-confirm="Delete this backup? This cannot be undone." style="display: inline;">
           <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-          <button type="submit" class="secondary">Delete</button>
+          <button type="submit" class="danger">Delete</button>
         </form>
       </td>
     </tr>
@@ -65,7 +65,7 @@
         hx-confirm="Restore this backup? Everything currently in the app will be replaced with the uploaded file's contents.">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <input type="file" name="backup_file" accept=".db" required>
-    <button type="submit" class="secondary">Upload and restore</button>
+    <button type="submit" class="danger">Upload and restore</button>
   </form>
 </div>
 {% endif %}
