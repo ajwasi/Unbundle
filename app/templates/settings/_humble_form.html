@@ -1,4 +1,4 @@
-{% from "_macros.html" import status_badge %}
+{% from "_macros.html" import status_badge, saved_badge %}
 {% set status = humble_status or "not_configured" %}
 <p>
   Status:
@@ -11,6 +11,7 @@
   <label for="humble-session-key" class="sr-only">Humble session key</label>
   <input id="humble-session-key" type="password" name="session_key" placeholder="_simpleauth_sess value" required style="width: 320px;">
   <button type="submit">{{ 'Reconnect' if status == 'error' else 'Save' }}</button>
+  {{ saved_badge(humble_saved) }}
 </form>
 
 {% if status != 'not_configured' %}

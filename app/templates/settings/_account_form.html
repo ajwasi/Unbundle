@@ -1,3 +1,4 @@
+{% from "_macros.html" import saved_badge %}
 {% if account_error %}<p class="text-error">{{ account_error }}</p>{% endif %}
 
 <form hx-post="/settings/account" hx-target="#account-card-body" hx-swap="innerHTML">
@@ -29,6 +30,9 @@
     </p>
     {% endif %}
 
-    <button type="submit" style="align-self: flex-start;">Save</button>
+    <p class="form-row" style="margin: 0;">
+      <button type="submit">Save</button>
+      {{ saved_badge(account_saved) }}
+    </p>
   </div>
 </form>
