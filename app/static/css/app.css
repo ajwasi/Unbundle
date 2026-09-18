@@ -200,6 +200,22 @@ nav.sidebar a.active {
   background: var(--bg);
 }
 
+/* Section header inside the nav list: a thin rule plus a small caps label.
+   The blank variant is just the rule, used to set Settings apart from the
+   library links above it without naming a one-item group. */
+.nav-group-label {
+  display: block;
+  margin: 0.6rem 0 0.15rem;
+  padding: 0.6rem 1.25rem 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.nav-group-label-blank { padding-top: 0; }
+
 /* Hidden on desktop — becomes the only way to reach nav below the
    mobile breakpoint, since the sidebar itself moves off-canvas there. */
 .mobile-bar {
