@@ -575,6 +575,17 @@ th a { text-decoration: none; color: var(--text); }
 .htmx-indicator { opacity: 0; transition: opacity 150ms ease-in; }
 .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
 
+/* Design audit finding #2: this rule alone covers every htmx-driven control
+   app-wide with zero template changes — htmx already tags whichever element
+   triggered a request with .htmx-request for its whole duration (button,
+   input, select, sort link, form...), this just gives that class a visible
+   effect instead of leaving it unstyled. A slow filter/save/refresh now
+   reads as "in progress," not "did that do anything?" A dedicated
+   .htmx-indicator element (see above) still layers on top of this fine
+   where one exists (Home's "Refreshing…" text). */
+.htmx-request { opacity: 0.7; transition: opacity 100ms; }
+button.htmx-request, a.htmx-request { cursor: progress; }
+
 .tags-row { margin: 1em 0; }
 
 .tag-chip {
