@@ -200,6 +200,85 @@ nav.sidebar a.active {
   background: var(--bg);
 }
 
+/* Hidden on desktop — becomes the only way to reach nav below the
+   mobile breakpoint, since the sidebar itself moves off-canvas there. */
+.mobile-bar {
+  display: none;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.mobile-bar-brand { font-weight: 700; }
+
+.nav-toggle {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.nav-toggle span {
+  display: block;
+  width: 1.1rem;
+  height: 2px;
+  background: var(--text);
+  border-radius: 1px;
+}
+
+/* Only ever visible while the sidebar drawer is open (see the media query
+   below) — a plain click-outside-to-close target, not decorative. */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 90;
+}
+.sidebar-backdrop.open { display: block; }
+
+@media (max-width: 768px) {
+  .mobile-bar { display: flex; }
+
+  /* Off-canvas drawer instead of the desktop's always-visible column — the
+     sidebar's own width (210px) plus a full nav list is most of a phone
+     screen's width, so it has to be opt-in there rather than permanent. */
+  nav.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 240px;
+    max-width: 82vw;
+    z-index: 100;
+    transform: translateX(-100%);
+    /* visibility (not just the transform) so a closed drawer's links drop out
+       of tab order entirely — without this a keyboard user tabbing past the
+       toggle lands on invisible off-screen links before ever reaching main. */
+    visibility: hidden;
+    transition: transform 200ms ease, visibility 200ms;
+    box-shadow: var(--shadow);
+  }
+  nav.sidebar.open { transform: translateX(0); visibility: visible; }
+
+  main { padding: 1.1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  nav.sidebar { transition: none; }
+}
+
 .version-box {
   margin: 0.75rem 1.25rem 0;
   margin-top: auto;

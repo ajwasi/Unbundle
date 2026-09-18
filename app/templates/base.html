@@ -19,6 +19,7 @@
   <script src="/static/js/tag-suggest.js"></script>
   <script src="/static/js/theme-toggle.js" defer></script>
   <script src="/static/js/user-menu.js" defer></script>
+  <script src="/static/js/nav-toggle.js" defer></script>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -29,8 +30,15 @@
     Set <code>APP_PASSWORD</code> or configure SSO in <a href="/settings">Settings</a>.
   </div>
   {% endif %}
+  <div class="mobile-bar">
+    <button type="button" id="nav-toggle" class="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar-nav">
+      <span></span><span></span><span></span>
+    </button>
+    <span class="mobile-bar-brand">🎁 Unbundle</span>
+  </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
   <div class="app-shell">
-    <nav class="sidebar">
+    <nav class="sidebar" id="sidebar-nav">
       <div class="brand">
         <span>🎁 Unbundle</span>
         {% if not request.state.identity_label %}
