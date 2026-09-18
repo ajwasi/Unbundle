@@ -391,3 +391,14 @@ def test_download_pdf_file_route_404s_without_a_completed_download(authed_client
 
     resp = authed_client.get("/audible/B001/pdf/file")
     assert resp.status_code == 404
+
+
+def test_plus_catalog_badge_explains_itself_in_a_tooltip(authed_client, db):
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Library Title", benefit_id="LIBRARY"))
+    db.add(AudibleBook(asin="B002", title="Freebie Title", benefit_id="AYCL"))
+    db.commit()
+
+    resp = authed_client.get("/audible")
+    assert "leaves your library if the subscription ends" in resp.text
+    assert "stays in your library permanently" in resp.text

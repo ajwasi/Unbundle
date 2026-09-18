@@ -296,3 +296,14 @@ def test_steam_page_hx_request_returns_just_the_table(authed_client, db):
     assert 'id="steam-games-table"' in resp.text
     assert "Half-Life 2" in resp.text
     assert "<h1>Steam Library</h1>" not in resp.text
+
+
+def test_unredeemed_table_headers_carry_explanatory_tooltips(authed_client, db):
+    _connect_steam(db)
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="A Key", steam_app_id="220", steam_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    assert "A revealed key may still be unredeemed." in resp.text
+    assert "redeeming the key may be redundant" in resp.text

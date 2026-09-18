@@ -14,7 +14,7 @@
     {% if unredeemed %}
     <div class="table-scroll">
     <table class="unredeemed-table">
-      <thead><tr><th scope="col">Key</th><th scope="col">From Bundle</th><th scope="col">Revealed on Humble</th><th scope="col">Expires</th><th scope="col">Possibly owned</th><th></th></tr></thead>
+      <thead><tr><th scope="col">Key</th><th scope="col">From Bundle</th><th scope="col"><span class="tip" title="Whether the key has been revealed in Humble&#39;s own UI. A revealed key may still be unredeemed.">Revealed on Humble</span></th><th scope="col">Expires</th><th scope="col"><span class="tip" title="You appear to own this game already, through another store or a different GOG listing — so redeeming the key may be redundant.">Possibly owned</span></th><th></th></tr></thead>
       <tbody>
         {% for row in unredeemed %}
         <tr class="{{ 'row-expired' if row.is_expired else '' }}">

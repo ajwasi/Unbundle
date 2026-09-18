@@ -238,3 +238,14 @@ def test_gog_page_hx_request_returns_just_the_table(authed_client, db):
     assert 'id="gog-games-table"' in resp.text
     assert "Shadowrun Returns" in resp.text
     assert "<h1>GOG Library</h1>" not in resp.text
+
+
+def test_unredeemed_table_headers_carry_explanatory_tooltips(authed_client, db):
+    _connect_gog(db)
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="A Key", gog_id="1", gog_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "A revealed key may still be unredeemed." in resp.text
+    assert "redeeming the key may be redundant" in resp.text

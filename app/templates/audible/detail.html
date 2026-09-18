@@ -14,7 +14,7 @@
       {% if book.narrator %}<p class="muted" style="margin: 0 0 0.5rem;">Narrated by {{ book.narrator }}</p>{% endif %}
 
       <p>
-        <span class="badge {{ 'badge-ok' if owned else 'badge-pending' }}">{{ 'Owned' if owned else 'Plus Catalog' }}</span>
+        <span class="badge tip {{ 'badge-ok' if owned else 'badge-pending' }}" title="{{ 'Bought outright — it stays in your library permanently.' if owned else 'Available with an Audible Plus subscription — it leaves your library if the subscription ends.' }}">{{ 'Owned' if owned else 'Plus Catalog' }}</span>
         {% if book.is_finished %}<span class="badge badge-ok">Finished</span>
         {% elif book.percent_complete %}<span class="badge badge-not-configured">{{ book.percent_complete | round | int }}% complete</span>{% endif %}
       </p>
