@@ -447,6 +447,24 @@ main {
 .first-run li { margin-bottom: 0.3rem; }
 .first-run p:last-child { margin-bottom: 0; }
 
+/* Label/value pairs that stay aligned as a pair, so a long value never drags
+   its own label out of the column. Collapses to stacked rows on narrow
+   screens, where a fixed label column would leave nothing for the value. */
+.kv {
+  display: grid;
+  grid-template-columns: minmax(10rem, max-content) 1fr;
+  gap: 0.4rem 1.25rem;
+  margin: 0;
+  align-items: baseline;
+}
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .kv { grid-template-columns: 1fr; gap: 0.1rem; }
+  .kv dd { margin-bottom: 0.6rem; }
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

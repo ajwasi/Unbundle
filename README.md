@@ -376,6 +376,45 @@ To put a real domain and HTTPS in front of it:
    entirely if something like Nginx Proxy Manager/Synology's own reverse proxy/
    Traefik is already terminating it) are in `examples/reverse-proxy/`.
 
+**Settings → Deployment** shows how the app is actually being reached — the scheme
+and host it resolved, whether TLS is terminated by a proxy or by the app itself,
+whether cookies are marked `Secure`, and any `X-Forwarded-*` headers it received. It
+flags the failure that is otherwise silent: a proxy sending `X-Forwarded-Proto: https`
+that the app isn't trusting, which makes every URL it generates — the OIDC redirect
+URI above all — claim `http://` and an internal hostname.
+
+### HTTPS without a reverse proxy
+
+A reverse proxy is still the better path when you have a domain, because it can get
+and renew certificates automatically. But on a LAN with no proxy at all, plain HTTP
+means anything on that network can read your Humble session key and app password off
+the wire. To have the app terminate TLS itself, mount a certificate and point both
+variables at it:
+
+```yaml
+    volumes:
+      - ./certs:/certs:ro
+```
+
+```dotenv
+SSL_CERTFILE=/certs/fullchain.pem
+SSL_KEYFILE=/certs/privkey.pem
+```
+
+Notes:
+
+- **Both or neither.** Setting only one makes the container exit with an error rather
+  than quietly serving HTTP while you believe it's serving HTTPS.
+- **Cookies become `Secure` automatically** — `BEHIND_HTTPS_PROXY` is for the proxy
+  case and should stay `false` here; the app derives it from `SSL_CERTFILE`.
+- **The key file must be readable by the container's `appuser`**, not just root, since
+  the app drops privileges before uvicorn starts.
+- **Renewal is yours to handle.** Nothing here does ACME; the app reads the
+  certificate once at startup, so a renewed certificate needs a container restart.
+- **A self-signed certificate stops passive snooping but not an active attacker**, and
+  browsers will show a warning every time unless you add your own CA to their trust
+  store. If that matters, use a proxy with real certificates.
+
 ## Observability
 
 `GET /metrics` exposes an OpenTelemetry-instrumented Prometheus scrape endpoint —

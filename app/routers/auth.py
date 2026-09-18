@@ -108,7 +108,7 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
     else:
         response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(
-        SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.behind_https_proxy
+        SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.https_enabled
     )
     return response
 
@@ -164,7 +164,7 @@ def setup_submit(
         db.commit()
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(
-        SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.behind_https_proxy
+        SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.https_enabled
     )
     return response
 
@@ -223,6 +223,6 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
         create_session_token(identity=identity),
         httponly=True,
         samesite="lax",
-        secure=settings.behind_https_proxy,
+        secure=settings.https_enabled,
     )
     return response

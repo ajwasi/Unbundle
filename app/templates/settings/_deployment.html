@@ -1,0 +1,28 @@
+{% for w in deploy_warnings %}
+<p class="text-error">{{ w }}</p>
+{% endfor %}
+
+<dl class="kv">
+  <dt>This page was reached as</dt>
+  <dd><code>{{ deploy_scheme }}://{{ deploy_host }}</code></dd>
+
+  <dt>TLS</dt>
+  <dd>{{ deploy_tls }}</dd>
+
+  <dt>Cookies marked <span class="tip" title="Browsers refuse to send a Secure cookie over plain HTTP, so this must be on whenever the app is reached over HTTPS — and off whenever it is not.">Secure</span></dt>
+  <dd>
+    {% if deploy_cookies_secure %}
+    <span class="badge badge-ok">Yes</span>
+    {% else %}
+    <span class="badge badge-pending">No</span>
+    {% endif %}
+  </dd>
+
+  {% if deploy_forwarded_proto or deploy_forwarded_for %}
+  <dt><span class="tip" title="Sent by a reverse proxy to describe the original browser connection. This app only honors them from addresses listed in FORWARDED_ALLOW_IPS.">Forwarded headers</span></dt>
+  <dd>
+    <code>X-Forwarded-Proto: {{ deploy_forwarded_proto or "—" }}</code><br>
+    <code>X-Forwarded-For: {{ deploy_forwarded_for or "—" }}</code>
+  </dd>
+  {% endif %}
+</dl>

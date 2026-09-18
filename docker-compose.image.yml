@@ -65,6 +65,12 @@ services:
       - APP_PASSWORD
       - METRICS_TOKEN
       - BEHIND_HTTPS_PROXY
+      # Read by docker-start.sh, which turns them into uvicorn's --ssl-* flags.
+      # Mount the certificate itself via the volumes list above, readable by the
+      # container's appuser. See README's "HTTPS without a reverse proxy".
+      - SSL_CERTFILE
+      - SSL_KEYFILE
+      - SSL_KEYFILE_PASSWORD
       # Opt-in (empty/unset = tracing disabled). See docker-compose.yml's own
       # copy of this comment and README's "Observability" section.
       # - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318/v1/traces

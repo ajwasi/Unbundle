@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     # front locks out every login. See README's "Reverse proxy / HTTPS" section.
     behind_https_proxy: bool = False
 
+    # Serve HTTPS directly, with no reverse proxy in front — container-absolute
+    # paths to a mounted certificate and its private key. Read by
+    # docker-start.sh, which turns them into uvicorn's --ssl-* flags; the app
+    # itself only reads them to know the browser is on HTTPS (https_enabled
+    # below). Leave blank (the default) for plain HTTP, which is still the
+    # right choice whenever a reverse proxy is terminating TLS instead.
+    ssl_certfile: str = ""
+    ssl_keyfile: str = ""
+    ssl_keyfile_password: str = ""
+
     # SQLite (default) or PostgreSQL — e.g. "postgresql+psycopg://user:pass@host/db"
     # (requires the optional `postgres` extra; see README's "Using PostgreSQL
     # instead of SQLite"). app/db.py branches on the real backend name to pick
@@ -76,6 +86,24 @@ class Settings(BaseSettings):
     # default; see README's "Try it without connecting accounts" section.
     demo_mode: bool = False
     mock_api_base_url: str = "http://mock-api:8090"
+
+    @property
+    def https_enabled(self) -> bool:
+        """Whether the browser is talking HTTPS to this app, however TLS got
+        terminated — a proxy in front of it (behind_https_proxy) or this app's
+        own uvicorn (ssl_certfile). The two are indistinguishable to the
+        browser, so the Secure cookie flag must be one decision, not two: a
+        direct-TLS deployment that only checked behind_https_proxy would serve
+        real HTTPS with non-Secure cookies.
+        """
+        return self.behind_https_proxy or bool(self.ssl_certfile)
+
+    def ssl_files_missing(self) -> list[str]:
+        """Configured --ssl-* paths that don't actually exist. uvicorn fails to
+        boot on these, so the container would crash-loop with the reason buried
+        in a traceback; _startup_warnings() surfaces it instead.
+        """
+        return [p for p in (self.ssl_certfile, self.ssl_keyfile) if p and not Path(p).exists()]
 
     def ensure_dirs(self) -> None:
         for d in (self.data_dir, self.downloads_dir, self.data_dir / "backups"):

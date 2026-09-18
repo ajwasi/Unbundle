@@ -66,6 +66,12 @@ services:
       # secrets above.
       - METRICS_TOKEN
       - BEHIND_HTTPS_PROXY
+      # Read by docker-start.sh, which turns them into uvicorn's --ssl-* flags.
+      # Mount the certificate itself via the volumes list above, readable by the
+      # container's appuser. See README's "HTTPS without a reverse proxy".
+      - SSL_CERTFILE
+      - SSL_KEYFILE
+      - SSL_KEYFILE_PASSWORD
       # Opt-in (empty/unset = tracing disabled). Uncomment to send traces to
       # the turnkey Tempo below once you're running with `--profile
       # observability`; point it at a different collector instead by setting
