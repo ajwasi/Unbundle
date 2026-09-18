@@ -768,3 +768,8 @@ def test_refresh_status_shows_failure_message(authed_client, db):
 
     resp = authed_client.get("/bundles/refresh/status")
     assert "Something broke" in resp.text
+
+
+def test_unredeemed_column_header_carries_an_explanatory_tooltip(authed_client):
+    resp = authed_client.get("/bundles")
+    assert "still sitting unused on Humble" in resp.text

@@ -79,7 +79,7 @@
           <td>{% if b.price_amount %}{{ "%.2f"|format(b.price_amount) }} {{ b.price_currency }}{% endif %}</td>
           <td>{% if b.rating_average %}{{ "%.1f"|format(b.rating_average) }}{% endif %}</td>
           <td>{% if b.is_finished %}<span class="badge badge-ok">Finished</span>{% elif b.percent_complete %}{{ "%.0f"|format(b.percent_complete) }}%{% endif %}</td>
-          <td><span class="badge {{ 'badge-ok' if is_owned(b.benefit_id) else 'badge-pending' }}">{{ 'Owned' if is_owned(b.benefit_id) else 'Plus Catalog' }}</span></td>
+          <td><span class="badge tip {{ 'badge-ok' if is_owned(b.benefit_id) else 'badge-pending' }}" title="{{ 'Bought outright — it stays in your library permanently.' if is_owned(b.benefit_id) else 'Available with an Audible Plus subscription — it leaves your library if the subscription ends.' }}">{{ 'Owned' if is_owned(b.benefit_id) else 'Plus Catalog' }}</span></td>
         </tr>
         {% else %}
         {% set any_filter = title or author or narrator or series or owned or progress or runtime_min is not none or runtime_max is not none

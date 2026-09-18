@@ -148,3 +148,11 @@ def test_no_auth_warning_when_oidc_enabled_instead(db, monkeypatch):
     )
     db.commit()
     assert _startup_warnings() == []
+
+
+def test_icon_only_theme_toggle_has_a_hover_tooltip(authed_client):
+    # aria-label alone serves screen readers; a sighted user hovering an
+    # unlabelled icon button gets nothing without title.
+    resp = authed_client.get("/downloads")
+    assert 'id="theme-toggle"' in resp.text
+    assert 'title="Toggle dark mode"' in resp.text

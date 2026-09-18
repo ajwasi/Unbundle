@@ -42,7 +42,7 @@
       <div class="brand">
         <span>🎁 Unbundle</span>
         {% if not request.state.identity_label %}
-        <button type="button" id="theme-toggle" aria-label="Toggle dark mode"></button>
+        <button type="button" id="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
         {% endif %}
       </div>
       <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Home</a>
@@ -65,7 +65,7 @@
           <div class="user-menu-panel">
             <div class="user-menu-identity">{{ request.state.identity_label }}</div>
             <a href="/settings#account-card">Change password / email</a>
-            <button type="button" id="theme-toggle" data-with-label="true" aria-label="Toggle dark mode"></button>
+            <button type="button" id="theme-toggle" data-with-label="true" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
             <form method="post" action="/logout">
               <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
               <button type="submit">Log out</button>

@@ -11,7 +11,7 @@
   <form class="tag-add-form" hx-post="/catalog/item/{{ machine_name }}/tags" hx-target="#item-tags-{{ machine_name }}" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <input type="text" name="name" placeholder="Add tag..." required autocomplete="off" aria-label="Add tag">
-    <button type="submit" aria-label="Add tag">+</button>
+    <button type="submit" title="Add tag" aria-label="Add tag">+</button>
     <div class="tag-suggestions" hidden></div>
   </form>
 </span>

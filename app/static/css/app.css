@@ -399,6 +399,22 @@ main {
   box-shadow: var(--shadow);
 }
 
+/* Marks a term whose title= attribute explains it — without the dotted
+   underline a tooltip is undiscoverable, since nothing invites the hover.
+   Icon-only buttons don't need it: the icon itself is the affordance. */
+.tip {
+  text-decoration: underline dotted;
+  /* Quieter than the text it sits under — at header weights a same-color
+     dotted rule reads as a solid underline, i.e. as a link. */
+  text-decoration-color: var(--muted);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+/* A badge is already a distinct object — the underline inside its pill reads
+   as damage, so it keeps only the help cursor. */
+.badge.tip { text-decoration: none; }
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
