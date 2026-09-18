@@ -12,6 +12,15 @@ def test_warns_when_no_auth_configured(db, monkeypatch):
     assert any("no authentication" in w.lower() for w in warnings)
 
 
+def test_mobile_nav_toggle_present_on_every_page(authed_client):
+    # The only way to reach navigation below the sidebar's mobile breakpoint —
+    # see app.css's nav.sidebar off-canvas rules and static/js/nav-toggle.js.
+    resp = authed_client.get("/downloads")
+    assert 'id="nav-toggle"' in resp.text
+    assert 'id="sidebar-backdrop"' in resp.text
+    assert 'id="sidebar-nav"' in resp.text
+
+
 def test_security_headers_present_on_an_authenticated_page(authed_client):
     resp = authed_client.get("/downloads")
     assert resp.headers.get("x-frame-options") == "DENY"
