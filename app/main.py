@@ -48,6 +48,21 @@ def _startup_warnings() -> list[str]:
             )
     finally:
         db.close()
+
+    missing = settings.ssl_files_missing()
+    if missing:
+        warnings.append(
+            "SSL_CERTFILE/SSL_KEYFILE point at files that don't exist: "
+            f"{', '.join(missing)}. uvicorn will refuse to start until the "
+            "certificate is mounted into the container at that exact path."
+        )
+    if settings.ssl_certfile and settings.behind_https_proxy:
+        warnings.append(
+            "Both SSL_CERTFILE and BEHIND_HTTPS_PROXY are set. This app is "
+            "terminating TLS itself, so the proxy setting is redundant — and "
+            "if a proxy really is in front, it must be speaking HTTPS to this "
+            "app, not plain HTTP."
+        )
     return warnings
 
 
@@ -82,7 +97,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=settings.app_secret_key,
     session_cookie="unbundle_oidc_state",
-    https_only=settings.behind_https_proxy,
+    https_only=settings.https_enabled,
 )
 # Added last so it's the outermost layer — compresses the fully-rendered
 # response (pages, htmx fragments, and static JS/CSS) right before it goes

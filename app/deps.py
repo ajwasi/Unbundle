@@ -98,7 +98,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         def _finish(response):
             if csrf_cookie_is_new:
                 response.set_cookie(
-                    CSRF_COOKIE_NAME, csrf_token, httponly=True, samesite="lax", secure=settings.behind_https_proxy
+                    CSRF_COOKIE_NAME, csrf_token, httponly=True, samesite="lax", secure=settings.https_enabled
                 )
             return response
 

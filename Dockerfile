@@ -127,7 +127,8 @@ VOLUME /data
 EXPOSE 8000
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+COPY docker-start.sh /usr/local/bin/docker-start.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-start.sh
 # Still starts as root (the image's default with no USER instruction) — the
 # entrypoint's whole job is fixing /data's ownership before dropping to
 # appuser for everything after, see its own comment for why that first root
@@ -137,4 +138,4 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 # Single process only — app/downloads/worker.py's in-process job queue (phase 3) and
 # the htmx-polling status reads share in-memory state that a second uvicorn worker
 # would not see. Never add --workers here.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["docker-start.sh"]

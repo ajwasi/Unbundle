@@ -136,6 +136,17 @@
   </div>
 </div>
 
+<div class="card" id="deployment-card">
+  <h3>Deployment</h3>
+  <p class="muted">
+    How this app is actually being reached, so a reverse proxy or certificate problem
+    is visible here rather than only as a confusing failure elsewhere. These come from
+    environment variables read at startup and can't be changed here &mdash; see
+    <strong>Reverse proxy / HTTPS</strong> in the README.
+  </p>
+  {% include "settings/_deployment.html" %}
+</div>
+
 <div class="card" id="logs-card">
   <h3>Application Logs</h3>
   <p class="muted">
