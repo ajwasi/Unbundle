@@ -6,6 +6,9 @@ Steam/GOG keys against your real connected accounts to flag unredeemed ones, and
 what's currently for sale without leaving your own library behind. Single-user,
 Docker-based, no external services required beyond the ones you choose to connect.
 
+Licensed under [AGPL-3.0-or-later](LICENSE) — required by the Audible connector's
+dependency on [mkb79/Audible](https://github.com/mkb79/Audible), itself AGPL-3.0.
+
 ## Features
 
 - **Bundles** — every purchased bundle, downloadable subproducts kept structurally
