@@ -3,6 +3,11 @@ name = "unbundle"
 version = "0.1.0"
 description = "Self-hosted web UI + download/location tracker for humble-cli"
 requires-python = ">=3.11"
+# AGPL, not a plain permissive license, specifically because the Audible
+# connector imports the `audible` package (mkb79/Audible), itself AGPL-3.0 —
+# see LICENSE. That's a real constraint from a direct runtime dependency,
+# not a preference.
+license = { text = "AGPL-3.0-or-later" }
 # Exact pins (==), not lower bounds — a `docker build` run today vs. six
 # months from now must resolve to the exact same versions, so a compromised
 # or newly-vulnerable transitive release never gets silently pulled into a
