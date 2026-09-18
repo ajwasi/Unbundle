@@ -39,7 +39,8 @@
         <td>{{ (d.completed_at.strftime("%Y-%m-%d %H:%M") if d.completed_at else "&mdash;") | safe }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="muted">No downloads match.</td></tr>
+      {% set any_filter = q or status or file_format %}
+      <tr><td colspan="7" class="muted">{{ "No downloads match." if any_filter else "No downloads yet — start one from a bundle detail page." }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

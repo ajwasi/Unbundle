@@ -50,6 +50,18 @@ def test_list_bundles_shows_never_refreshed_with_no_bundles(authed_client):
     assert "Never refreshed" in resp.text
 
 
+def test_list_bundles_empty_state_points_at_refresh_before_any_sync(authed_client):
+    resp = authed_client.get("/bundles")
+    assert "Refresh from Humble" in resp.text
+    assert "No bundles match." not in resp.text
+
+
+def test_list_bundles_empty_state_says_no_match_once_a_filter_is_active(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(name="Findable Bundle"))
+    resp = authed_client.get("/bundles", params={"q": "nonexistent-title"})
+    assert "No bundles match." in resp.text
+
+
 def test_list_bundles_shows_last_refreshed_time(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(name="Findable Bundle"), fetched_at=datetime.utcnow() - timedelta(hours=1))
     resp = authed_client.get("/bundles")

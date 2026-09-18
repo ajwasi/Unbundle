@@ -28,7 +28,7 @@
   <button type="button" class="secondary" onclick="copyVisibleLogs()">Copy visible</button>
   <form hx-post="/settings/logs/clear" hx-target="#logs-content" hx-swap="outerHTML" hx-confirm="Clear the log buffer?" style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-    <button type="submit" class="secondary">Clear</button>
+    <button type="submit" class="danger">Clear</button>
   </form>
 </div>
 

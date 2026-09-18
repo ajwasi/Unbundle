@@ -438,6 +438,17 @@ button.secondary {
   border: 1px solid var(--border);
 }
 
+/* For delete/disconnect/revoke/restore actions — otherwise identical to
+   .secondary (transparent, bordered) so it doesn't out-shout the page, but
+   in --error so it reads as distinct from a plain neutral action at a
+   glance, not just via the hx-confirm popup a click away. */
+button.danger {
+  background: transparent;
+  color: var(--error);
+  border: 1px solid var(--error);
+}
+button.danger:hover { background: color-mix(in srgb, var(--error) 10%, transparent); }
+
 /* Same look as button.secondary, for the places a "secondary action" is a
    plain link (a file download, a docs link) rather than a form submit —
    without this an <a class="secondary"> next to real secondary buttons in

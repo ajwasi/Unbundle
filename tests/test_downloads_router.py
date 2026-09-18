@@ -25,6 +25,18 @@ def test_downloads_page_requires_auth(client):
     assert resp.status_code == 303
 
 
+def test_downloads_history_empty_state_points_at_a_bundle_page(authed_client):
+    resp = authed_client.get("/downloads")
+    assert "start one from a bundle detail page" in resp.text
+    assert "No downloads match." not in resp.text
+
+
+def test_downloads_history_says_no_match_once_a_filter_is_active(authed_client, db, make_bundle):
+    _make_download(db, make_bundle)
+    resp = authed_client.get("/downloads", params={"q": "nonexistent-bundle"})
+    assert "No downloads match." in resp.text
+
+
 def test_downloads_page_loads(authed_client, db, make_bundle):
     _make_download(db, make_bundle)
     resp = authed_client.get("/downloads")

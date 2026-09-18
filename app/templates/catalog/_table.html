@@ -24,7 +24,8 @@
     </thead>
     <tbody>
       {% for r in rows %}{{ rowmacro.render_row(r) }}{% else %}
-      <tr><td colspan="5" class="muted">No items match.</td></tr>
+      {% set any_filter = q or dupes_only or tag_id %}
+      <tr><td colspan="5" class="muted">{% if any_filter %}No items match.{% else %}No items yet — sync your library from the <a href="/bundles">Bundles</a> page first.{% endif %}</td></tr>
       {% endfor %}
       {% if has_more %}{{ rowmacro.sentinel(q, dupes_only, tag_id, sort, dir, next_offset) }}{% endif %}
     </tbody>
