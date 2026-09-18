@@ -221,6 +221,18 @@ def test_catalog_page_requires_auth(client):
     assert resp.status_code == 303
 
 
+def test_catalog_page_empty_state_points_at_bundles_before_any_sync(authed_client):
+    resp = authed_client.get("/catalog")
+    assert 'href="/bundles"' in resp.text
+    assert "No items match." not in resp.text
+
+
+def test_catalog_page_empty_state_says_no_match_once_a_filter_is_active(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Unique Item")]))
+    resp = authed_client.get("/catalog", params={"q": "nonexistent-title"})
+    assert "No items match." in resp.text
+
+
 def test_catalog_page_shows_items(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Unique Item")]))
     resp = authed_client.get("/catalog")

@@ -39,7 +39,8 @@
         <td>${{ "%.2f"|format(b.amount_spent) }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="muted">No purchases match.</td></tr>
+      {% set any_filter = year or month or category or tag_id %}
+      <tr><td colspan="4" class="muted">{% if any_filter %}No purchases match.{% else %}No purchases yet — sync your library from the <a href="/bundles">Bundles</a> page first.{% endif %}</td></tr>
       {% endfor %}
     </tbody>
     {% if rows %}

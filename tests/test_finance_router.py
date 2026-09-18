@@ -41,6 +41,18 @@ def test_finance_requires_auth(client):
     assert resp.status_code == 303
 
 
+def test_finance_page_empty_state_points_at_bundles_before_any_sync(authed_client):
+    resp = authed_client.get("/finance")
+    assert 'href="/bundles"' in resp.text
+    assert "No purchases match." not in resp.text
+
+
+def test_finance_page_empty_state_says_no_match_once_a_filter_is_active(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(amount_spent=10.0, created="2024-01-01T00:00:00"))
+    resp = authed_client.get("/finance", params={"year": "1999"})
+    assert "No purchases match." in resp.text
+
+
 def test_finance_page_shows_total_spent(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(amount_spent=10.0, created="2024-01-01T00:00:00"))
     make_bundle(gamekey="GK2", order=make_order(amount_spent=5.5, created="2024-02-01T00:00:00"))
