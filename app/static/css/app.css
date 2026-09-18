@@ -465,6 +465,20 @@ main {
   .kv dd { margin-bottom: 0.6rem; }
 }
 
+/* Pre-formatted output that could be any length — a captured JSON body, a key
+   listing. Scrolls inside itself so a long line never widens the page. */
+.scroll-box {
+  max-height: 24rem;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin: 0.6rem 0 0;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

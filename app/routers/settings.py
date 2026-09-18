@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app import accounts, api_tokens, applog, backup
 from app.cli import _set_password
 from app.config import settings
-from app.connectors import audible_connector, gog_connector, steam_connector
+from app.connectors import amazon_music_probe, audible_connector, gog_connector, steam_connector
 from app.connectors.humble_connector import HumbleConnector
 from app.csrf import require_csrf
 from app.db import SessionLocal
@@ -29,6 +29,7 @@ from app.models.credential import (
     Credential,
 )
 from app.oidc import discover, get_oidc_config, is_password_login_active
+from app.ratelimit import RateLimiter, rate_limit
 from app.security import check_app_password, decrypt_json, encrypt_json
 from app.sync import audible_sync, gog_sync
 from app.templates_env import templates
@@ -36,6 +37,11 @@ from app.templates_env import templates
 router = APIRouter(prefix="/settings")
 
 _TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
+
+# Each press makes exactly one request to Amazon, and this is an
+# undocumented API on a personal account — same ceiling as every other
+# outbound refresh in this app.
+_music_probe_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 
 def _account_context(db: Session, account_error: str | None = None, saved: bool = False) -> dict:
@@ -142,6 +148,20 @@ def _oidc_context(request: Request, db: Session, oidc_error: str | None = None, 
     }
 
 
+def _amazon_music_context(db: Session, result=None, error: str | None = None) -> dict:
+    """The Amazon Music card is a reachability probe, not a connector yet — it
+    reports whether music.amazon.com answers httpx with JSON or a challenge.
+    `audible_connected` drives the whole card: option A derives its cookies
+    from the stored Audible login, so with no Audible credential there is
+    nothing to probe with.
+    """
+    return {
+        "music_audible_connected": Credential.get(db, SOURCE_AUDIBLE) is not None,
+        "music_result": result,
+        "music_error": error,
+    }
+
+
 def _deployment_context(request: Request) -> dict:
     """Read-only view of how this request actually arrived, so a misconfigured
     reverse proxy is visible here instead of only as a confusing failure
@@ -232,6 +252,7 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     context.update(_gog_context(db))
     context.update(_audible_context(db))
     context.update(_backup_context(db))
+    context.update(_amazon_music_context(db))
     context.update(_deployment_context(request))
     context.update(_api_context(db))
     return templates.TemplateResponse(request, "settings/index.html", context)
@@ -545,6 +566,47 @@ def disconnect_audible(request: Request, db: Session = Depends(get_db)):
         db.commit()
     audible_connector.clear_pending()
     return _audible_response(request, db)
+
+
+def _music_response(request: Request, db: Session, result=None, error: str | None = None):
+    return templates.TemplateResponse(
+        request, "settings/_amazon_music_form.html", _amazon_music_context(db, result, error)
+    )
+
+
+def _music_probe(request: Request, db: Session, run):
+    """Shared shape for both probe buttons: derive cookies from the stored
+    Audible login, run `run(cookies)`, and render whatever came back. Defined
+    as a plain `def` route below so FastAPI runs the blocking httpx call in a
+    threadpool instead of stalling the event loop.
+    """
+    try:
+        cookies = amazon_music_probe.cookies_from_audible_credential(db)
+        return _music_response(request, db, result=run(cookies))
+    except amazon_music_probe.NotConnectedError as exc:
+        return _music_response(request, db, error=str(exc))
+    except amazon_music_probe.ProbeError as exc:
+        return _music_response(request, db, error=str(exc))
+    except ValueError as exc:  # parse_curl rejected the pasted command
+        return _music_response(request, db, error=str(exc))
+
+
+@router.post(
+    "/amazon-music/test",
+    response_class=HTMLResponse,
+    dependencies=[Depends(rate_limit(_music_probe_limiter, "amazon-music-probe")), Depends(require_csrf)],
+)
+def test_amazon_music(request: Request, db: Session = Depends(get_db)):
+    return _music_probe(request, db, amazon_music_probe.probe_config)
+
+
+@router.post(
+    "/amazon-music/replay",
+    response_class=HTMLResponse,
+    dependencies=[Depends(rate_limit(_music_probe_limiter, "amazon-music-probe")), Depends(require_csrf)],
+)
+def replay_amazon_music(request: Request, curl_text: str = Form(""), db: Session = Depends(get_db)):
+    return _music_probe(request, db, lambda cookies: amazon_music_probe.replay_curl(curl_text, cookies))
 
 
 @router.post("/backups/config", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])

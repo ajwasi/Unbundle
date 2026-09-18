@@ -1,0 +1,346 @@
+"""Reachability probe for music.amazon.com's private JSON API.
+
+Named `_probe`, not `_connector`, on purpose: nothing here parses a library.
+It answers one question — does music.amazon.com return JSON to httpx, or a
+WAF challenge? — and the real connector only gets written once a captured
+response proves there is a schema to write against.
+
+Two things are deliberately *not* done here:
+
+  * Minted cookies are never written back to the stored credential. A probe
+    that mutates saved state makes a failed experiment hard to undo.
+  * Nothing is retried. This is an undocumented API on a personal account;
+    one request per button press, no backoff loops.
+
+Everything that leaves this module is redacted (see `redact`): structure and
+key names survive, every secret/identity leaf does not.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shlex
+from dataclasses import dataclass, field
+from typing import Any
+
+import httpx
+
+from app.models.credential import SOURCE_AUDIBLE, Credential
+
+CONFIG_URL = "https://music.amazon.com/config.json"
+
+# A plain desktop UA so we aren't rejected merely for sending none. Explicitly
+# not an attempt to defeat fingerprinting: if the only thing between us and the
+# data is impersonating Chrome harder, this probe has failed and the feature is
+# cancelled rather than escalated.
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+)
+
+BASE_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://music.amazon.com/",
+}
+
+SECRET_KEY_RE = re.compile(
+    r"(cookie|token|csrf|secret|password|credential|authorization|bearer|apikey|api_key|sessionid|session_id|ubid|at-main|x-main|sid)",
+    re.I,
+)
+# Narrow on purpose: a bare "name"/"title" is almost certainly an album or a
+# track, which is exactly the schema detail a capture exists to reveal.
+IDENTITY_KEY_RE = re.compile(
+    r"(customer(id|_id|name)?|deviceid|device_id|devicetype|deviceserial|dsn|email|firstname|lastname|fullname|givenname|surname|username|phone|address|postal|zipcode|marketplaceid)",
+    re.I,
+)
+# Long unbroken strings are tokens, not prose: titles and descriptions contain
+# spaces, and an ASIN is ~10 characters, so neither is caught.
+OPAQUE_RE = re.compile(r"^[A-Za-z0-9+/=_.-]{64,}$")
+
+MAX_CURL_CHARS = 200_000
+
+# Hosts a pasted capture is allowed to target. a2z.com is not a typo: the web
+# player's private API is served from region-prefixed hosts under it (e.g.
+# na.mesk.skill.music.a2z.com), while the page itself is on amazon.com.
+ALLOWED_REPLAY_DOMAINS = frozenset({"amazon.com", "a2z.com"})
+
+
+class NotConnectedError(Exception):
+    """No Audible credential is stored, so option A has nothing to derive from."""
+
+
+class ProbeError(Exception):
+    """The request could not be made at all (DNS, TLS, timeout)."""
+
+
+@dataclass
+class ProbeResult:
+    label: str
+    status_code: int
+    content_type: str
+    byte_count: int
+    is_json: bool
+    is_challenge: bool
+    signed_in: bool
+    top_level_keys: list[str] = field(default_factory=list)
+    key_paths: list[str] = field(default_factory=list)
+    redacted_json: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.is_json and not self.is_challenge
+
+
+def redact(node: Any, secrets: set[str], inherited: str = "") -> Any:
+    """Replace secret/identity *values* with a marker, keeping structure and
+    key names.
+
+    A sensitive key holding an object or array is recursed into rather than
+    blanked wholesale — blanking it would destroy the schema shape the capture
+    exists to reveal. `inherited` carries sensitivity downward so every leaf
+    beneath such a key is still redacted, including bare strings in a list that
+    have no key of their own to match on.
+    """
+    if isinstance(node, dict):
+        out = {}
+        for key, value in node.items():
+            if inherited:
+                kind = inherited
+            elif SECRET_KEY_RE.search(key):
+                kind = "secret"
+            elif IDENTITY_KEY_RE.search(key):
+                kind = "identity"
+            else:
+                kind = ""
+            if kind and not isinstance(value, (dict, list)):
+                # Booleans and nulls carry no secret, and keeping them makes a
+                # capture far easier to read. isinstance rather than
+                # `value in (None, True, False)`, which would also keep the
+                # integers 0 and 1 (they compare equal to the bools).
+                keep = value is None or isinstance(value, bool)
+                out[key] = value if keep else f"<REDACTED:{kind}>"
+            else:
+                out[key] = redact(value, secrets, kind)
+        return out
+    if isinstance(node, list):
+        return [redact(v, secrets, inherited) for v in node]
+    if inherited and isinstance(node, (str, int, float)) and not isinstance(node, bool):
+        return f"<REDACTED:{inherited}>"
+    if isinstance(node, str):
+        if node and node in secrets:
+            return "<REDACTED:value>"
+        for secret in secrets:
+            if len(secret) >= 8 and secret in node:
+                return "<REDACTED:contains-secret>"
+        if OPAQUE_RE.match(node):
+            return f"<REDACTED:opaque len={len(node)}>"
+    return node
+
+
+def key_paths(node: Any, prefix: str = "", depth: int = 0, limit: int = 3) -> list[str]:
+    """Key names only, to a shallow depth — never values."""
+    if depth > limit:
+        return []
+    found: list[str] = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            path = f"{prefix}.{key}" if prefix else key
+            found.append(path)
+            found.extend(key_paths(value, path, depth + 1, limit))
+    elif isinstance(node, list) and node:
+        found.extend(key_paths(node[0], f"{prefix}[]", depth + 1, limit))
+    return found
+
+
+def find_signed_in(node: Any) -> bool:
+    """True when a populated customer-id-shaped value exists anywhere. Returns
+    a boolean; the value itself never leaves this function.
+    """
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if re.search(r"customer(id|_id)", key, re.I) and isinstance(value, str) and value.strip():
+                return True
+            if find_signed_in(value):
+                return True
+    elif isinstance(node, list):
+        return any(find_signed_in(v) for v in node)
+    return False
+
+
+def cookies_from_audible_credential(db, country: str = "us", refresh: bool = False) -> dict[str, str]:
+    """Option A: mint `.amazon.<tld>` website cookies from the stored Audible
+    refresh token.
+
+    Authenticator.set_website_cookies_for_country() exchanges the refresh token
+    at /ap/exchangetoken/cookies for auth_cookies scoped to the Amazon website
+    domain — confirmed by reading audible/auth.py in the installed 0.12.0.
+    Whether music.amazon.com honours those is the open question.
+    """
+    import audible
+
+    payload = Credential.get_payload(db, SOURCE_AUDIBLE)
+    if not payload:
+        raise NotConnectedError("Audible isn't connected, so there's no Amazon login to derive cookies from.")
+
+    # dict() because from_dict() pops keys off what it is handed — the same
+    # defensive copy app/sync/audible_sync.py already makes.
+    auth = audible.Authenticator.from_dict(dict(payload))
+
+    existing = dict(auth.website_cookies or {})
+    if existing and not refresh:
+        return existing
+
+    try:
+        auth.set_website_cookies_for_country(country)
+    except Exception as exc:
+        raise ProbeError(f"Could not mint Amazon website cookies: {type(exc).__name__}") from exc
+
+    minted = dict(auth.website_cookies or {})
+    if not minted:
+        raise ProbeError("Amazon returned no website cookies for the stored login.")
+    return minted
+
+
+def _looks_like_challenge(resp: httpx.Response) -> bool:
+    if "html" in resp.headers.get("content-type", "").lower():
+        return True
+    head = resp.text[:2000].lower()
+    return any(m in head for m in ("<html", "captcha", "robot check", "challenge", "cvf_", "enter the characters"))
+
+
+def _build_result(label: str, resp: httpx.Response, secrets: set[str]) -> ProbeResult:
+    challenge = _looks_like_challenge(resp)
+    result = ProbeResult(
+        label=label,
+        status_code=resp.status_code,
+        content_type=resp.headers.get("content-type", ""),
+        byte_count=len(resp.content),
+        is_json=False,
+        is_challenge=challenge,
+        signed_in=False,
+    )
+    try:
+        data = resp.json()
+    except Exception:
+        return result
+
+    result.is_json = True
+    result.signed_in = find_signed_in(data)
+    if isinstance(data, dict):
+        result.top_level_keys = sorted(data.keys())
+    result.key_paths = key_paths(data)[:80]
+    result.redacted_json = json.dumps(redact(data, secrets), indent=2, sort_keys=True)[:200_000]
+    return result
+
+
+def probe_config(cookies: dict[str, str], timeout: float = 30.0) -> ProbeResult:
+    secrets = {v for v in cookies.values() if v}
+    try:
+        with httpx.Client(cookies=cookies, headers=BASE_HEADERS, timeout=timeout, follow_redirects=True) as client:
+            resp = client.get(CONFIG_URL)
+    except httpx.HTTPError as exc:
+        raise ProbeError(f"Request to config.json failed: {type(exc).__name__}") from exc
+    return _build_result("GET /config.json", resp, secrets)
+
+
+def parse_curl(text: str) -> dict[str, Any]:
+    """Parse a DevTools "Copy as cURL (bash)" command.
+
+    Only the flags Chrome actually emits; anything unrecognised is skipped
+    rather than guessed at.
+    """
+    text = text.strip()
+    if len(text) > MAX_CURL_CHARS:
+        raise ValueError("That capture is too large to be a single request.")
+    if not text:
+        raise ValueError("Paste the cURL command copied from DevTools.")
+    if text.startswith("curl"):
+        text = text[4:]
+    text = text.replace("\\\n", " ")
+
+    try:
+        tokens = shlex.split(text)
+    except ValueError as exc:
+        raise ValueError(
+            "Could not parse that command. Use DevTools → Copy as cURL (bash), not the cmd or PowerShell variant."
+        ) from exc
+
+    url = ""
+    method = ""
+    headers: dict[str, str] = {}
+    cookie_header = ""
+    body: str | None = None
+
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok in ("-H", "--header") and i + 1 < len(tokens):
+            raw = tokens[i + 1]
+            if ":" in raw:
+                name, value = raw.split(":", 1)
+                name, value = name.strip(), value.strip()
+                if name.lower() == "cookie":
+                    cookie_header = value
+                else:
+                    headers[name] = value
+            i += 2
+        elif tok in ("-b", "--cookie") and i + 1 < len(tokens):
+            cookie_header = tokens[i + 1]
+            i += 2
+        elif tok in ("-X", "--request") and i + 1 < len(tokens):
+            method = tokens[i + 1].upper()
+            i += 2
+        elif tok in ("-d", "--data", "--data-raw", "--data-binary") and i + 1 < len(tokens):
+            body = tokens[i + 1]
+            i += 2
+        elif tok in ("-A", "--user-agent") and i + 1 < len(tokens):
+            headers["User-Agent"] = tokens[i + 1]
+            i += 2
+        elif tok == "--url" and i + 1 < len(tokens):
+            url = tokens[i + 1]
+            i += 2
+        elif tok.startswith("-"):
+            i += 1
+        else:
+            if not url:
+                url = tok
+            i += 1
+
+    if not url:
+        raise ValueError("No URL found in that cURL command.")
+    parsed = httpx.URL(url)
+    # Keeps a pasted command from being turned into a request to anywhere the
+    # app wouldn't otherwise talk to. a2z.com is here because the web player's
+    # own API lives on region-prefixed hosts like na.mesk.skill.music.a2z.com,
+    # not on amazon.com at all. Matched on a label boundary, not as a bare
+    # suffix — "notamazon.com" ends with "amazon.com".
+    host = (parsed.host or "").lower()
+    if parsed.scheme != "https" or not any(host == d or host.endswith(f".{d}") for d in ALLOWED_REPLAY_DOMAINS):
+        allowed = " or ".join(sorted(ALLOWED_REPLAY_DOMAINS))
+        raise ValueError(f"That capture points somewhere other than an https {allowed} host.")
+    if not method:
+        method = "POST" if body is not None else "GET"
+    return {"url": url, "method": method, "headers": headers, "cookie_header": cookie_header, "body": body}
+
+
+def replay_curl(curl_text: str, cookies: dict[str, str], timeout: float = 30.0) -> ProbeResult:
+    spec = parse_curl(curl_text)
+
+    jar = dict(cookies)
+    for part in spec["cookie_header"].split(";"):
+        if "=" in part:
+            name, value = part.split("=", 1)
+            jar[name.strip()] = value.strip()
+
+    secrets = {v for v in jar.values() if v}
+    headers = {**BASE_HEADERS, **spec["headers"]}
+    try:
+        with httpx.Client(cookies=jar, timeout=timeout, follow_redirects=True) as client:
+            resp = client.request(spec["method"], spec["url"], headers=headers, content=spec["body"])
+    except httpx.HTTPError as exc:
+        raise ProbeError(f"Replay request failed: {type(exc).__name__}") from exc
+
+    return _build_result(f"{spec['method']} {httpx.URL(spec['url']).path}", resp, secrets)

@@ -1,0 +1,289 @@
+import json
+from unittest.mock import patch
+
+import httpx
+import pytest
+
+from app.connectors import amazon_music_probe as probe
+from app.models.credential import SOURCE_AUDIBLE, STATUS_OK, Credential
+from app.security import encrypt_json
+
+SECRET = "Atza|VeryLongSecretCookieValueThatMustNeverAppear"
+
+
+def _resp(status=200, json_body=None, text="", content_type="application/json"):
+    content = json.dumps(json_body).encode() if json_body is not None else text.encode()
+    return httpx.Response(
+        status,
+        content=content,
+        headers={"content-type": content_type},
+        request=httpx.Request("GET", probe.CONFIG_URL),
+    )
+
+
+# --------------------------------------------------------------- redaction
+
+def test_redaction_removes_secrets_but_keeps_the_music_schema():
+    payload = {
+        "customerId": "A1B2C3",
+        "csrf": {"token": "tok-abc", "ts": 17},
+        "email": "jane@example.com",
+        "albums": [
+            {
+                "asin": "B00XYZ1234",
+                "title": "Kind of Blue",
+                "artistName": "Miles Davis",
+                "purchased": True,
+                "durationSeconds": 2685,
+                "description": "A studio album recorded in 1959, a landmark of the genre.",
+                "opaque": "a" * 80,
+                "leaky": f"prefix-{SECRET}-suffix",
+            }
+        ],
+    }
+    out = probe.redact(payload, {SECRET})
+    blob = json.dumps(out)
+
+    assert SECRET not in blob
+    assert "jane@example.com" not in blob
+    assert "A1B2C3" not in blob
+    assert "tok-abc" not in blob
+
+    album = out["albums"][0]
+    assert album["title"] == "Kind of Blue"
+    assert album["artistName"] == "Miles Davis"
+    assert album["asin"] == "B00XYZ1234"
+    assert album["purchased"] is True
+    assert album["durationSeconds"] == 2685
+    assert album["description"].startswith("A studio album")
+    assert album["opaque"].startswith("<REDACTED:opaque")
+    assert album["leaky"] == "<REDACTED:contains-secret>"
+
+
+def test_redaction_keeps_structure_under_a_sensitive_container_key():
+    # Blanking the whole subtree would destroy the schema shape the capture
+    # exists to reveal, so keys survive even when their values do not.
+    out = probe.redact({"csrf": {"token": "x", "ts": 17}}, set())
+    assert set(out["csrf"]) == {"token", "ts"}
+    assert out["csrf"]["token"] == "<REDACTED:secret>"
+
+
+def test_signed_in_detection_requires_a_populated_customer_id():
+    assert probe.find_signed_in({"a": {"customerId": "A1"}}) is True
+    assert probe.find_signed_in({"a": {"customerId": "  "}}) is False
+    assert probe.find_signed_in({"albums": []}) is False
+
+
+def test_key_paths_lists_names_only():
+    paths = probe.key_paths({"albums": [{"asin": "B1", "title": "T"}]})
+    assert "albums[].asin" in paths
+    assert not any("B1" in p or p.endswith(".T") for p in paths)
+
+
+# ------------------------------------------------------------- curl parsing
+
+def test_parse_curl_extracts_method_headers_cookies_and_body():
+    spec = probe.parse_curl(
+        "curl 'https://na.mesk.skill.music.a2z.com/api/showLibrary' "
+        "-H 'content-type: application/json' -H 'csrf-token: abc' "
+        "-H 'cookie: session-id=111; ubid-main=222' "
+        "--data-raw '{\"target\":\"showLibrary\"}' --compressed"
+    )
+    assert spec["method"] == "POST"
+    assert spec["headers"]["csrf-token"] == "abc"
+    assert "cookie" not in {k.lower() for k in spec["headers"]}
+    assert "session-id=111" in spec["cookie_header"]
+    assert json.loads(spec["body"])["target"] == "showLibrary"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://na.mesk.skill.music.a2z.com/api/showLibrary",  # the real API host
+        "https://music.amazon.com/config.json",
+        "https://a2z.com/x",
+    ],
+)
+def test_parse_curl_accepts_the_hosts_the_web_player_actually_uses(url):
+    assert probe.parse_curl(f"curl '{url}'")["url"] == url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil.example.com/collect",
+        "https://notamazon.com/collect",  # bare-suffix match would let this through
+        "https://a2z.com.evil.net/collect",
+        "http://music.amazon.com/config.json",  # plaintext
+    ],
+)
+def test_parse_curl_rejects_anything_else(url):
+    with pytest.raises(ValueError, match="other than an https"):
+        probe.parse_curl(f"curl '{url}'")
+
+
+def test_parse_curl_rejects_empty_input():
+    with pytest.raises(ValueError):
+        probe.parse_curl("   ")
+
+
+# ------------------------------------------------------------------ probing
+
+def test_probe_config_reports_json_and_signed_in():
+    body = {"customerId": "A1", "tier": "unlimited", "albums": []}
+    with patch("httpx.Client.get", return_value=_resp(json_body=body)):
+        result = probe.probe_config({"at-main": SECRET})
+
+    assert result.ok is True
+    assert result.is_json is True
+    assert result.signed_in is True
+    assert result.top_level_keys == ["albums", "customerId", "tier"]
+    assert SECRET not in result.redacted_json
+    assert '"customerId": "<REDACTED:identity>"' in result.redacted_json
+
+
+def test_probe_config_detects_a_waf_challenge():
+    html = "<html><head><title>Robot Check</title></head><body>Enter the characters</body></html>"
+    with patch("httpx.Client.get", return_value=_resp(text=html, content_type="text/html")):
+        result = probe.probe_config({"at-main": SECRET})
+
+    assert result.is_challenge is True
+    assert result.is_json is False
+    assert result.ok is False
+
+
+def test_probe_config_raises_a_clean_error_on_transport_failure():
+    with patch("httpx.Client.get", side_effect=httpx.ConnectError("refused")):
+        with pytest.raises(probe.ProbeError, match="ConnectError"):
+            probe.probe_config({})
+
+
+def test_cookies_require_a_stored_audible_credential(db):
+    with pytest.raises(probe.NotConnectedError):
+        probe.cookies_from_audible_credential(db)
+
+
+def test_cookies_reuse_those_already_stored_without_calling_amazon(db):
+    db.add(
+        Credential(
+            source=SOURCE_AUDIBLE,
+            status=STATUS_OK,
+            encrypted_payload=encrypt_json({"website_cookies": {"at-main": SECRET}, "locale_code": "us"}),
+        )
+    )
+    db.commit()
+
+    class _Auth:
+        website_cookies = {"at-main": SECRET}
+
+        @classmethod
+        def from_dict(cls, data):
+            return cls()
+
+        def set_website_cookies_for_country(self, country):  # pragma: no cover
+            raise AssertionError("must not contact Amazon when cookies are already stored")
+
+    with patch("audible.Authenticator", _Auth):
+        assert probe.cookies_from_audible_credential(db) == {"at-main": SECRET}
+
+
+# ------------------------------------------------------------------- routes
+
+def _connect_audible(db):
+    db.add(
+        Credential(
+            source=SOURCE_AUDIBLE,
+            status=STATUS_OK,
+            encrypted_payload=encrypt_json({"website_cookies": {"at-main": SECRET}, "locale_code": "us"}),
+        )
+    )
+    db.commit()
+
+
+def test_card_tells_you_to_connect_audible_first(authed_client):
+    resp = authed_client.get("/settings")
+    assert "Amazon Music" in resp.text
+    assert "Connect <strong>Audible</strong> above first" in resp.text
+
+
+def test_card_offers_the_probe_once_audible_is_connected(authed_client, db):
+    _connect_audible(db)
+    resp = authed_client.get("/settings")
+    assert "Test connection" in resp.text
+    assert "/settings/amazon-music/test" in resp.text
+
+
+def test_test_route_renders_a_json_result(authed_client, db):
+    _connect_audible(db)
+    result = probe.ProbeResult(
+        label="GET /config.json",
+        status_code=200,
+        content_type="application/json",
+        byte_count=42,
+        is_json=True,
+        is_challenge=False,
+        signed_in=True,
+        top_level_keys=["customerId", "tier"],
+        redacted_json='{"customerId": "<REDACTED:identity>"}',
+    )
+    with patch.object(probe, "cookies_from_audible_credential", return_value={"at-main": SECRET}), \
+         patch.object(probe, "probe_config", return_value=result):
+        resp = authed_client.post("/settings/amazon-music/test")
+
+    assert resp.status_code == 200
+    assert "Got JSON" in resp.text
+    assert SECRET not in resp.text
+
+
+def test_test_route_surfaces_a_challenge_as_the_stop_condition(authed_client, db):
+    _connect_audible(db)
+    result = probe.ProbeResult(
+        label="GET /config.json",
+        status_code=200,
+        content_type="text/html",
+        byte_count=900,
+        is_json=False,
+        is_challenge=True,
+        signed_in=False,
+    )
+    with patch.object(probe, "cookies_from_audible_credential", return_value={}), \
+         patch.object(probe, "probe_config", return_value=result):
+        resp = authed_client.post("/settings/amazon-music/test")
+
+    assert "Challenge page" in resp.text
+    assert "stop condition" in resp.text
+
+
+def test_test_route_reports_a_transport_failure_without_a_500(authed_client, db):
+    _connect_audible(db)
+    with patch.object(probe, "cookies_from_audible_credential", return_value={}), \
+         patch.object(probe, "probe_config", side_effect=probe.ProbeError("Request to config.json failed: ConnectError")):
+        resp = authed_client.post("/settings/amazon-music/test")
+
+    assert resp.status_code == 200
+    assert "ConnectError" in resp.text
+
+
+def test_replay_route_rejects_a_bad_paste_without_a_500(authed_client, db):
+    _connect_audible(db)
+    with patch.object(probe, "cookies_from_audible_credential", return_value={}):
+        resp = authed_client.post("/settings/amazon-music/replay", data={"curl_text": "curl 'https://evil.example.com'"})
+
+    assert resp.status_code == 200
+    assert "other than an https" in resp.text
+
+
+def test_probe_routes_reject_a_post_without_a_csrf_token(raw_client, db):
+    # raw_client keeps the real require_csrf dependency (the `client` fixture
+    # overrides it away), so this is a genuine gate. Log in properly first,
+    # otherwise the auth redirect answers before CSRF is ever consulted.
+    from app.csrf import COOKIE_NAME
+
+    _connect_audible(db)
+    token = raw_client.get("/login").cookies[COOKIE_NAME]
+    assert raw_client.post(
+        "/login", data={"password": "test-password", "next": "/", "csrf_token": token}, follow_redirects=False
+    ).status_code == 303
+
+    assert raw_client.post("/settings/amazon-music/test").status_code == 403
+    assert raw_client.post("/settings/amazon-music/replay", data={"curl_text": ""}).status_code == 403
