@@ -6,7 +6,3 @@ __pycache__/
 .env
 *.db
 *.egg-info/
-
-# Amazon Music spike: captured requests and redacted response dumps.
-# Real cookies and library data — never committed.
-scripts/.spike/
