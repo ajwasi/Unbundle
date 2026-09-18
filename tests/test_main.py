@@ -21,6 +21,13 @@ def test_mobile_nav_toggle_present_on_every_page(authed_client):
     assert 'id="sidebar-nav"' in resp.text
 
 
+def test_sidebar_groups_connected_libraries_under_a_label(authed_client):
+    resp = authed_client.get("/downloads")
+    label = resp.text.index('class="nav-group-label">Connected libraries<')
+    assert resp.text.index('href="/tags"') < label < resp.text.index('href="/steam"')
+    assert label < resp.text.index('href="/gog"') < resp.text.index('href="/audible"')
+
+
 def test_security_headers_present_on_an_authenticated_page(authed_client):
     resp = authed_client.get("/downloads")
     assert resp.headers.get("x-frame-options") == "DENY"

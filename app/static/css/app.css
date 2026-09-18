@@ -200,6 +200,22 @@ nav.sidebar a.active {
   background: var(--bg);
 }
 
+/* Section header inside the nav list: a thin rule plus a small caps label.
+   The blank variant is just the rule, used to set Settings apart from the
+   library links above it without naming a one-item group. */
+.nav-group-label {
+  display: block;
+  margin: 0.6rem 0 0.15rem;
+  padding: 0.6rem 1.25rem 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.nav-group-label-blank { padding-top: 0; }
+
 /* Hidden on desktop — becomes the only way to reach nav below the
    mobile breakpoint, since the sidebar itself moves off-canvas there. */
 .mobile-bar {
@@ -415,6 +431,22 @@ main {
    as damage, so it keeps only the help cursor. */
 .badge.tip { text-decoration: none; }
 
+/* Getting-started card on Home, shown only until a Humble credential exists.
+   Accent-tinted rather than a plain .card so it reads as guidance instead of
+   another content panel, but stays quieter than .auth-warning-banner, which
+   is a real problem the user has to fix. */
+.first-run {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.first-run h2 { margin-top: 0; }
+.first-run ol { margin-bottom: 0.6rem; padding-left: 1.2rem; }
+.first-run li { margin-bottom: 0.3rem; }
+.first-run p:last-child { margin-bottom: 0; }
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -590,6 +622,17 @@ th a { text-decoration: none; color: var(--text); }
 
 .htmx-indicator { opacity: 0; transition: opacity 150ms ease-in; }
 .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
+
+/* Design audit finding #2: this rule alone covers every htmx-driven control
+   app-wide with zero template changes — htmx already tags whichever element
+   triggered a request with .htmx-request for its whole duration (button,
+   input, select, sort link, form...), this just gives that class a visible
+   effect instead of leaving it unstyled. A slow filter/save/refresh now
+   reads as "in progress," not "did that do anything?" A dedicated
+   .htmx-indicator element (see above) still layers on top of this fine
+   where one exists (Home's "Refreshing…" text). */
+.htmx-request { opacity: 0.7; transition: opacity 100ms; }
+button.htmx-request, a.htmx-request { cursor: progress; }
 
 .tags-row { margin: 1em 0; }
 

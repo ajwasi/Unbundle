@@ -53,6 +53,27 @@ def test_save_account_updates_email(authed_client, db):
     assert 'value="person@example.com"' in resp.text
 
 
+def test_save_account_shows_saved_confirmation_on_success(authed_client, db):
+    resp = authed_client.post("/settings/account", data={"email": "person@example.com"})
+    assert 'class="badge badge-ok">Saved<' in resp.text
+
+
+def test_save_account_hides_saved_confirmation_on_error(authed_client, db):
+    resp = authed_client.post(
+        "/settings/account",
+        data={"current_password": "wrong-password", "new_password": "brand-new-password", "confirm_password": "brand-new-password"},
+    )
+    assert "incorrect" in resp.text.lower()
+    assert 'class="badge badge-ok">Saved<' not in resp.text
+
+
+def test_settings_page_never_shows_saved_on_a_plain_load(authed_client):
+    # "Saved" only means "the POST you just made worked" — a fresh GET must
+    # never claim that.
+    resp = authed_client.get("/settings")
+    assert 'class="badge badge-ok">Saved<' not in resp.text
+
+
 def test_save_account_email_only_does_not_require_current_password(authed_client, db):
     from app.accounts import get_or_create_account_settings
 

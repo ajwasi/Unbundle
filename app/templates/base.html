@@ -51,9 +51,11 @@
       <a href="/finance" class="{{ 'active' if request.url.path.startswith('/finance') else '' }}">Finance</a>
       <a href="/downloads" class="{{ 'active' if request.url.path.startswith('/downloads') else '' }}">Downloads</a>
       <a href="/tags" class="{{ 'active' if request.url.path.startswith('/tags') else '' }}">Tags</a>
+      <span class="nav-group-label">Connected libraries</span>
       <a href="/steam" class="{{ 'active' if request.url.path.startswith('/steam') else '' }}">Steam</a>
       <a href="/gog" class="{{ 'active' if request.url.path.startswith('/gog') else '' }}">GOG</a>
       <a href="/audible" class="{{ 'active' if request.url.path.startswith('/audible') else '' }}">Audible</a>
+      <span class="nav-group-label nav-group-label-blank"></span>
       <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') else '' }}">Settings</a>
       {% include "_version_box.html" %}
     </nav>

@@ -1,3 +1,12 @@
 {% macro status_badge(status) -%}
 <span class="badge badge-{{ 'ok' if status == 'ok' else 'error' if status == 'error' else 'not-configured' }}">{{ status | replace('_', ' ') }}</span>
 {%- endmacro %}
+
+{# A generic "your save just worked" confirmation — for forms whose own
+   status line doesn't already say so directly (Steam's "Connected as X",
+   say, needs no separate confirmation; a plain settings save with nothing
+   else to show does). Only ever rendered right after a successful POST,
+   never on a plain page load — see each route's own `saved=` argument. #}
+{% macro saved_badge(saved) -%}
+{% if saved %}<span class="badge badge-ok">Saved</span>{% endif %}
+{%- endmacro %}
