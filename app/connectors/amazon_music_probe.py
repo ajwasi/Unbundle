@@ -114,6 +114,7 @@ class ProbeResult:
     top_level_keys: list[str] = field(default_factory=list)
     key_paths: list[str] = field(default_factory=list)
     collection_sizes: list[str] = field(default_factory=list)
+    record_shapes: list[tuple[str, list[str]]] = field(default_factory=list)
     redacted_json: str = ""
 
     @property
@@ -202,6 +203,104 @@ def collection_sizes(node: Any, prefix: str = "", out: list[str] | None = None) 
         if node:
             collection_sizes(node[0], f"{prefix}[]", out)
     return out
+
+
+# Field names a music record plausibly carries. Used only to *locate* records
+# inside a response — never to assert a schema. showPurchasedTracks returns
+# Amazon's server-driven UI format (a `methods[].template.widgets` tree), so
+# the tracks are buried many levels below anything a shallow key listing
+# reaches, surrounded by page furniture like multiSelectBar and contextMenu.
+RECORD_HINT_KEYS = frozenset(
+    {
+        "asin",
+        "albumasin",
+        "albumname",
+        "album",
+        "artist",
+        "artistname",
+        "artistasin",
+        "title",
+        "name",
+        "isrc",
+        "duration",
+        "durationseconds",
+        "tracknum",
+        "tracknumber",
+        "objectid",
+        "cdoid",
+        "contentid",
+        "purchased",
+        "purchasedate",
+        "uploaded",
+    }
+)
+
+
+def find_record_nodes(
+    node: Any,
+    hints: frozenset[str] = RECORD_HINT_KEYS,
+    min_hits: int = 3,
+    limit: int = 8,
+    prefix: str = "",
+    found: list[tuple[str, list[str]]] | None = None,
+) -> list[tuple[str, list[str]]]:
+    """Locate dicts that look like data records, and report their path plus
+    their key *names* — never their values.
+
+    A UI-template response hides the useful objects far below the depth a flat
+    key listing reaches. Rather than rendering megabytes to find them, this
+    reports "an object with these field names lives here", which is exactly
+    what designing a table needs and carries nothing sensitive.
+
+    Only the first occurrence of each distinct key-set is kept: a list of 800
+    tracks is 800 identical shapes, and one is as informative as all of them.
+    """
+    if found is None:
+        found = []
+    if len(found) >= limit:
+        return found
+
+    if isinstance(node, dict):
+        names = sorted(node.keys())
+        hits = sum(1 for n in names if n.lower() in hints)
+        if hits >= min_hits:
+            shape = [n for n in names]
+            if not any(existing == shape for _, existing in found):
+                found.append((prefix or "(root)", shape))
+        for key, value in node.items():
+            find_record_nodes(value, hints, min_hits, limit, f"{prefix}.{key}" if prefix else key, found)
+    elif isinstance(node, list):
+        for item in node[:3]:  # identical shapes repeat; three is plenty
+            find_record_nodes(item, hints, min_hits, limit, f"{prefix}[]", found)
+    return found
+
+
+def largest_list_shapes(node: Any, limit: int = 5) -> list[tuple[str, list[str]]]:
+    """Fallback locator: the longest lists in the response, and the field names
+    of their first element.
+
+    RECORD_HINT_KEYS only fires when the payload uses semantic field names. A
+    server-driven UI may instead render tracks as generic widget items
+    ("primaryText", "secondaryText"), which no hint list should try to guess at.
+    But whatever the names, a library's track list is far longer than any piece
+    of page furniture — so ranking by length finds it without assuming anything
+    about the schema.
+    """
+    sizes: list[tuple[int, str, list[str]]] = []
+
+    def walk(current: Any, prefix: str) -> None:
+        if isinstance(current, dict):
+            for key, value in current.items():
+                walk(value, f"{prefix}.{key}" if prefix else key)
+        elif isinstance(current, list):
+            if current and isinstance(current[0], dict):
+                sizes.append((len(current), prefix or "(root)", sorted(current[0].keys())))
+            if current:
+                walk(current[0], f"{prefix}[]")
+
+    walk(node, "")
+    sizes.sort(key=lambda row: row[0], reverse=True)
+    return [(f"{path}[] ({count} items)", fields) for count, path, fields in sizes[:limit]]
 
 
 def key_paths(node: Any, prefix: str = "", depth: int = 0, limit: int = 3) -> list[str]:
@@ -297,6 +396,10 @@ def _build_result(label: str, resp: httpx.Response, secrets: set[str]) -> ProbeR
         result.top_level_keys = sorted(data.keys())
     result.key_paths = key_paths(data)[:80]
     result.collection_sizes = collection_sizes(data)[:40]
+    # Semantic field names first; if the payload names nothing recognisably
+    # musical, fall back to ranking lists by length, which assumes no schema
+    # at all.
+    result.record_shapes = find_record_nodes(data) or largest_list_shapes(data)
     # Sample before serialising, so what comes back is valid JSON showing the
     # schema rather than a megabyte of library truncated mid-object. The byte
     # cap stays only as a backstop against a pathologically wide single item.

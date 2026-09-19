@@ -389,3 +389,93 @@ def test_an_unparseable_url_shaped_string_is_blanked_rather_than_guessed(bad):
     out = probe.redact({"u": bad}, set())["u"]
     assert out == "<REDACTED:url>"
     assert "token=abc" not in out
+
+
+# ---------------------------------------------------- finding data records
+
+def test_find_record_nodes_locates_records_buried_in_a_ui_template():
+    # showPurchasedTracks returns Amazon's server-driven UI format: the tracks
+    # sit far below the depth a flat key listing reaches, surrounded by page
+    # furniture.
+    payload = {
+        "methods": [
+            {
+                "template": {
+                    "multiSelectBar": {"actionButton1": {"onItemSelected": []}},
+                    "widgets": [
+                        {
+                            "items": [
+                                {"asin": "B001", "title": "A Song", "artistName": "Someone", "durationSeconds": 210},
+                                {"asin": "B002", "title": "B Song", "artistName": "Someone", "durationSeconds": 180},
+                            ]
+                        }
+                    ],
+                }
+            }
+        ]
+    }
+    found = probe.find_record_nodes(payload)
+
+    assert len(found) == 1, "identical shapes should collapse to one"
+    path, fields = found[0]
+    assert path == "methods[].template.widgets[].items[]"
+    assert fields == ["artistName", "asin", "durationSeconds", "title"]
+
+
+def test_find_record_nodes_ignores_page_furniture():
+    furniture = {"multiSelectBar": {"actionButton1": {"onItemSelected": [], "contextMenu": {"options": []}}}}
+    assert probe.find_record_nodes(furniture) == []
+
+
+def test_find_record_nodes_reports_names_never_values():
+    payload = {"items": [{"asin": "B001", "title": "Private Title", "isrc": "GB123", "artistName": "X"}]}
+    found = probe.find_record_nodes(payload)
+
+    flat = json.dumps(found)
+    assert "Private Title" not in flat
+    assert "GB123" not in flat
+    assert "isrc" in flat
+
+
+def test_find_record_nodes_distinguishes_different_shapes():
+    payload = {
+        "tracks": [{"asin": "B1", "title": "T", "isrc": "I", "durationSeconds": 1}],
+        "albums": [{"asin": "B2", "albumName": "A", "artistName": "X", "purchased": True}],
+    }
+    paths = {p for p, _ in probe.find_record_nodes(payload)}
+    assert paths == {"tracks[]", "albums[]"}
+
+
+def test_probe_result_carries_record_shapes():
+    body = {"items": [{"asin": "B1", "title": "T", "artistName": "X"}]}
+    with patch("httpx.Client.get", return_value=_resp(json_body=body)):
+        result = probe.probe_config({})
+    assert result.record_shapes == [("items[]", ["artistName", "asin", "title"])]
+
+
+def test_largest_list_shapes_finds_records_that_use_generic_widget_names():
+    # No hint key matches "primaryText"/"secondaryText", but a library's track
+    # list is still far longer than any piece of page chrome.
+    payload = {
+        "template": {
+            "contextMenu": {"options": [{"label": "x", "action": "y"}]},
+            "widgets": [
+                {"items": [{"primaryText": f"Track {i}", "secondaryText": "Artist", "id": f"u{i}"} for i in range(400)]}
+            ],
+        }
+    }
+    shapes = probe.largest_list_shapes(payload)
+    top_path, top_fields = shapes[0]
+
+    assert "400 items" in top_path
+    assert top_fields == ["id", "primaryText", "secondaryText"]
+    assert "Track 0" not in json.dumps(shapes)
+
+
+def test_probe_falls_back_to_list_ranking_when_no_hint_keys_match():
+    body = {"widgets": [{"rows": [{"primaryText": "a", "secondaryText": "b", "id": "c"} for _ in range(50)]}]}
+    with patch("httpx.Client.get", return_value=_resp(json_body=body)):
+        result = probe.probe_config({})
+
+    assert result.record_shapes, "must report something even with no recognisable field names"
+    assert "50 items" in result.record_shapes[0][0]
