@@ -55,6 +55,7 @@
       <a href="/steam" class="{{ 'active' if request.url.path.startswith('/steam') else '' }}">Steam</a>
       <a href="/gog" class="{{ 'active' if request.url.path.startswith('/gog') else '' }}">GOG</a>
       <a href="/audible" class="{{ 'active' if request.url.path.startswith('/audible') else '' }}">Audible</a>
+      <a href="/amazon-music" class="{{ 'active' if request.url.path.startswith('/amazon-music') else '' }}">Amazon Music</a>
       <span class="nav-group-label nav-group-label-blank"></span>
       <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') else '' }}">Settings</a>
       {% include "_version_box.html" %}
