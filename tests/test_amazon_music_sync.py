@@ -114,3 +114,60 @@ def test_a_rejected_login_raises_a_reconnect_message(status):
 def test_refresh_requires_a_stored_audible_login(db):
     with pytest.raises(sync.NotConnectedError, match="Audible isn't connected"):
         sync.refresh_purchased_tracks(db)
+
+
+# ------------------------------------- request shape (the 400 investigation)
+
+def test_page_request_is_urlencoded_but_sent_as_text_plain():
+    # Confirmed from a real capture: the body is urlencoded while the
+    # Content-Type is text/plain, which is how the web player avoids a CORS
+    # preflight. Sending application/x-www-form-urlencoded gets a flat 400.
+    captured = {}
+
+    def _fake_post(self, url, **kwargs):
+        captured["url"] = url
+        captured["content"] = kwargs.get("content")
+        captured["headers"] = kwargs.get("headers")
+        return httpx.Response(200, json={"methods": []}, request=httpx.Request("POST", url))
+
+    with patch("httpx.Client.post", _fake_post):
+        with httpx.Client() as client:
+            sync._fetch_page(client, "https://example.invalid", '{"x":"y"}', "CURSOR")
+
+    assert captured["headers"]["Content-Type"] == "text/plain;charset=UTF-8"
+    assert "sortBy=RECENTLY_ADDED" in captured["content"]
+    assert "next=CURSOR" in captured["content"]
+    assert captured["content"].startswith("headers=")
+
+
+def test_a_400_surfaces_amazons_own_message():
+    resp = httpx.Response(400, text="Missing required header x-amzn-csrf", request=httpx.Request("POST", "https://x"))
+    with patch("httpx.Client.post", return_value=resp):
+        with httpx.Client() as client:
+            with pytest.raises(sync.AmazonMusicRequestError, match="x-amzn-csrf"):
+                sync._fetch_page(client, "https://example.invalid", "{}", "")
+
+
+def test_auth_headers_include_the_session_fields_config_json_supplies():
+    field = sync._auth_headers_field(
+        {
+            "accessToken": "Atna|EXAMPLE",
+            "deviceId": "DEV123",
+            "deviceType": "TYPE123",
+            "sessionId": "SESS123",
+            "montanaCsrf": {"token": "abc", "ts": 1},
+        }
+    )
+    fields = json.loads(field)
+
+    assert fields["x-amzn-device-id"] == "DEV123"
+    assert fields["x-amzn-device-type-id"] == "TYPE123"
+    assert fields["x-amzn-session-id"] == "SESS123"
+    # An object csrf is passed through as JSON, not str()-ed into a dict repr.
+    assert json.loads(fields["x-amzn-csrf"])["token"] == "abc"
+
+
+def test_auth_headers_omit_fields_config_json_did_not_provide():
+    fields = json.loads(sync._auth_headers_field({"accessToken": "Atna|EXAMPLE"}))
+    assert "x-amzn-device-id" not in fields
+    assert "x-amzn-authentication" in fields

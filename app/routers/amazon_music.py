@@ -96,6 +96,11 @@ def refresh_amazon_music(request: Request, q: str = Form(""), sort: str = Form("
         error = str(exc)
     except AmazonMusicAuthError as exc:
         error = str(exc)
+    except amazon_music_sync.AmazonMusicRequestError as exc:
+        # Amazon's own words about what it disliked — the only useful
+        # diagnostic for an undocumented API, and far better than the
+        # exception class name.
+        error = str(exc)
     except Exception as exc:
         # An undocumented API on a personal account: a shape change is a
         # plausible outcome, and it should read as a broken connector rather
