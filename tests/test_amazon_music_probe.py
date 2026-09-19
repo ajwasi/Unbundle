@@ -302,3 +302,43 @@ def test_replay_help_text_is_rendered_from_the_real_allowlist(authed_client, db)
     with patch.object(probe, "ALLOWED_REPLAY_DOMAINS", frozenset({sentinel})):
         resp = authed_client.get("/settings")
     assert sentinel in resp.text
+
+
+# ------------------------------------------------- large-response sampling
+
+def test_sample_lists_keeps_the_schema_and_drops_the_bulk():
+    data = {"albums": [{"asin": f"B{i:08d}", "title": f"Album {i}"} for i in range(500)]}
+    out = probe.sample_lists(data, max_items=2)
+
+    assert len(out["albums"]) == 3  # two real entries plus the marker
+    assert out["albums"][0]["title"] == "Album 0"
+    assert out["albums"][1]["title"] == "Album 1"
+    assert out["albums"][2] == "<498 more items omitted>"
+
+
+def test_sample_lists_leaves_short_lists_alone():
+    data = {"albums": [{"asin": "B1"}, {"asin": "B2"}]}
+    assert probe.sample_lists(data, max_items=3) == data
+
+
+def test_collection_sizes_reports_counts_not_contents():
+    data = {"library": {"albums": [{"asin": "B1", "tracks": [1, 2, 3]}] * 40}}
+    sizes = probe.collection_sizes(data)
+
+    assert "library.albums[] = 40" in sizes
+    assert any("tracks[] = 3" in s for s in sizes)
+    assert not any("B1" in s for s in sizes)
+
+
+def test_a_large_response_stays_valid_json_instead_of_being_truncated():
+    # The real showLibraryAlbums response is ~1.3 MB; slicing the serialised
+    # string to a byte budget would return a document cut off mid-object.
+    big = {"albums": [{"asin": f"B{i:08d}", "title": "x" * 200} for i in range(3000)]}
+    with patch("httpx.Client.get", return_value=_resp(json_body=big)):
+        result = probe.probe_config({})
+
+    assert result.is_json is True
+    parsed = json.loads(result.redacted_json)  # must not raise
+    assert len(parsed["albums"]) == 4
+    assert parsed["albums"][-1].endswith("more items omitted>")
+    assert "albums[] = 3000" in result.collection_sizes
