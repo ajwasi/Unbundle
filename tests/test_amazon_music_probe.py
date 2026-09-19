@@ -479,3 +479,52 @@ def test_probe_falls_back_to_list_ranking_when_no_hint_keys_match():
 
     assert result.record_shapes, "must report something even with no recognisable field names"
     assert "50 items" in result.record_shapes[0][0]
+
+
+# ------------------------------------------------ endpoints the page can call
+
+def test_referenced_endpoints_maps_the_api_out_of_one_response():
+    # In a server-driven UI the payload carries the calls the page can make
+    # next — which is how zipDownloadTracks and the sortBy parameter were
+    # first spotted by eye.
+    payload = {
+        "template": {
+            "onCreated": [{"url": "https://na.mesk.skill.music.a2z.com/api/showPurchasedTracks?sortBy=X&userHash=Y"}],
+            "multiSelectBar": {
+                "contextMenu": {
+                    "options": [{"url": "https://na.mesk.skill.music.a2z.com/api/zipDownloadTracks?userHash=Y"}]
+                }
+            },
+            "widgets": [
+                {"items": [{"url": "https://na.mesk.skill.music.a2z.com/api/thumbsUp?trackCatalogId=Z&userHash=Y"}]}
+            ],
+        }
+    }
+    found = probe.referenced_endpoints(payload)
+
+    assert "/api/showPurchasedTracks?sortBy&userHash" in found
+    assert "/api/zipDownloadTracks?userHash" in found
+    assert "/api/thumbsUp?trackCatalogId&userHash" in found
+
+
+def test_referenced_endpoints_reports_names_never_values():
+    payload = {"url": "https://na.mesk.skill.music.a2z.com/api/x?token=SECRETVALUE&cid=A1B2C3"}
+    found = probe.referenced_endpoints(payload)
+
+    assert found == ["/api/x?cid&token"]
+    assert "SECRETVALUE" not in json.dumps(found)
+    assert "A1B2C3" not in json.dumps(found)
+
+
+def test_referenced_endpoints_deduplicates_the_same_call_repeated_per_row():
+    # elementClicked appears on every one of 50 rows; it is one endpoint.
+    same = "https://na.mesk.skill.music.a2z.com/api/elementClicked?info=1&userHash=2"
+    payload = {"items": [{"url": same} for _ in range(50)]}
+    assert probe.referenced_endpoints(payload) == ["/api/elementClicked?info&userHash"]
+
+
+def test_probe_result_carries_referenced_endpoints():
+    body = {"a": {"url": "https://na.mesk.skill.music.a2z.com/api/showLibraryAlbums?pageToken=abc"}}
+    with patch("httpx.Client.get", return_value=_resp(json_body=body)):
+        result = probe.probe_config({})
+    assert result.endpoints == ["/api/showLibraryAlbums?pageToken"]

@@ -70,6 +70,14 @@
 <p class="muted" style="font-family: monospace; font-size: 0.85rem;">{{ r.top_level_keys|join(", ") }}</p>
 {% endif %}
 
+{% if r.endpoints %}
+<p style="margin-bottom: 0.3rem;">
+  <strong>API endpoints referenced ({{ r.endpoints|length }})</strong>
+  <span class="muted">&mdash; calls this response tells the page it can make, parameter names only</span>
+</p>
+<pre class="scroll-box">{{ r.endpoints|join("\n") }}</pre>
+{% endif %}
+
 {% if r.record_shapes %}
 <p style="margin-bottom: 0.3rem;">
   <strong>Likely data records ({{ r.record_shapes|length }})</strong>
