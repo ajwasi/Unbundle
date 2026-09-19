@@ -70,6 +70,21 @@
 <p class="muted" style="font-family: monospace; font-size: 0.85rem;">{{ r.top_level_keys|join(", ") }}</p>
 {% endif %}
 
+{% if r.record_shapes %}
+<p style="margin-bottom: 0.3rem;">
+  <strong>Likely data records ({{ r.record_shapes|length }})</strong>
+  <span class="muted">&mdash; objects carrying music-like field names, wherever they sit in the tree</span>
+</p>
+<div class="scroll-box">
+  {% for path, fields in r.record_shapes %}
+  <p style="margin: 0 0 0.6rem;">
+    <code>{{ path }}</code><br>
+    <span class="muted">{{ fields|join(", ") }}</span>
+  </p>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if r.collection_sizes %}
 <p style="margin-bottom: 0.3rem;"><strong>Collection sizes</strong></p>
 <pre class="scroll-box">{{ r.collection_sizes|join("\n") }}</pre>
