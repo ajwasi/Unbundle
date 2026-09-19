@@ -87,6 +87,7 @@ class ProbeResult:
     signed_in: bool
     top_level_keys: list[str] = field(default_factory=list)
     key_paths: list[str] = field(default_factory=list)
+    collection_sizes: list[str] = field(default_factory=list)
     redacted_json: str = ""
 
     @property
@@ -138,6 +139,41 @@ def redact(node: Any, secrets: set[str], inherited: str = "") -> Any:
         if OPAQUE_RE.match(node):
             return f"<REDACTED:opaque len={len(node)}>"
     return node
+
+
+def sample_lists(node: Any, max_items: int = 3) -> Any:
+    """Keep only the first few entries of every list.
+
+    A real library response is megabytes of albums, but the schema is fully
+    visible in the first two or three — and slicing the *serialised* JSON to a
+    byte budget instead would hand back a document cut off mid-structure.
+    Sampling keeps the result valid, small, and stops the whole of someone's
+    library from being rendered to answer a question about field names.
+    """
+    if isinstance(node, dict):
+        return {k: sample_lists(v, max_items) for k, v in node.items()}
+    if isinstance(node, list):
+        kept = [sample_lists(v, max_items) for v in node[:max_items]]
+        if len(node) > max_items:
+            kept.append(f"<{len(node) - max_items} more items omitted>")
+        return kept
+    return node
+
+
+def collection_sizes(node: Any, prefix: str = "", out: list[str] | None = None) -> list[str]:
+    """Where the bulk actually is: "albums[] = 847". Counts only — the items
+    themselves never appear here.
+    """
+    if out is None:
+        out = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            collection_sizes(value, f"{prefix}.{key}" if prefix else key, out)
+    elif isinstance(node, list):
+        out.append(f"{prefix or '(root)'}[] = {len(node)}")
+        if node:
+            collection_sizes(node[0], f"{prefix}[]", out)
+    return out
 
 
 def key_paths(node: Any, prefix: str = "", depth: int = 0, limit: int = 3) -> list[str]:
@@ -232,7 +268,11 @@ def _build_result(label: str, resp: httpx.Response, secrets: set[str]) -> ProbeR
     if isinstance(data, dict):
         result.top_level_keys = sorted(data.keys())
     result.key_paths = key_paths(data)[:80]
-    result.redacted_json = json.dumps(redact(data, secrets), indent=2, sort_keys=True)[:200_000]
+    result.collection_sizes = collection_sizes(data)[:40]
+    # Sample before serialising, so what comes back is valid JSON showing the
+    # schema rather than a megabyte of library truncated mid-object. The byte
+    # cap stays only as a backstop against a pathologically wide single item.
+    result.redacted_json = json.dumps(redact(sample_lists(data), secrets), indent=2, sort_keys=True)[:200_000]
     return result
 
 

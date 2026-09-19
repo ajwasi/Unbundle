@@ -70,6 +70,11 @@
 <p class="muted" style="font-family: monospace; font-size: 0.85rem;">{{ r.top_level_keys|join(", ") }}</p>
 {% endif %}
 
+{% if r.collection_sizes %}
+<p style="margin-bottom: 0.3rem;"><strong>Collection sizes</strong></p>
+<pre class="scroll-box">{{ r.collection_sizes|join("\n") }}</pre>
+{% endif %}
+
 {% if r.key_paths %}
 <details>
   <summary>Key paths, names only ({{ r.key_paths|length }})</summary>
@@ -82,7 +87,8 @@
   <summary>Redacted response</summary>
   <p class="muted" style="margin-top: 0.6rem;">
     Secret and identity values are replaced with markers; key names and structure are kept.
-    Review it before sharing it anywhere.
+    Long lists are cut to their first few entries &mdash; enough to show the schema without
+    rendering a whole library. Review it before sharing it anywhere.
   </p>
   <pre class="scroll-box">{{ r.redacted_json }}</pre>
 </details>
