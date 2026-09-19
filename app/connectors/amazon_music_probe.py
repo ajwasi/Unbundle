@@ -59,6 +59,32 @@ IDENTITY_KEY_RE = re.compile(
 # Long unbroken strings are tokens, not prose: titles and descriptions contain
 # spaces, and an ASIN is ~10 characters, so neither is caught.
 OPAQUE_RE = re.compile(r"^[A-Za-z0-9+/=_.-]{64,}$")
+URL_RE = re.compile(r"^https?://", re.I)
+
+
+def redact_url(value: str) -> str:
+    """Keep a URL's host, path and parameter *names*; blank every parameter
+    value.
+
+    A pre-signed delivery URL carries the customer id, the order id and a
+    signature in its query string, under key names ("url", "downloadUrl") that
+    no sensitive-key pattern would ever match. Keeping the names is what makes
+    a capture readable — learning that an `isrc` parameter exists at all came
+    from reading one — while the values are exactly what must not be rendered.
+    """
+    try:
+        url = httpx.URL(value)
+        if not url.query:
+            return value
+        names = []
+        for name, _ in url.params.multi_items():
+            if name not in names:
+                names.append(name)
+        query = "&".join(f"{name}=<REDACTED>" for name in names)
+        return f"{url.scheme}://{url.host}{url.path}?{query}"
+    except Exception:
+        # Unparseable but URL-shaped: blank it rather than guess.
+        return "<REDACTED:url>"
 
 MAX_CURL_CHARS = 200_000
 
@@ -131,6 +157,8 @@ def redact(node: Any, secrets: set[str], inherited: str = "") -> Any:
     if inherited and isinstance(node, (str, int, float)) and not isinstance(node, bool):
         return f"<REDACTED:{inherited}>"
     if isinstance(node, str):
+        if URL_RE.match(node):
+            return redact_url(node)
         if node and node in secrets:
             return "<REDACTED:value>"
         for secret in secrets:
