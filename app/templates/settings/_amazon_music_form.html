@@ -21,8 +21,11 @@
     In a logged-in <code>music.amazon.com</code> tab, open the Purchased view, then in
     DevTools &rarr; Network find the library request and choose
     <strong>Copy as cURL (bash)</strong> &mdash; not the cmd or PowerShell variant.
-    Paste it here. Only <code>https://*.amazon.com</code> targets are accepted, and the
-    response is redacted before it is shown.
+    Paste it here. The capture must target
+    {% for d in music_allowed_domains %}<code>{{ d }}</code>{% if not loop.last %} or {% endif %}{% endfor %}
+    over https &mdash; the web player calls region-prefixed hosts like
+    <code>na.mesk.skill.music.a2z.com</code>, so those are expected. The response is
+    redacted before it is shown.
   </p>
   <form hx-post="/settings/amazon-music/replay" hx-target="#amazon-music-card-body" hx-swap="innerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">

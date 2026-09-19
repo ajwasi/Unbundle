@@ -287,3 +287,18 @@ def test_probe_routes_reject_a_post_without_a_csrf_token(raw_client, db):
 
     assert raw_client.post("/settings/amazon-music/test").status_code == 403
     assert raw_client.post("/settings/amazon-music/replay", data={"curl_text": ""}).status_code == 403
+
+
+def test_replay_help_text_is_rendered_from_the_real_allowlist(authed_client, db):
+    # This drifted once already: the allowlist grew to cover a2z.com (where the
+    # web player's API actually lives) while the card still told the user only
+    # amazon.com was accepted — i.e. that a valid capture would be rejected.
+    # Asserting the real domains appear proves nothing, because the textarea
+    # placeholder happens to contain one of them; injecting a domain that
+    # exists nowhere else is what actually proves the text comes from the
+    # constant rather than being hardcoded alongside it.
+    _connect_audible(db)
+    sentinel = "example-allowlist-sentinel.test"
+    with patch.object(probe, "ALLOWED_REPLAY_DOMAINS", frozenset({sentinel})):
+        resp = authed_client.get("/settings")
+    assert sentinel in resp.text

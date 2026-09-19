@@ -159,6 +159,11 @@ def _amazon_music_context(db: Session, result=None, error: str | None = None) ->
         "music_audible_connected": Credential.get(db, SOURCE_AUDIBLE) is not None,
         "music_result": result,
         "music_error": error,
+        # Rendered from the constant the validator actually uses, so the help
+        # text cannot drift out of sync with what a paste is allowed to target
+        # — it already did once, telling the user a valid capture would be
+        # rejected.
+        "music_allowed_domains": sorted(amazon_music_probe.ALLOWED_REPLAY_DOMAINS),
     }
 
 
