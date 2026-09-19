@@ -115,6 +115,19 @@
   </div>
 </dialog>
 
+<div class="card" id="amazon-music-card">
+  <h3>Amazon Music <span class="badge badge-pending">Experimental</span></h3>
+  <p class="muted">
+    Not a connector yet. This checks one thing: whether <code>music.amazon.com</code> answers
+    this app with JSON, or blocks it with the same kind of challenge page that stops an
+    automated Amazon login. Nothing is stored and no library is read &mdash; if these probes
+    come back clean, the actual purchased-music inventory gets built next.
+  </p>
+  <div id="amazon-music-card-body">
+    {% include "settings/_amazon_music_form.html" %}
+  </div>
+</div>
+
 <h2>System</h2>
 
 <div class="card" id="backup-card">

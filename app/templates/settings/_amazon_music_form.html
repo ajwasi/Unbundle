@@ -1,0 +1,89 @@
+{% if not music_audible_connected %}
+<p class="muted">
+  Connect <strong>Audible</strong> above first. This probe derives its Amazon website
+  cookies from that login rather than asking you for a second one.
+</p>
+{% else %}
+
+{% if music_error %}<p class="text-error">{{ music_error }}</p>{% endif %}
+
+<div class="toolbar" style="justify-content: flex-start;">
+  <form hx-post="/settings/amazon-music/test" hx-target="#amazon-music-card-body" hx-swap="innerHTML" style="margin: 0;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit">Test connection</button>
+  </form>
+  <span class="muted htmx-indicator">Contacting Amazon&hellip;</span>
+</div>
+
+<details style="margin-top: 0.9rem;">
+  <summary>Replay a captured request</summary>
+  <p class="muted" style="margin-top: 0.6rem;">
+    In a logged-in <code>music.amazon.com</code> tab, open the Purchased view, then in
+    DevTools &rarr; Network find the library request and choose
+    <strong>Copy as cURL (bash)</strong> &mdash; not the cmd or PowerShell variant.
+    Paste it here. Only <code>https://*.amazon.com</code> targets are accepted, and the
+    response is redacted before it is shown.
+  </p>
+  <form hx-post="/settings/amazon-music/replay" hx-target="#amazon-music-card-body" hx-swap="innerHTML">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <label for="music-curl" class="sr-only">Captured cURL command</label>
+    <textarea id="music-curl" name="curl_text" rows="6" style="width: 100%; font-family: monospace; font-size: 0.85rem;"
+              placeholder="curl 'https://na.mesk.skill.music.a2z.com/api/...' -H '...' --data-raw '...'"></textarea>
+    <div class="toolbar" style="margin-top: 0.5rem;">
+      <button type="submit">Replay it</button>
+      <span class="muted htmx-indicator">Replaying&hellip;</span>
+    </div>
+  </form>
+</details>
+
+{% if music_result %}
+{% set r = music_result %}
+<h4 style="margin-bottom: 0.4rem;">{{ r.label }}</h4>
+
+{% if r.ok %}
+<p><span class="badge badge-ok">Got JSON</span></p>
+{% elif r.is_challenge %}
+<p><span class="badge badge-error">Challenge page, not the API</span></p>
+<p class="muted">
+  Amazon answered with a WAF/HTML challenge rather than JSON. That is the stop condition
+  agreed for this feature &mdash; the next step is to decide whether to cancel it, not to
+  work around the challenge.
+</p>
+{% else %}
+<p><span class="badge badge-pending">Reached Amazon, but the body was not JSON</span></p>
+{% endif %}
+
+<dl class="kv">
+  <dt>HTTP status</dt><dd>{{ r.status_code }}</dd>
+  <dt>Content type</dt><dd><code>{{ r.content_type or "—" }}</code></dd>
+  <dt>Body size</dt><dd>{{ r.byte_count }} bytes</dd>
+  <dt>Parsed as JSON</dt><dd>{{ "Yes" if r.is_json else "No" }}</dd>
+  <dt><span class="tip" title="True when a populated customer-id-shaped value appears anywhere in the response. The value itself is never read out or stored.">Looks signed in</span></dt>
+  <dd>{{ "Yes" if r.signed_in else "No" }}</dd>
+</dl>
+
+{% if r.top_level_keys %}
+<p style="margin-bottom: 0.3rem;"><strong>Top-level keys ({{ r.top_level_keys|length }})</strong></p>
+<p class="muted" style="font-family: monospace; font-size: 0.85rem;">{{ r.top_level_keys|join(", ") }}</p>
+{% endif %}
+
+{% if r.key_paths %}
+<details>
+  <summary>Key paths, names only ({{ r.key_paths|length }})</summary>
+  <pre class="scroll-box">{{ r.key_paths|join("\n") }}</pre>
+</details>
+{% endif %}
+
+{% if r.redacted_json %}
+<details>
+  <summary>Redacted response</summary>
+  <p class="muted" style="margin-top: 0.6rem;">
+    Secret and identity values are replaced with markers; key names and structure are kept.
+    Review it before sharing it anywhere.
+  </p>
+  <pre class="scroll-box">{{ r.redacted_json }}</pre>
+</details>
+{% endif %}
+{% endif %}
+
+{% endif %}
