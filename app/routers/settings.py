@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
-from app import accounts, api_tokens, applog, backup
+from app import accounts, api_tokens, applog, backup, humble_key
 from app.cli import _set_password
 from app.config import settings
 from app.connectors import amazon_music_probe, audible_connector, gog_connector, steam_connector
@@ -310,14 +310,12 @@ async def save_humble_key(request: Request, session_key: str = Form(...), db: Se
         cred.last_error = None
         db.commit()
 
-        # humble-cli itself hardcodes this path/format (plaintext, 0600) — write it
+        # humble-cli itself hardcodes this path/format (plaintext, 0600) — written
         # directly so subprocess calls to the real binary authenticate without ever
-        # invoking `humble-cli auth` interactively. See config.humble_cli_key_path
-        # for why this must never point at a real ~/.humble-cli-key during dev.
-        key_path = settings.humble_cli_key_path
-        key_path.parent.mkdir(parents=True, exist_ok=True)
-        key_path.write_text(session_key, encoding="utf-8")
-        os.chmod(key_path, 0o600)
+        # invoking `humble-cli auth` interactively. Shared with the startup
+        # self-heal in app/humble_key.py, which rewrites this same file after a
+        # container recreation wipes it.
+        humble_key.write_key_file(session_key)
     else:
         cred.status = STATUS_ERROR
         cred.last_error = result.message
