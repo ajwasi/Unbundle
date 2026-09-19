@@ -115,6 +115,7 @@ class ProbeResult:
     key_paths: list[str] = field(default_factory=list)
     collection_sizes: list[str] = field(default_factory=list)
     record_shapes: list[tuple[str, list[str]]] = field(default_factory=list)
+    endpoints: list[str] = field(default_factory=list)
     redacted_json: str = ""
 
     @property
@@ -275,6 +276,45 @@ def find_record_nodes(
     return found
 
 
+def referenced_endpoints(node: Any, limit: int = 40) -> list[str]:
+    """Every distinct API URL embedded in the response, as path plus parameter
+    names.
+
+    In a server-driven UI the payload doesn't just carry data — it carries the
+    calls the page can make next, which is how `zipDownloadTracks`,
+    `showPurchasedTracks?sortBy=` and `thumbsUp?trackCatalogId=` were all
+    discovered by eye. Surfacing them deliberately turns one capture into a map
+    of the API, and the pagination call should appear here the moment a
+    response contains one.
+
+    Values are already stripped by redact_url; only host, path and parameter
+    names survive.
+    """
+    seen: list[str] = []
+
+    def walk(current: Any) -> None:
+        if len(seen) >= limit:
+            return
+        if isinstance(current, dict):
+            for value in current.values():
+                walk(value)
+        elif isinstance(current, list):
+            for value in current:
+                walk(value)
+        elif isinstance(current, str) and URL_RE.match(current):
+            try:
+                url = httpx.URL(current)
+            except Exception:
+                return
+            names = sorted({name for name, _ in url.params.multi_items()})
+            entry = f"{url.path}" + (f"?{'&'.join(names)}" if names else "")
+            if entry not in seen:
+                seen.append(entry)
+
+    walk(node)
+    return sorted(seen)
+
+
 def largest_list_shapes(node: Any, limit: int = 5) -> list[tuple[str, list[str]]]:
     """Fallback locator: the longest lists in the response, and the field names
     of their first element.
@@ -400,6 +440,7 @@ def _build_result(label: str, resp: httpx.Response, secrets: set[str]) -> ProbeR
     # musical, fall back to ranking lists by length, which assumes no schema
     # at all.
     result.record_shapes = find_record_nodes(data) or largest_list_shapes(data)
+    result.endpoints = referenced_endpoints(data)
     # Sample before serialising, so what comes back is valid JSON showing the
     # schema rather than a megabyte of library truncated mid-object. The byte
     # cap stays only as a backstop against a pathologically wide single item.
