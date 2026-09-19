@@ -479,6 +479,67 @@ main {
   margin: 0.6rem 0 0;
 }
 
+/* Compare-page item presentation, shared by the grid and list views. */
+.item-grid {
+  display: grid;
+  /* auto-fill rather than auto-fit: a tier holding one item keeps a card the
+     same width as every other card instead of stretching it across the row. */
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+
+.item-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+.item-card.is-owned { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.item-cover {
+  width: 100%;
+  aspect-ratio: 150 / 218;
+  object-fit: cover;
+  background: var(--surface);
+}
+.item-body { padding: 0.75rem 0.85rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.item-body h3 { margin: 0; font-size: 0.95rem; line-height: 1.3; text-wrap: balance; }
+
+.item-row { display: flex; gap: 0.75rem; align-items: flex-start; }
+.item-thumb {
+  width: 52px;
+  flex-shrink: 0;
+  aspect-ratio: 150 / 218;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.item-meta { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.item-meta-label { font-weight: 600; }
+
+/* Collapsed by default: a tier can hold 50 items, and 50 expanded
+   descriptions is a page nobody can scan. */
+.item-description { font-size: 0.85rem; }
+.item-description summary { cursor: pointer; color: var(--accent); }
+.item-description > div { margin-top: 0.4rem; }
+.item-description p { margin: 0 0 0.5rem; }
+.item-description :last-child { margin-bottom: 0; }
+
+.view-toggle {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.view-toggle.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

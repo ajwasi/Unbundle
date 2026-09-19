@@ -17,7 +17,7 @@ stale (bundles rotate) on its own regardless.
 import json
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -33,6 +33,11 @@ BASE_URL = "https://www.humblebundle.com"
 # attributes on any of them (closes off href="javascript:..." / onerror=... etc.
 # by construction, not by trying to enumerate bad attributes).
 _ALLOWED_BLURB_TAGS = {"em", "strong", "b", "i", "br"}
+# An item description is a paragraph or two of real prose, so it needs the
+# block tags a blurb doesn't. Still no attributes on any of them, which rules
+# out href="javascript:" and onerror= by construction rather than by trying to
+# enumerate what's dangerous.
+_ALLOWED_DESCRIPTION_TAGS = _ALLOWED_BLURB_TAGS | {"p", "ul", "ol", "li", "h3", "h4", "blockquote", "span"}
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
@@ -70,6 +75,17 @@ class StorefrontItem:
     name: str
     content_type: str | None
     msrp_amount: float | None
+    # Everything below comes from the same tier_item_data entry the fields
+    # above already read — no extra request. Confirmed present on all 95 items
+    # across three live bundles (2026-09-19). Defaulted so every existing
+    # construction site and test keeps working unchanged.
+    description: str = ""  # sanitized HTML, see _ALLOWED_DESCRIPTION_TAGS
+    authors: list[str] = field(default_factory=list)  # Humble calls these "developers"
+    publishers: list[str] = field(default_factory=list)
+    formats: list[str] = field(default_factory=list)  # e.g. ["PDF", "EPUB"]
+    delivery_methods: list[str] = field(default_factory=list)  # e.g. ["DRM-free download", "Steam"]
+    image_url: str = ""
+    image_url_2x: str = ""  # retina variant, for srcset
 
 
 @dataclass
@@ -153,6 +169,49 @@ async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
     return bundles
 
 
+def _named(entries: object, key: str) -> list[str]:
+    """Humble wraps each name in its own single-key dict, e.g.
+    developers: [{"developer-name": "Stan Sakai"}]."""
+    if not isinstance(entries, list):
+        return []
+    out = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            value = entry.get(key)
+            if isinstance(value, str) and value.strip():
+                out.append(value.strip())
+    return out
+
+
+def _availability(item: dict) -> tuple[list[str], list[str]]:
+    """Split availability_icons into (formats, delivery methods).
+
+    `human_names` maps icon keys to labels for both kinds at once —
+    {"hb-file-pdf-o": "PDF", "hb-drmfree": "DRM-free download"} — and
+    `delivery_to_platform` is what distinguishes them: its keys are the
+    delivery methods, and the `available` lists under them are the formats
+    each one ships. Reading the split from the data beats guessing which
+    labels look like a file type.
+    """
+    icons = item.get("availability_icons") or {}
+    human = icons.get("human_names") or {}
+    mapping = icons.get("delivery_to_platform") or {}
+    if not isinstance(human, dict) or not isinstance(mapping, dict):
+        return [], []
+
+    delivery, formats = [], []
+    for delivery_key, platforms in mapping.items():
+        label = human.get(delivery_key)
+        if isinstance(label, str) and label and label not in delivery:
+            delivery.append(label)
+        available = (platforms or {}).get("available") if isinstance(platforms, dict) else None
+        for format_key in available or []:
+            format_label = human.get(format_key)
+            if isinstance(format_label, str) and format_label and format_label not in formats:
+                formats.append(format_label)
+    return formats, delivery
+
+
 async def fetch_bundle_detail(product_url: str, force: bool = False) -> StorefrontBundleDetail:
     cached = _detail_cache.get(product_url)
     if cached and not force and time.monotonic() - cached[0] < DETAIL_TTL_SECONDS:
@@ -197,11 +256,22 @@ async def fetch_bundle_detail(product_url: str, force: bool = False) -> Storefro
         if not name or not content_type:
             continue  # charity tip / EFF-style tiles: a human_name but no content_type, not a real product
         price = item.get("min_price|money") or {}
+        formats, delivery = _availability(item)
+        resolved = item.get("resolved_paths") or {}
         si = StorefrontItem(
             machine_name=machine_name,
             name=name,
             content_type=content_type,
             msrp_amount=price.get("amount"),
+            description=nh3.clean(item.get("description_text") or "", tags=_ALLOWED_DESCRIPTION_TAGS, attributes={}),
+            authors=_named(item.get("developers"), "developer-name"),
+            publishers=_named(item.get("publishers"), "publisher-name"),
+            formats=formats,
+            delivery_methods=delivery,
+            # front_page_art_imgix is the cover; resolved_paths.featured_image
+            # was None on every item checked, so it is not a usable fallback.
+            image_url=resolved.get("front_page_art_imgix") or resolved.get("preview_image") or "",
+            image_url_2x=resolved.get("front_page_art_imgix_retina") or "",
         )
         items.append(si)
         items_by_name[machine_name] = si

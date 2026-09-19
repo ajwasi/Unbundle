@@ -1,5 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
+import nh3
+
 from app.connectors.storefront import StorefrontBundle, StorefrontBundleDetail, StorefrontItem, StorefrontTier
 from tests.factories import make_order, make_subproduct
 
@@ -379,3 +381,96 @@ def test_home_hides_getting_started_banner_once_humble_is_connected(authed_clien
     with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=[])):
         resp = authed_client.get("/")
     assert "Welcome to Unbundle" not in resp.text
+
+
+# ------------------------------------------- richer compare-page item detail
+
+def _detailed_item():
+    return StorefrontItem(
+        machine_name="book1",
+        name="No One Else",
+        content_type="ebook",
+        msrp_amount=19.99,
+        description="<p>A graphic novel.</p>",
+        authors=["R. Kikuo Johnson"],
+        publishers=["Fantagraphics"],
+        formats=["PDF", "EPUB"],
+        delivery_methods=["DRM-free download"],
+        image_url="https://hb.imgix.net/cover.png?w=180",
+        image_url_2x="https://hb.imgix.net/cover.png?dpr=2",
+    )
+
+
+def _detail_with(item):
+    return StorefrontBundleDetail(
+        name="A Bundle",
+        msrp_total=None,
+        items=[item],
+        tiers=[StorefrontTier(identifier="t1", label="Pay $5", price_amount=5.0, is_bta=False, items=[item])],
+    )
+
+
+def _compare(authed_client, item, **params):
+    with patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=_detail_with(item))):
+        return authed_client.get(
+            "/storefront/compare", params={"url": "https://www.humblebundle.com/books/x", **params}
+        )
+
+
+def test_compare_list_view_shows_cover_author_publisher_and_formats(authed_client):
+    resp = _compare(authed_client, _detailed_item())
+
+    assert "R. Kikuo Johnson" in resp.text
+    assert "Fantagraphics" in resp.text
+    assert "PDF" in resp.text
+    assert "DRM-free download" in resp.text
+    assert "hb.imgix.net/cover.png" in resp.text
+    assert "A graphic novel." in resp.text
+
+
+def test_compare_defaults_to_the_list_view(authed_client):
+    resp = _compare(authed_client, _detailed_item())
+    assert "compare-table" in resp.text
+    assert 'class="item-grid"' not in resp.text
+
+
+def test_compare_grid_view_renders_cards_instead_of_a_table(authed_client):
+    resp = _compare(authed_client, _detailed_item(), view="grid")
+
+    assert 'class="item-grid"' in resp.text
+    assert "compare-table" not in resp.text
+    # Same details must survive the switch.
+    assert "R. Kikuo Johnson" in resp.text
+    assert "DRM-free download" in resp.text
+
+
+def test_an_unknown_view_value_falls_back_to_the_list(authed_client):
+    resp = _compare(authed_client, _detailed_item(), view="carousel")
+    assert "compare-table" in resp.text
+
+
+def test_both_views_offer_a_link_to_the_other(authed_client):
+    resp = _compare(authed_client, _detailed_item())
+    assert "view=grid" in resp.text
+    assert "view=list" in resp.text
+
+
+def test_an_item_missing_the_extra_fields_still_renders(authed_client):
+    # Older cached details and the charity-tile shape carry none of this.
+    bare = StorefrontItem(machine_name="x", name="Bare Item", content_type="ebook", msrp_amount=None)
+    resp = _compare(authed_client, bare)
+
+    assert resp.status_code == 200
+    assert "Bare Item" in resp.text
+
+
+def test_description_html_is_sanitized_before_it_reaches_the_page():
+    from app.connectors import storefront
+
+    dirty = '<p>Fine</p><script>alert(1)</script><a href="javascript:alert(1)" onerror="x">link</a>'
+    clean = nh3.clean(dirty, tags=storefront._ALLOWED_DESCRIPTION_TAGS, attributes={})
+
+    assert "<script" not in clean
+    assert "javascript:" not in clean
+    assert "onerror" not in clean
+    assert "<p>Fine</p>" in clean
