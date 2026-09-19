@@ -1,0 +1,94 @@
+{
+  "methods": [
+    {
+      "interface": "TemplateListInterface.v1_0.BindTemplateMethod",
+      "template": {
+        "header": "Purchased",
+        "multiSelectBar": {
+          "itemCount": 50,
+          "contextMenu": {
+            "options": [
+              {
+                "icon": "download",
+                "downloadLimit": 100,
+                "text": "Download",
+                "onItemSelected": [
+                  {"url": "https://na.web.skill.music.a2z.com/api/zipDownloadTracks?userHash=REDACTED"}
+                ]
+              }
+            ]
+          }
+        },
+        "onCreated": [
+          {"url": "https://na.web.skill.music.a2z.com/api/showPurchasedTracks?sortBy=RECENTLY_ADDED&userHash=REDACTED"}
+        ],
+        "onEndOfWidgetsReached": [
+          {"url": "https://na.web.skill.music.a2z.com/api/showPurchasedTracks?next=tztok-v0__EXAMPLE%3D&sortBy=RECENTLY_ADDED&userHash=REDACTED"}
+        ],
+        "widgets": [
+          {
+            "items": [
+              {
+                "componentType": "DEFAULT_COMPONENT",
+                "rowIndex": 0,
+                "primaryText": "Every Breath You Take",
+                "secondaryText1": "The Police",
+                "secondaryText2": "Synchronicity",
+                "secondaryText3": "4:13",
+                "image": "https://m.media-amazon.com/images/I/example_256x256.jpg?X-Amz-Expires=3600&X-Amz-Signature=deadbeef",
+                "imageAltText": "Synchronicity",
+                "secondaryText1Link": {
+                  "onItemSelected": [{"url": "https://music.amazon.com/artists/B000RHPRUY/the-police"}]
+                },
+                "secondaryText2Link": {
+                  "onItemSelected": [{"url": "https://music.amazon.com/albums/B074JM9JHY"}]
+                },
+                "button": {
+                  "observer": {
+                    "storageGroup": "TRACK_RATINGS",
+                    "storageKey": "B076HFF4Q3"
+                  }
+                },
+                "onCheckboxSelected": {
+                  "states": {
+                    "c64eeeb1-e203-4c0a-9213-43ac6202c74a": [
+                      {"group": "DOWNLOAD_SELECT", "interface": "StorageInterface.v1_0.WriteMethod"}
+                    ]
+                  }
+                }
+              },
+              {
+                "componentType": "DEFAULT_COMPONENT",
+                "rowIndex": 1,
+                "primaryText": "The Dance",
+                "secondaryText1": "Garth Brooks",
+                "secondaryText2": "No Fences",
+                "secondaryText3": "1:02:03",
+                "image": "",
+                "secondaryText1Link": {
+                  "onItemSelected": [{"url": "https://music.amazon.com/artists/B000RHPRUY/garth-brooks"}]
+                },
+                "secondaryText2Link": {
+                  "onItemSelected": [{"url": "https://music.amazon.com/albums/B076HBKJ6J"}]
+                },
+                "button": {"observer": {"storageGroup": "TRACK_RATINGS", "storageKey": "B07BFJR1HC"}},
+                "onCheckboxSelected": {
+                  "states": {"a941e672-3d37-43df-9c99-3232473fdf27": []}
+                }
+              },
+              {
+                "componentType": "DEFAULT_COMPONENT",
+                "rowIndex": 2,
+                "primaryText": "A Row With No Asin",
+                "secondaryText1": "Nobody",
+                "secondaryText2": "Nowhere",
+                "secondaryText3": "not a duration",
+                "onCheckboxSelected": {"states": {}}
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

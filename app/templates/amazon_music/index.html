@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Amazon Music — Unbundle{% endblock %}
+{% block content %}
+<h1>Amazon Music</h1>
+<p class="muted">
+  Music you have purchased from Amazon. Metadata only &mdash; this reads the same
+  private API the web player uses, so it is undocumented and may break without notice.
+</p>
+{% include "amazon_music/_table.html" %}
+{% endblock %}

@@ -1,0 +1,90 @@
+<div id="amazon-music-table">
+  {% if refresh_error %}<p class="text-error">{{ refresh_error }}</p>{% endif %}
+  {% if refresh_result %}
+  <p>
+    <span class="badge badge-ok">Synced</span>
+    {{ refresh_result.tracks_seen }} track(s) over {{ refresh_result.pages }} page(s)
+    &mdash; {{ refresh_result.new }} new, {{ refresh_result.updated }} updated{% if refresh_result.missing %},
+    {{ refresh_result.missing }} no longer listed{% endif %}.
+  </p>
+  {% endif %}
+
+  <div class="toolbar">
+    <form hx-post="/amazon-music/refresh" hx-target="#amazon-music-table" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="hidden" name="sort" value="{{ sort }}">
+      <button type="submit">Sync Amazon Music</button>
+      <span class="muted htmx-indicator">Syncing&hellip; this pages through your whole library.</span>
+    </form>
+    <span class="muted">
+      {% if last_synced %}Last synced <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% else %}Never synced{% endif %}
+    </span>
+  </div>
+
+  <div class="toolbar">
+    <input type="search" id="music-q" name="q" value="{{ q }}" placeholder="Search title, artist, album"
+           hx-get="/amazon-music" hx-trigger="keyup changed delay:300ms, search"
+           hx-target="#amazon-music-table" hx-swap="outerHTML"
+           hx-include="#music-sort,#music-show-missing" style="flex: 1; max-width: 22rem;">
+    <select id="music-sort" name="sort" hx-get="/amazon-music" hx-trigger="change"
+            hx-target="#amazon-music-table" hx-swap="outerHTML" hx-include="#music-q,#music-show-missing">
+      <option value="added" {{ "selected" if sort == "added" else "" }}>Recently added</option>
+      <option value="title" {{ "selected" if sort == "title" else "" }}>Title</option>
+      <option value="artist" {{ "selected" if sort == "artist" else "" }}>Artist</option>
+      <option value="album" {{ "selected" if sort == "album" else "" }}>Album</option>
+      <option value="duration" {{ "selected" if sort == "duration" else "" }}>Duration</option>
+    </select>
+    {% if missing_count %}
+    <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
+      <input type="checkbox" id="music-show-missing" name="show_missing" value="true" {{ "checked" if show_missing else "" }}
+             hx-get="/amazon-music" hx-trigger="change" hx-target="#amazon-music-table" hx-swap="outerHTML"
+             hx-include="#music-q,#music-sort">
+      Show {{ missing_count }} no longer listed
+    </label>
+    {% endif %}
+    <span class="muted">{{ tracks|length }} of {{ total }}</span>
+  </div>
+
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Title</th>
+        <th>Artist</th>
+        <th>Album</th>
+        <th>Duration</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tracks %}
+      <tr class="{{ 'row-expired' if t.missing_since else '' }}">
+        <td>
+          {% if t.cover_url %}
+          <img src="{{ t.cover_url }}" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
+          {% endif %}
+        </td>
+        <td>
+          {{ t.title }}
+          {% if new_cutoff and t.first_seen_at >= new_cutoff %}<span class="badge badge-ok">New</span>{% endif %}
+        </td>
+        <td>{{ t.artist }}{% if t.is_compilation %} <span class="tip" title="Tracks on this album have different artists, so it is treated as a compilation.">(compilation)</span>{% endif %}</td>
+        <td>{{ t.album }}</td>
+        <td>{{ t.duration_display or "—" }}</td>
+        <td>
+          {% if t.missing_since %}
+          <span class="badge badge-pending tip" title="This track was in a previous sync but Amazon no longer lists it. The row is kept, never deleted.">No longer listed</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">
+        {% if q %}No tracks match.{% else %}Nothing synced yet — click "Sync Amazon Music" above.{% endif %}
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
