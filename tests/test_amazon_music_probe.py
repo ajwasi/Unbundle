@@ -342,3 +342,50 @@ def test_a_large_response_stays_valid_json_instead_of_being_truncated():
     assert len(parsed["albums"]) == 4
     assert parsed["albums"][-1].endswith("more items omitted>")
     assert "albums[] = 3000" in result.collection_sizes
+
+
+# ------------------------------------------------------- signed-URL values
+
+SIGNED = (
+    "https://d1l04yptno92u8.cloudfront.net/DigitalMusicDeliveryService/CloudDriveEmbed.mp3"
+    "?e=1789868665&cid=A2HOWQQO9HOTF7&cdoid=c64eeeb1-e203-4c0a-9213-43ac6202c74a"
+    "&isrc=GBAAM8300001&tid=111-1008484-5274644&pt=1566309461277&h=5aa57bcecd5576474b20a63a"
+)
+
+
+def test_a_signed_delivery_url_keeps_its_shape_but_loses_every_value():
+    # downloadTrack returns one of these under a key like "url", which matches
+    # no sensitive-key pattern — so without this the card would render the
+    # customer id, order id and signature in full.
+    out = probe.redact({"url": SIGNED}, set())["url"]
+
+    assert "A2HOWQQO9HOTF7" not in out  # customer id
+    assert "111-1008484-5274644" not in out  # order id
+    assert "5aa57bcecd5576474b20a63a" not in out  # signature
+    assert "1566309461277" not in out  # purchase timestamp
+
+    # Names survive: reading them is how the parameters were identified at all.
+    assert "cid=<REDACTED>" in out
+    assert "isrc=<REDACTED>" in out
+    assert "tid=<REDACTED>" in out
+    assert out.startswith("https://d1l04yptno92u8.cloudfront.net/DigitalMusicDeliveryService/CloudDriveEmbed.mp3?")
+
+
+def test_a_url_without_a_query_string_is_left_readable():
+    plain = "https://m.media-amazon.com/images/I/81abcdef.jpg"
+    assert probe.redact({"coverUrl": plain}, set())["coverUrl"] == plain
+
+
+def test_a_signed_url_nested_in_a_list_is_redacted_too():
+    out = probe.redact({"tracks": [{"downloadUrl": SIGNED}]}, set())
+    assert "A2HOWQQO9HOTF7" not in json.dumps(out)
+
+
+@pytest.mark.parametrize("bad", ["https://host:notaport/?token=abc", "https://b\x00ad/?token=abc"])
+def test_an_unparseable_url_shaped_string_is_blanked_rather_than_guessed(bad):
+    # httpx.URL is lenient — it percent-encodes most junk rather than raising —
+    # but a bad port or a null byte does raise InvalidURL, and the fallback
+    # must blank the value instead of letting it through.
+    out = probe.redact({"u": bad}, set())["u"]
+    assert out == "<REDACTED:url>"
+    assert "token=abc" not in out
