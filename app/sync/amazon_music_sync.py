@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime
+from urllib.parse import urlencode
 
 import httpx
 from sqlalchemy.orm import Session
@@ -45,25 +46,57 @@ class NotConnectedError(Exception):
     """No Audible credential is stored, so there is no Amazon login to use."""
 
 
-def _auth_headers_field(config: dict) -> str:
-    """Build the `headers` form field a web-player call carries.
+class AmazonMusicRequestError(Exception):
+    """Amazon rejected the request itself (a 4xx that is not 401/403), with
+    its own message attached. Distinct from an auth error: the credentials
+    were fine and the request was not."""
 
-    Shape copied verbatim from a real captured request; the token is read from
-    config.json. See this module's docstring on why this is the inferred step.
+
+# config.json key -> the x-amzn-* header the API expects. Every target name
+# below appears verbatim in the API's own CORS access-control-allow-headers
+# list, and every source key appears verbatim in a real config.json — so the
+# mapping is read off two confirmed lists rather than guessed.
+_CONFIG_TO_HEADER = {
+    "deviceId": "x-amzn-device-id",
+    "deviceType": "x-amzn-device-type-id",
+    "sessionId": "x-amzn-session-id",
+    "montanaCsrf": "x-amzn-csrf",
+}
+
+
+def _auth_headers_field(config: dict) -> str:
+    """Build the `headers` field a web-player call carries.
+
+    x-amzn-authentication's shape is copied verbatim from a real captured
+    request. The rest are added because a capture's visible tail showed only
+    the last few entries — the field was 3.5 kB, so most of it was cut off
+    before it reached us — and these are the ones config.json actually
+    supplies. Sending a superset the API already declares it accepts is safer
+    than sending only the fragment that happened to be visible.
     """
     token = config.get("accessToken") or ""
     if not token:
         raise amc.AmazonMusicAuthError("Amazon did not return an access token — the stored login may have expired.")
-    return json.dumps(
-        {
-            "x-amzn-authentication": json.dumps(
-                {
-                    "interface": "ClientAuthenticationInterface.v1_0.ClientTokenElement",
-                    "accessToken": token,
-                }
-            )
-        }
-    )
+
+    fields = {
+        "x-amzn-authentication": json.dumps(
+            {
+                "interface": "ClientAuthenticationInterface.v1_0.ClientTokenElement",
+                "accessToken": token,
+            }
+        ),
+        "x-amzn-feature-flags": "hd-supported",
+        "x-amzn-age-band": "ADULT",
+    }
+    for config_key, header_name in _CONFIG_TO_HEADER.items():
+        value = config.get(config_key)
+        if isinstance(value, str) and value:
+            fields[header_name] = value
+        elif value:
+            # montanaCsrf is an object in some responses; pass it through as
+            # JSON rather than str()-ing a dict into something unparseable.
+            fields[header_name] = json.dumps(value)
+    return json.dumps(fields)
 
 
 def _fetch_config(client) -> dict:
@@ -75,12 +108,30 @@ def _fetch_config(client) -> dict:
 
 
 def _fetch_page(client, base: str, headers_field: str, cursor: str) -> dict:
-    data = {"headers": headers_field, "sortBy": amc.SORT_RECENTLY_ADDED, "userHash": "{}"}
+    fields = {"headers": headers_field, "sortBy": amc.SORT_RECENTLY_ADDED, "userHash": "{}"}
     if cursor:
-        data["next"] = cursor
-    resp = client.post(f"{base}{amc.PURCHASED_TRACKS_PATH}", data=data)
+        fields["next"] = cursor
+
+    # The body is urlencoded, but the Content-Type is text/plain — that
+    # combination is confirmed from a real capture, and it is not an oddity:
+    # text/plain is a CORS "simple" type, so the browser skips the preflight
+    # the API's own access-control-allow-methods (GET, OPTIONS) implies it
+    # would otherwise need. Sending the honest
+    # application/x-www-form-urlencoded instead gets a flat 400.
+    resp = client.post(
+        f"{base}{amc.PURCHASED_TRACKS_PATH}",
+        content=urlencode(fields),
+        headers={"Content-Type": "text/plain;charset=UTF-8"},
+    )
     if resp.status_code in (401, 403):
         raise amc.AmazonMusicAuthError("Amazon rejected the stored login. Reconnect Audible in Settings.")
+    if resp.status_code >= 400:
+        # Amazon's own complaint is far more useful than "HTTPStatusError",
+        # and this is an undocumented API whose failures we have to read to
+        # understand. Truncated, and it is the API's error text about the
+        # request — not a credential.
+        detail = (resp.text or "").strip()[:400]
+        raise AmazonMusicRequestError(f"Amazon returned {resp.status_code} for {amc.PURCHASED_TRACKS_PATH}: {detail}")
     resp.raise_for_status()
     return resp.json()
 
