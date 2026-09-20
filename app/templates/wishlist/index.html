@@ -1,10 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Wishlist — Unbundle{% endblock %}
+{% block title %}{{ source_labels[source] }} wishlist — Unbundle{% endblock %}
 {% block content %}
 <h1>Wishlist</h1>
 <p class="muted">
-  Your Audible, Steam and GOG wishlists in one place &mdash; what each costs now, the
-  lowest price seen since tracking began, and whether you already own it.
+  What each title costs now, the lowest price seen since tracking began, and whether
+  you already own it. Each store is its own list, because they describe different
+  things &mdash; and rate them on different scales.
 </p>
 {% include "wishlist/_table.html" %}
 {% endblock %}

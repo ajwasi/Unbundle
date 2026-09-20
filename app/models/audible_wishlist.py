@@ -35,6 +35,11 @@ class AudibleWishlistItem(Base):
 
     # Amazon's own "added to wishlist" date when it supplies one — used for
     # the default sort so a freshly added title is easy to find again.
+    # Audible's own five-star average, with how many ratings it is built from —
+    # 4.8 from nine listeners and 4.8 from nine thousand are not the same claim.
+    rating: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rating_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     added_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)

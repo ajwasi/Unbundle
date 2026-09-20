@@ -9,6 +9,7 @@ from app.connectors import steam_wishlist as sw
 from app.models.credential import SOURCE_GOG, SOURCE_STEAM, STATUS_OK, Credential
 from app.models.gog_game import GogGame
 from app.models.steam_game import SteamGame
+from app.models.audible_wishlist import AudibleWishlistItem
 from app.models.store_wishlist import (
     GogWishlistItem,
     GogWishlistPrice,
@@ -277,7 +278,7 @@ def _seed_steam(db, appid=220, name="Half-Life 2", price=4.99, low=4.99):
     db.add(
         SteamWishlistItem(
             appid=appid, name=name, developers="Valve", current_price=price, list_price=9.99,
-            currency="USD", discount_pct=50, first_seen_at=now, last_seen_at=now,
+            currency="USD", discount_pct=50, metacritic=88, first_seen_at=now, last_seen_at=now,
         )
     )
     db.add(SteamWishlistPrice(appid=appid, price=low, currency="USD", captured_at=now))
@@ -296,24 +297,59 @@ def _seed_gog(db, product_id=1, title="Dead Age", price=1.49):
     db.commit()
 
 
-def test_page_merges_all_three_sources(authed_client, db):
-    _seed_steam(db)
-    _seed_gog(db)
-    resp = authed_client.get("/wishlist")
-
-    assert "Half-Life 2" in resp.text
-    assert "Dead Age" in resp.text
-    assert ">Steam<" in resp.text
-    assert ">GOG<" in resp.text
-
-
-def test_source_filter_narrows_to_one_store(authed_client, db):
+def test_each_store_has_its_own_page(authed_client, db):
     _seed_steam(db)
     _seed_gog(db)
 
-    resp = authed_client.get("/wishlist", params={"source": "gog"})
-    assert "Dead Age" in resp.text
-    assert "Half-Life 2" not in resp.text
+    steam = authed_client.get("/wishlist/steam")
+    assert "Half-Life 2" in steam.text
+    assert "Dead Age" not in steam.text
+
+    gog = authed_client.get("/wishlist/gog")
+    assert "Dead Age" in gog.text
+    assert "Half-Life 2" not in gog.text
+
+
+def test_tabs_link_to_every_store_and_show_its_count(authed_client, db):
+    _seed_steam(db)
+    _seed_gog(db)
+    resp = authed_client.get("/wishlist/steam")
+
+    for src in ("audible", "steam", "gog"):
+        assert f'href="/wishlist/{src}"' in resp.text
+    assert 'class="store-tab active"' in resp.text
+
+
+def test_the_index_lands_on_a_store_that_has_items(authed_client, db):
+    # Audible is first in order but empty here, so landing there would show an
+    # empty page while GOG holds items.
+    _seed_gog(db)
+    resp = authed_client.get("/wishlist", follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/wishlist/gog"
+
+
+def test_steam_shows_a_metacritic_score_and_audible_shows_stars(authed_client, db):
+    _seed_steam(db)
+    now = datetime.utcnow()
+    db.add(
+        AudibleWishlistItem(
+            asin="B1", title="Rated Book", rating=4.6, rating_count=1234,
+            current_price=6.99, list_price=9.99, currency="USD",
+            first_seen_at=now, last_seen_at=now,
+        )
+    )
+    db.commit()
+
+    steam = authed_client.get("/wishlist/steam")
+    assert "Metacritic" in steam.text
+    assert 'class="metascore' in steam.text
+
+    audible = authed_client.get("/wishlist/audible")
+    assert "4.6" in audible.text
+    assert "1234" in audible.text
+    assert "rating-stars" in audible.text
 
 
 def test_owned_is_matched_per_store(authed_client, db):
@@ -323,9 +359,9 @@ def test_owned_is_matched_per_store(authed_client, db):
     db.add(GogGame(product_id=999, title="Something Else"))
     db.commit()
 
-    resp = authed_client.get("/wishlist")
     # Steam row owned, GOG row not — the GOG library holds a different id.
-    assert resp.text.count(">Owned<") == 1
+    assert ">Owned<" in authed_client.get("/wishlist/steam").text
+    assert ">Owned<" not in authed_client.get("/wishlist/gog").text
 
 
 def test_lowest_yet_badge_reflects_price_history(authed_client, db):
@@ -334,23 +370,23 @@ def test_lowest_yet_badge_reflects_price_history(authed_client, db):
     db.add(SteamWishlistPrice(appid=220, price=2.49, currency="USD", captured_at=datetime.utcnow()))
     db.commit()
 
-    resp = authed_client.get("/wishlist")
-    # Current 4.99 is above the 2.49 low, so it must not claim lowest-yet.
-    assert resp.text.count("Lowest yet") == 1  # only the GOG row qualifies
+    # Current 4.99 is above the 2.49 low, so Steam must not claim lowest-yet.
+    assert "Lowest yet" not in authed_client.get("/wishlist/steam").text
+    assert "Lowest yet" in authed_client.get("/wishlist/gog").text
 
 
 def test_an_unknown_source_is_a_404(authed_client):
-    assert authed_client.post("/wishlist/refresh/nintendo").status_code == 404
+    assert authed_client.post("/wishlist/nintendo/refresh").status_code == 404
 
 
 def test_refresh_without_steam_connected_explains_rather_than_500s(authed_client):
-    resp = authed_client.post("/wishlist/refresh/steam")
+    resp = authed_client.post("/wishlist/steam/refresh")
     assert resp.status_code == 200
     assert "not connected yet" in resp.text
 
 
 def test_refresh_without_gog_connected_explains_rather_than_500s(authed_client):
-    resp = authed_client.post("/wishlist/refresh/gog")
+    resp = authed_client.post("/wishlist/gog/refresh")
     assert resp.status_code == 200
     assert "not connected yet" in resp.text
 
@@ -358,7 +394,7 @@ def test_refresh_without_gog_connected_explains_rather_than_500s(authed_client):
 def test_a_broken_source_reads_as_one_connector_failing(authed_client, db):
     _connect_steam(db)
     with patch.object(sync, "refresh_steam_wishlist", new=AsyncMock(side_effect=KeyError("items"))):
-        resp = authed_client.post("/wishlist/refresh/steam")
+        resp = authed_client.post("/wishlist/steam/refresh")
 
     assert resp.status_code == 200
     assert "Steam wishlist refresh failed" in resp.text

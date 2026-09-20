@@ -600,10 +600,58 @@ main {
 .item-meta { margin: 0; font-size: 0.85rem; color: var(--muted); }
 .item-meta-label { font-weight: 600; }
 
+/* A <details> whose summary reads and behaves like a real button.
+   The native marker is a ~10px triangle: a poor hit target, and it doesn't
+   look like something you can press, so content behind it goes unfound. This
+   gives it a border, a proper label and a touch-sized target, with a chevron
+   that rotates to show state. */
+.disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  /* Double-clicking to toggle shouldn't select the label text. */
+  user-select: none;
+}
+
+/* Both spellings needed: WebKit still uses the pseudo-element, everyone else
+   the ::marker. Without this the native triangle sits next to the new one. */
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary::marker { content: ""; }
+
+.disclosure > summary::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 120ms ease;
+  /* The glyph's visual centre sits below its box centre once rotated. */
+  margin-top: -0.12rem;
+}
+.disclosure[open] > summary::before { transform: rotate(45deg); margin-top: 0.1rem; }
+
+.disclosure > summary:hover {
+  background: var(--bg);
+  border-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure > summary::before { transition: none; }
+}
+
 /* Collapsed by default: a tier can hold 50 items, and 50 expanded
    descriptions is a page nobody can scan. */
 .item-description { font-size: 0.85rem; }
-.item-description summary { cursor: pointer; color: var(--accent); }
 .item-description > div { margin-top: 0.4rem; }
 .item-description p { margin: 0 0 0.5rem; }
 .item-description :last-child { margin-bottom: 0; }
@@ -620,6 +668,65 @@ main {
   color: var(--accent-contrast);
   border-color: var(--accent);
 }
+
+/* Store tabs. Real links, not a filter control: each store is its own page,
+   so a middle-click or a bookmark behaves the way the visual implies. */
+.store-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.store-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 500;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  /* Covers the container's own border so the active tab joins the content. */
+  margin-bottom: -1px;
+}
+.store-tab:hover { background: var(--bg); }
+.store-tab.active {
+  background: var(--surface);
+  border-color: var(--border);
+  border-bottom: 1px solid var(--surface);
+  color: var(--accent);
+}
+
+.store-tab-count {
+  font-size: 0.75rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+}
+.store-tab.active .store-tab-count { background: var(--bg); }
+
+.rating-stars { color: var(--warning); letter-spacing: 0.05em; }
+
+/* Metacritic's own banding, because a bare number out of 100 reads as
+   meaningless without it. */
+.metascore {
+  display: inline-block;
+  min-width: 2rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: white;
+}
+.metascore.good { background: var(--success); }
+.metascore.mixed { background: var(--warning); }
+.metascore.poor { background: var(--error); }
 
 .toolbar {
   display: flex;

@@ -52,7 +52,7 @@
   {% endif %}
 </div>
 
-<details style="margin-top: 0.9rem;">
+<details class="disclosure" style="margin-top: 0.9rem;">
   <summary>Replay a captured request</summary>
   <p class="muted" style="margin-top: 0.6rem;">
     In a logged-in <code>music.amazon.com</code> tab, open the Purchased view, then in
@@ -136,15 +136,15 @@
 {% endif %}
 
 {% if r.key_paths %}
-<details>
-  <summary>Key paths, names only ({{ r.key_paths|length }})</summary>
+<details class="disclosure">
+  <summary>Show key paths, names only ({{ r.key_paths|length }})</summary>
   <pre class="scroll-box">{{ r.key_paths|join("\n") }}</pre>
 </details>
 {% endif %}
 
 {% if r.redacted_json %}
-<details>
-  <summary>Redacted response</summary>
+<details class="disclosure">
+  <summary>Show redacted response</summary>
   <p class="muted" style="margin-top: 0.6rem;">
     Secret and identity values are replaced with markers; key names and structure are kept.
     Long lists are cut to their first few entries &mdash; enough to show the schema without

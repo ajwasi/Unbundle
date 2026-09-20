@@ -55,6 +55,10 @@ class SteamWishlistItem(Base):
     # derived — the number shown is the one Steam advertises.
     discount_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # Metacritic, out of 100 — Steam's own review percentage is not in the
+    # appdetails payload, so this is the rating actually on offer.
+    metacritic: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     details_fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)

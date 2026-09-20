@@ -154,6 +154,8 @@ async def refresh_audible_wishlist(db: Session) -> dict:
         row.list_price = entry.list_price
         row.currency = entry.currency
         row.added_at = entry.added_at
+        row.rating = entry.rating
+        row.rating_count = entry.rating_count
         row.last_seen_at = now
         row.removed_at = None
         db.flush()  # the price row's FK needs this item to exist first
