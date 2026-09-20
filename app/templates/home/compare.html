@@ -9,6 +9,14 @@
   <a href="{{ product_url }}" target="_blank" rel="noopener">View on Humble Bundle &rarr;</a>
 </p>
 
+<div class="toolbar">
+  <span class="muted">View</span>
+  <a class="view-toggle {{ 'active' if view == 'list' else '' }}"
+     href="/storefront/compare?url={{ product_url | urlencode }}&view=list">List</a>
+  <a class="view-toggle {{ 'active' if view == 'grid' else '' }}"
+     href="/storefront/compare?url={{ product_url | urlencode }}&view=grid">Grid</a>
+</div>
+
 {% for tier in tiers %}
 <div class="card">
   <h2>
@@ -16,6 +24,47 @@
     {%- if tier.price_amount and not tier.is_bta and "$" not in tier.label %} (${{ "%.2f"|format(tier.price_amount) }}){% endif %}
   </h2>
   <p class="muted">{{ tier.owned_count }} of {{ tier.rows|length }} already in your catalog</p>
+  {% if view == "grid" %}
+  <div class="item-grid">
+    {% for row in tier.rows %}
+    <article class="item-card {{ 'is-owned' if row.owned else '' }}">
+      {% if row.image_url %}
+      <img class="item-cover" src="{{ row.image_url }}"
+           {% if row.image_url_2x %}srcset="{{ row.image_url }} 1x, {{ row.image_url_2x }} 2x"{% endif %}
+           alt="" loading="lazy">
+      {% endif %}
+      <div class="item-body">
+        <h3>{{ row.name }}</h3>
+        <p class="item-meta"><span class="item-meta-label">Type</span> {{ row.content_type or "—" }}</p>
+        {% include "home/_compare_item_meta.html" %}
+        {% if row.description %}
+        <details class="item-description">
+          <summary>Description</summary>
+          <div>{{ row.description | safe }}</div>
+        </details>
+        {% endif %}
+        <p class="item-meta">
+          {% if row.owned %}
+          <span class="badge badge-ok">Already owned</span>
+          {% if row.owned_count > 1 %}
+          <button type="button" class="secondary btn-sm"
+                  hx-get="/catalog/item/{{ row.machine_name }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"
+                  onclick="document.getElementById('bundles-modal').showModal()">&times;{{ row.owned_count }}</button>
+          {% endif %}
+          {% else %}
+          <span class="badge badge-not-configured">New to you</span>
+          {% endif %}
+          {% if row.owned and row.avg_paid is not none %}
+          <span class="muted">${{ "%.2f"|format(row.avg_paid) }} avg paid</span>
+          {% elif row.msrp_amount %}
+          <span class="muted">${{ "%.2f"|format(row.msrp_amount) }}</span>
+          {% endif %}
+        </p>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
   <table class="compare-table">
     <thead>
       <tr><th scope="col">Item</th><th scope="col">Type</th><th scope="col">Value</th><th scope="col">Status</th></tr>
@@ -23,7 +72,25 @@
     <tbody>
       {% for row in tier.rows %}
       <tr>
-        <td>{{ row.name }}</td>
+        <td>
+          <div class="item-row">
+            {% if row.image_url %}
+            <img class="item-thumb" src="{{ row.image_url }}"
+                 {% if row.image_url_2x %}srcset="{{ row.image_url }} 1x, {{ row.image_url_2x }} 2x"{% endif %}
+                 alt="" loading="lazy">
+            {% endif %}
+            <div>
+              <strong>{{ row.name }}</strong>
+              {% include "home/_compare_item_meta.html" %}
+              {% if row.description %}
+              <details class="item-description">
+                <summary>Description</summary>
+                <div>{{ row.description | safe }}</div>
+              </details>
+              {% endif %}
+            </div>
+          </div>
+        </td>
         <td>{{ row.content_type or "—" }}</td>
         <td>
           {% if row.owned and row.avg_paid is not none %}
@@ -52,6 +119,7 @@
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
 </div>
 {% endfor %}
 

@@ -118,7 +118,7 @@ async def refresh_storefront(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/storefront/compare", response_class=HTMLResponse)
-async def compare(request: Request, url: str, db: Session = Depends(get_db)):
+async def compare(request: Request, url: str, view: str = "list", db: Session = Depends(get_db)):
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.hostname != _ALLOWED_STOREFRONT_HOST:
         raise HTTPException(status_code=400, detail="Invalid bundle URL")
@@ -137,6 +137,14 @@ async def compare(request: Request, url: str, db: Session = Depends(get_db)):
             "avg_paid": avg_value,
             "owned": bool(owned_entry),
             "owned_count": len(owned_entry["bundles"]) if owned_entry else 0,
+            # Already parsed out of the same page fetch — see StorefrontItem.
+            "description": item.description,
+            "authors": item.authors,
+            "publishers": item.publishers,
+            "formats": item.formats,
+            "delivery_methods": item.delivery_methods,
+            "image_url": item.image_url,
+            "image_url_2x": item.image_url_2x,
         }
 
     tiers = []
@@ -165,5 +173,9 @@ async def compare(request: Request, url: str, db: Session = Depends(get_db)):
             "tiers": tiers,
             "owned_count": owned_count,
             "total_count": total_count,
+            # Grid mirrors Humble's own page; list is the original dense view.
+            # A query parameter rather than a stored preference so a link to
+            # either keeps the view it was shared with.
+            "view": "grid" if view == "grid" else "list",
         },
     )

@@ -1,0 +1,9 @@
+{# Shared by both compare views so a detail never exists in only one of them. #}
+{% if row.authors %}<p class="item-meta"><span class="item-meta-label">By</span> {{ row.authors | join(", ") }}</p>{% endif %}
+{% if row.publishers %}<p class="item-meta"><span class="item-meta-label">Publisher</span> {{ row.publishers | join(", ") }}</p>{% endif %}
+{% if row.formats or row.delivery_methods %}
+<p class="item-meta">
+  {% for f in row.formats %}<span class="badge badge-not-configured">{{ f }}</span> {% endfor %}
+  {% for d in row.delivery_methods %}<span class="badge badge-pending">{{ d }}</span> {% endfor %}
+</p>
+{% endif %}
