@@ -232,7 +232,7 @@ def test_search_matches_title_and_author(authed_client, db):
 
 
 def test_refresh_without_audible_explains_rather_than_500s(authed_client):
-    resp = authed_client.post("/wishlist/refresh")
+    resp = authed_client.post("/wishlist/refresh/audible")
 
     assert resp.status_code == 200
     assert "not connected yet" in resp.text
