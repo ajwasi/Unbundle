@@ -71,6 +71,7 @@ async def refresh_steam_wishlist(db: Session) -> dict:
                     row.header_image = details.header_image or row.header_image
                     row.developers = details.developers or row.developers
                     row.short_description = details.short_description or row.short_description
+                    row.metacritic = details.metacritic
                     detail_fetches += 1
                 row.current_price = details.current_price
                 row.list_price = details.list_price

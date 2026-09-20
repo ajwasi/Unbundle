@@ -59,6 +59,7 @@ class SteamAppDetails:
     list_price: float | None = None
     currency: str = ""
     discount_pct: int = 0
+    metacritic: int | None = None
 
 
 def parse_wishlist(payload: dict) -> list[SteamWishlistEntry]:
@@ -100,6 +101,18 @@ def _price(overview: object) -> tuple[float | None, float | None, str, int]:
     return final, initial, str(overview.get("currency") or ""), discount
 
 
+def _metacritic(node: object) -> int | None:
+    """Metacritic, out of 100. Steam's own review percentage is not in the
+    appdetails payload, so this is the rating actually on offer here."""
+    if not isinstance(node, dict):
+        return None
+    try:
+        score = int(node.get("score"))
+    except (TypeError, ValueError):
+        return None
+    return score if 0 < score <= 100 else None
+
+
 def parse_app_details(appid: int, payload: dict) -> SteamAppDetails | None:
     """None when Steam reports success=false — a delisted or region-locked
     app, which is ordinary rather than an error."""
@@ -118,6 +131,7 @@ def parse_app_details(appid: int, payload: dict) -> SteamAppDetails | None:
         list_price=initial,
         currency=currency,
         discount_pct=discount,
+        metacritic=_metacritic(data.get("metacritic")),
     )
 
 

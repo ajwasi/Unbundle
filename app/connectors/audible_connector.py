@@ -353,6 +353,8 @@ class AudibleWishlistData:
     list_price: float | None
     currency: str
     added_at: datetime | None
+    rating: float | None = None
+    rating_count: int | None = None
 
 
 def _money(node: object) -> tuple[float | None, str]:
@@ -388,6 +390,19 @@ def _wishlist_prices(item: dict) -> tuple[float | None, float | None, str]:
     return current, listed, currency or list_currency
 
 
+def _rating_count(item: dict) -> int | None:
+    """How many ratings the average is built from. Walked defensively beside
+    _parse_rating: 4.8 from nine listeners and 4.8 from nine thousand are not
+    the same claim, and an average with no count behind it oversells itself.
+    """
+    try:
+        overall = (item.get("rating") or {}).get("overall_distribution") or {}
+        value = overall.get("num_ratings")
+        return int(value) if value is not None else None
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
 def _parse_added_at(value: object) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
@@ -416,6 +431,8 @@ def parse_wishlist_item(item: dict) -> AudibleWishlistData | None:
         list_price=listed,
         currency=currency,
         added_at=_parse_added_at(item.get("date_added")),
+        rating=_parse_rating(item),
+        rating_count=_rating_count(item),
     )
 
 

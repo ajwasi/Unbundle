@@ -196,12 +196,12 @@ def test_page_requires_auth(client):
 
 
 def test_empty_state_points_at_the_sync_button(authed_client):
-    assert "Nothing synced yet" in authed_client.get("/wishlist").text
+    assert "Nothing synced yet" in authed_client.get("/wishlist/audible").text
 
 
 def test_page_shows_price_discount_and_lowest_seen(authed_client, db):
     _seed(db)
-    resp = authed_client.get("/wishlist")
+    resp = authed_client.get("/wishlist/audible")
 
     assert "The Fifth Season" in resp.text
     assert "-77%" in resp.text
@@ -213,26 +213,26 @@ def test_owned_wishlist_items_are_flagged(authed_client, db):
     db.add(AudibleBook(asin="B001", title="The Fifth Season"))
     db.commit()
 
-    assert "Owned" in authed_client.get("/wishlist").text
+    assert "Owned" in authed_client.get("/wishlist/audible").text
 
 
 def test_deals_only_filter_hides_undiscounted_items(authed_client, db):
     _seed(db, asin="B001", title="Discounted One")
     _seed(db, asin="B002", title="Full Price One", price=20.0, list_price=20.0, low=20.0)
 
-    resp = authed_client.get("/wishlist", params={"deals_only": "true"})
+    resp = authed_client.get("/wishlist/audible", params={"deals_only": "true"})
     assert "Discounted One" in resp.text
     assert "Full Price One" not in resp.text
 
 
 def test_search_matches_title_and_author(authed_client, db):
     _seed(db)
-    assert "Fifth Season" in authed_client.get("/wishlist", params={"q": "jemisin"}).text
-    assert "Fifth Season" not in authed_client.get("/wishlist", params={"q": "tolkien"}).text
+    assert "Fifth Season" in authed_client.get("/wishlist/audible", params={"q": "jemisin"}).text
+    assert "Fifth Season" not in authed_client.get("/wishlist/audible", params={"q": "tolkien"}).text
 
 
 def test_refresh_without_audible_explains_rather_than_500s(authed_client):
-    resp = authed_client.post("/wishlist/refresh/audible")
+    resp = authed_client.post("/wishlist/audible/refresh")
 
     assert resp.status_code == 200
     assert "not connected yet" in resp.text
