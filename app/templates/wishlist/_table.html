@@ -1,89 +1,99 @@
 <div id="wishlist-table">
-  {% if refresh_error %}<p class="text-error">{{ refresh_error }}</p>{% endif %}
-  {% if refresh_result %}
+  {% for src, message in errors.items() %}
+  <p class="text-error">{{ message }}</p>
+  {% endfor %}
+  {% for src, r in results.items() %}
   <p>
-    <span class="badge badge-ok">Synced</span>
-    {{ refresh_result.total }} item(s) &mdash; {{ refresh_result.new }} new,
-    {{ refresh_result.price_changes }} price change(s){% if refresh_result.removed %},
-    {{ refresh_result.removed }} no longer listed{% endif %}.
+    <span class="badge badge-ok">{{ source_labels[src] }} synced</span>
+    {{ r.total }} item(s) &mdash; {{ r.new }} new, {{ r.price_changes }} price change(s){% if r.removed %},
+    {{ r.removed }} no longer listed{% endif %}.
   </p>
-  {% endif %}
+  {% endfor %}
 
   <div class="toolbar">
-    <form hx-post="/wishlist/refresh" hx-target="#wishlist-table" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+    {% for src in sources %}
+    <form hx-post="/wishlist/refresh/{{ src }}" hx-target="#wishlist-table" hx-swap="outerHTML" style="margin: 0;">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="q" value="{{ q }}">
       <input type="hidden" name="sort" value="{{ sort }}">
-      <button type="submit">Sync wishlist</button>
-      <span class="muted htmx-indicator">Checking prices&hellip;</span>
+      <button type="submit" class="secondary">Sync {{ source_labels[src] }}</button>
     </form>
-    <span class="muted">
-      {% if last_synced %}Last synced <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% else %}Never synced{% endif %}
+    {% endfor %}
+    <span class="muted htmx-indicator">Checking prices&hellip;</span>
+    <span class="muted tip" title="Steam has no batch endpoint, so its refresh makes one request per wishlisted game and takes proportionally longer.">
+      {{ counts.audible }} Audible &middot; {{ counts.steam }} Steam &middot; {{ counts.gog }} GOG
     </span>
   </div>
 
   <div class="toolbar">
-    <input type="search" id="wl-q" name="q" value="{{ q }}" placeholder="Search title, author, narrator"
+    <input type="search" id="wl-q" name="q" value="{{ q }}" placeholder="Search title or author"
            hx-get="/wishlist" hx-trigger="keyup changed delay:300ms, search"
            hx-target="#wishlist-table" hx-swap="outerHTML"
-           hx-include="#wl-sort,#wl-deals" style="flex: 1; max-width: 22rem;">
+           hx-include="#wl-sort,#wl-source,#wl-deals" style="flex: 1; max-width: 20rem;">
+    <select id="wl-source" name="source" hx-get="/wishlist" hx-trigger="change"
+            hx-target="#wishlist-table" hx-swap="outerHTML" hx-include="#wl-q,#wl-sort,#wl-deals">
+      <option value="">All stores</option>
+      {% for src in sources %}
+      <option value="{{ src }}" {{ "selected" if source == src else "" }}>{{ source_labels[src] }}</option>
+      {% endfor %}
+    </select>
     <select id="wl-sort" name="sort" hx-get="/wishlist" hx-trigger="change"
-            hx-target="#wishlist-table" hx-swap="outerHTML" hx-include="#wl-q,#wl-deals">
+            hx-target="#wishlist-table" hx-swap="outerHTML" hx-include="#wl-q,#wl-source,#wl-deals">
       <option value="added" {{ "selected" if sort == "added" else "" }}>Recently added</option>
-      <option value="title" {{ "selected" if sort == "title" else "" }}>Title</option>
+      <option value="discount" {{ "selected" if sort == "discount" else "" }}>Biggest discount</option>
       <option value="price" {{ "selected" if sort == "price" else "" }}>Price</option>
+      <option value="title" {{ "selected" if sort == "title" else "" }}>Title</option>
     </select>
     <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
       <input type="checkbox" id="wl-deals" name="deals_only" value="true" {{ "checked" if deals_only else "" }}
              hx-get="/wishlist" hx-trigger="change" hx-target="#wishlist-table" hx-swap="outerHTML"
-             hx-include="#wl-q,#wl-sort">
+             hx-include="#wl-q,#wl-sort,#wl-source">
       On sale only{% if deal_count %} ({{ deal_count }}){% endif %}
     </label>
-    <span class="muted">{{ items|length }} of {{ total }}</span>
+    <span class="muted">{{ rows|length }} of {{ total }}</span>
   </div>
 
   <div class="table-scroll">
   <table>
     <thead>
-      <tr><th></th><th>Title</th><th>Author</th><th>Price</th><th>Lowest seen</th><th></th></tr>
+      <tr><th></th><th>Title</th><th>Store</th><th>Price</th><th>Lowest seen</th><th></th></tr>
     </thead>
     <tbody>
-      {% for i in items %}
+      {% for r in rows %}
       <tr>
-        <td>{% if i.cover_url %}<img src="{{ i.cover_url }}" alt="" width="44" height="44" loading="lazy" style="border-radius: 4px;">{% endif %}</td>
+        <td>{% if r.cover %}<img src="{{ r.cover }}" alt="" height="44" loading="lazy" style="border-radius: 4px; max-width: 96px; object-fit: cover;">{% endif %}</td>
         <td>
-          <strong>{{ i.title }}</strong>
-          {% if i.subtitle %}<br><span class="muted">{{ i.subtitle }}</span>{% endif %}
-          {% if i.asin in owned_asins %}
-          <span class="badge badge-ok tip" title="Already in your synced Audible library — you can probably remove it from the wishlist.">Owned</span>
+          <strong>{{ r.title }}</strong>
+          {% if r.subtitle %}<br><span class="muted">{{ r.subtitle }}</span>{% endif %}
+          {% if r.owned %}
+          <span class="badge badge-ok tip" title="Already in your synced library for this store — you can probably remove it from the wishlist.">Owned</span>
           {% endif %}
         </td>
-        <td>{{ i.authors or "—" }}</td>
+        <td><span class="badge badge-not-configured">{{ r.source_label }}</span></td>
         <td>
-          {% if i.current_price is not none %}
-          {{ "%.2f"|format(i.current_price) }} {{ i.currency }}
-          {% if i.discount_pct %}
-          <span class="badge badge-ok">-{{ i.discount_pct }}%</span>
-          <br><span class="muted" style="text-decoration: line-through;">{{ "%.2f"|format(i.list_price) }}</span>
+          {% if r.current_price is not none %}
+          {{ "%.2f"|format(r.current_price) }} {{ r.currency }}
+          {% if r.discount_pct %}
+          <span class="badge badge-ok">-{{ r.discount_pct }}%</span>
+          {% if r.list_price %}<br><span class="muted" style="text-decoration: line-through;">{{ "%.2f"|format(r.list_price) }}</span>{% endif %}
           {% endif %}
           {% else %}
-          <span class="muted tip" title="Amazon did not return a price for this title in the wishlist response.">—</span>
+          <span class="muted tip" title="No price returned for this item.">&mdash;</span>
           {% endif %}
         </td>
         <td>
-          {% set low = lowest_prices.get(i.asin) %}
-          {% if low is not none %}
-          {{ "%.2f"|format(low) }}
-          {% if i.current_price is not none and i.current_price <= low %}
+          {% if r.lowest is not none %}
+          {{ "%.2f"|format(r.lowest) }}
+          {% if r.current_price is not none and r.current_price <= r.lowest %}
           <span class="badge badge-ok tip" title="This is the cheapest it has been since tracking started.">Lowest yet</span>
           {% endif %}
-          {% else %}<span class="muted">—</span>{% endif %}
+          {% else %}<span class="muted">&mdash;</span>{% endif %}
         </td>
-        <td><a href="https://www.audible.com/pd/{{ i.asin }}" target="_blank" rel="noopener">View &rarr;</a></td>
+        <td><a href="{{ r.url }}" target="_blank" rel="noopener">View &rarr;</a></td>
       </tr>
       {% else %}
       <tr><td colspan="6" class="muted">
-        {% if q or deals_only %}No wishlist items match.{% else %}Nothing synced yet — click "Sync wishlist" above.{% endif %}
+        {% if q or deals_only or source %}No wishlist items match.{% else %}Nothing synced yet — use the Sync buttons above.{% endif %}
       </td></tr>
       {% endfor %}
     </tbody>

@@ -36,7 +36,27 @@ from app.deps import get_db  # noqa: E402
 # Import every model module so its table registers on Base.metadata before
 # create_all runs below — a model that's never imported anywhere in the process
 # would otherwise silently get no table at all.
-from app.models import backup_settings, bundle, bundle_entitlement, credential, download, download_destination, download_job, download_settings, steam_game, sync_run, tag  # noqa: E402,F401
+from app.models import (  # noqa: E402,F401
+    account_settings,
+    amazon_music_track,
+    api_token,
+    audible_book,
+    audible_pdf_download,
+    audible_wishlist,
+    backup_settings,
+    bundle,
+    bundle_entitlement,
+    credential,
+    download,
+    download_destination,
+    download_job,
+    download_settings,
+    gog_game,
+    steam_game,
+    store_wishlist,
+    sync_run,
+    tag,
+)
 from tests.factories import make_order  # noqa: E402
 
 
