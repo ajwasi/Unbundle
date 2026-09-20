@@ -528,3 +528,9 @@ def test_probe_result_carries_referenced_endpoints():
     with patch("httpx.Client.get", return_value=_resp(json_body=body)):
         result = probe.probe_config({})
     assert result.endpoints == ["/api/showLibraryAlbums?pageToken"]
+
+
+def test_probe_card_disclosures_are_styled_controls(authed_client, db):
+    _connect_audible(db)
+    resp = authed_client.get("/settings")
+    assert 'class="disclosure"' in resp.text
