@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import datetime
 import shutil
 import tempfile
 from pathlib import Path
@@ -11,7 +12,7 @@ from sqlalchemy.orm import Session
 from app import accounts, api_tokens, applog, backup, humble_key
 from app.cli import _set_password
 from app.config import settings
-from app.connectors import amazon_music_probe, audible_connector, gog_connector, steam_connector
+from app.connectors import amazon_music_probe, amazon_music_template, audible_connector, gog_connector, steam_connector
 from app.connectors.humble_connector import HumbleConnector
 from app.csrf import require_csrf
 from app.db import SessionLocal
@@ -155,10 +156,14 @@ def _amazon_music_context(db: Session, result=None, error: str | None = None) ->
     from the stored Audible login, so with no Audible credential there is
     nothing to probe with.
     """
+    template = amazon_music_template.load_template(db)
     return {
         "music_audible_connected": Credential.get(db, SOURCE_AUDIBLE) is not None,
         "music_result": result,
         "music_error": error,
+        # Only ever the capture date — the template itself holds device and
+        # customer identifiers and is never rendered back.
+        "music_template_captured_at": template.captured_at if template else "",
         # Rendered from the constant the validator actually uses, so the help
         # text cannot drift out of sync with what a paste is allowed to target
         # — it already did once, telling the user a valid capture would be
@@ -610,6 +615,49 @@ def test_amazon_music(request: Request, db: Session = Depends(get_db)):
 )
 def replay_amazon_music(request: Request, curl_text: str = Form(""), db: Session = Depends(get_db)):
     return _music_probe(request, db, lambda cookies: amazon_music_probe.replay_curl(curl_text, cookies))
+
+
+@router.post(
+    "/amazon-music/template",
+    response_class=HTMLResponse,
+    dependencies=[Depends(rate_limit(_music_probe_limiter, "amazon-music-probe")), Depends(require_csrf)],
+)
+def save_amazon_music_template(request: Request, curl_text: str = Form(""), db: Session = Depends(get_db)):
+    """Store a captured request's shape, after proving it actually works.
+
+    Saving an unverified capture would trade one silent failure for another,
+    so the paste is replayed first and only a real JSON response is accepted.
+    """
+    try:
+        template = amazon_music_template.build_template(
+            curl_text, datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        )
+        cookies = amazon_music_probe.cookies_from_audible_credential(db)
+        result = amazon_music_probe.replay_curl(curl_text, cookies)
+    except amazon_music_template.TemplateError as exc:
+        return _music_response(request, db, error=str(exc))
+    except amazon_music_probe.NotConnectedError as exc:
+        return _music_response(request, db, error=str(exc))
+    except (amazon_music_probe.ProbeError, ValueError) as exc:
+        return _music_response(request, db, error=str(exc))
+
+    if not result.ok:
+        return _music_response(
+            request,
+            db,
+            result=result,
+            error="That capture did not come back as JSON, so it was not saved — a template that "
+            "does not work would only move the failure somewhere harder to see.",
+        )
+
+    amazon_music_template.save_template(db, template)
+    return _music_response(request, db, result=result)
+
+
+@router.post("/amazon-music/template/clear", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def clear_amazon_music_template(request: Request, db: Session = Depends(get_db)):
+    amazon_music_template.clear_template(db)
+    return _music_response(request, db)
 
 
 @router.post("/backups/config", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])

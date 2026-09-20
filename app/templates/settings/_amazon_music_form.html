@@ -15,6 +15,43 @@
   <span class="muted htmx-indicator">Contacting Amazon&hellip;</span>
 </div>
 
+<div class="card" style="margin: 0.9rem 0; background: var(--bg);">
+  <h4 style="margin-top: 0;">Sync template</h4>
+  {% if music_template_captured_at %}
+  <p class="muted">
+    <span class="badge badge-ok">Saved</span>
+    Captured {{ music_template_captured_at }}. Syncs reuse this request shape and refresh
+    only its access token, which is the part that expires.
+  </p>
+  <form hx-post="/settings/amazon-music/template/clear" hx-target="#amazon-music-card-body" hx-swap="innerHTML"
+        hx-confirm="Remove the saved sync template? Syncing will stop working until a new capture is saved." style="margin: 0;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="danger">Remove template</button>
+  </form>
+  {% else %}
+  <p class="muted">
+    Amazon does not document which fields <code>showPurchasedTracks</code> requires, and a
+    request assembled from scratch is rejected. Paste one its own web player sent and
+    syncing will reuse that shape, refreshing only the access token.
+  </p>
+  <ol class="muted" style="padding-left: 1.2rem;">
+    <li>Open the <strong>Purchased</strong> view on <code>music.amazon.com</code> with DevTools on the Network tab.</li>
+    <li>Find <code>showPurchasedTracks</code> and choose <strong>Copy as cURL (bash)</strong>.</li>
+    <li>Paste it below. It is replayed first, and only saved if it comes back as JSON.</li>
+  </ol>
+  <form hx-post="/settings/amazon-music/template" hx-target="#amazon-music-card-body" hx-swap="innerHTML">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <label for="music-template-curl" class="sr-only">Captured cURL command</label>
+    <textarea id="music-template-curl" name="curl_text" rows="5" style="width: 100%; font-family: monospace; font-size: 0.85rem;"
+              placeholder="curl 'https://na.web.skill.music.a2z.com/api/showPurchasedTracks' -H '...' --data-raw '...'"></textarea>
+    <div class="toolbar" style="margin-top: 0.5rem;">
+      <button type="submit">Save sync template</button>
+      <span class="muted htmx-indicator">Verifying against Amazon&hellip;</span>
+    </div>
+  </form>
+  {% endif %}
+</div>
+
 <details style="margin-top: 0.9rem;">
   <summary>Replay a captured request</summary>
   <p class="muted" style="margin-top: 0.6rem;">

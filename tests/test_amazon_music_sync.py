@@ -132,7 +132,7 @@ def test_page_request_is_json_sent_under_a_text_plain_content_type():
 
     with patch("httpx.Client.post", _fake_post):
         with httpx.Client() as client:
-            sync._fetch_page(client, "https://example.invalid", '{"x":"y"}', "CURSOR")
+            sync._fetch_page(client, "https://example.invalid", '{"x":"y"}', "{}", "CURSOR")
 
     assert captured["headers"]["Content-Type"] == "text/plain;charset=UTF-8"
     # JSON, not urlencoded: DevTools rendered the real payload as a quoted
@@ -148,7 +148,7 @@ def test_a_400_surfaces_amazons_own_message():
     with patch("httpx.Client.post", return_value=resp):
         with httpx.Client() as client:
             with pytest.raises(sync.AmazonMusicRequestError, match="x-amzn-csrf"):
-                sync._fetch_page(client, "https://example.invalid", "{}", "")
+                sync._fetch_page(client, "https://example.invalid", "{}", "{}", "")
 
 
 def test_auth_headers_include_the_session_fields_config_json_supplies():

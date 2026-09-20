@@ -11,6 +11,13 @@ SOURCE_APP_AUTH = "app_auth"  # optional DB-stored password override — see sec
 SOURCE_STEAM = "steam"  # Steam Web API key + resolved steamid64 — see connectors/steam_connector.py
 SOURCE_GOG = "gog"  # OAuth refresh_token — see connectors/gog_connector.py
 SOURCE_AUDIBLE = "audible"  # audible package's Authenticator.to_dict() — see connectors/audible_connector.py
+# A captured showPurchasedTracks request, minus the parts that expire — see
+# connectors/amazon_music_template.py. Not a login: the cookies still come
+# from SOURCE_AUDIBLE, and the access token is refreshed from config.json on
+# every sync. What is stored is the *shape* Amazon's own web client sends,
+# which is the only reliable way to satisfy an endpoint whose required fields
+# are undocumented.
+SOURCE_AMAZON_MUSIC = "amazon_music"
 
 STATUS_NOT_CONFIGURED = "not_configured"
 STATUS_OK = "ok"

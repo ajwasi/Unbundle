@@ -44,6 +44,9 @@ BASE_HEADERS = {
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://music.amazon.com/",
+    # The real player sends this and we did not. For an API this CORS-aware
+    # it is a plausible rejection on its own, and costs nothing to include.
+    "Origin": "https://music.amazon.com",
 }
 
 SECRET_KEY_RE = re.compile(
