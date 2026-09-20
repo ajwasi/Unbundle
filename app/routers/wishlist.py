@@ -1,17 +1,19 @@
-"""Wishlist page, across Audible, Steam and GOG.
+"""Wishlist pages — one per store.
 
-Each source keeps its own table (see models/store_wishlist.py), so this
-normalises them into one row shape rather than the template learning three.
-Adding a fourth store means one more `_rows_*` function and an entry in
-SOURCES — nothing else here changes.
+Each store gets its own page rather than one merged table, because the stores
+describe different things: an audiobook has a narrator and a five-star
+average, a Steam game has a developer and a Metacritic score out of 100, and
+GOG publishes no rating reachable by product id at all. Merging them meant
+every column had to mean whatever the row's store said it meant.
+
+/wishlist redirects to whichever store actually has items, so the page is
+never an empty tab when another one is full.
 """
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from sqlalchemy import func
+from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
-from fastapi.responses import HTMLResponse
 
 from app.csrf import require_csrf
 from app.deps import get_db
@@ -36,8 +38,47 @@ _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 SOURCES = ("audible", "steam", "gog")
 SOURCE_LABELS = {"audible": "Audible", "steam": "Steam", "gog": "GOG"}
 
+_ITEM_MODELS = {
+    "audible": (AudibleWishlistItem, "asin"),
+    "steam": (SteamWishlistItem, "appid"),
+    "gog": (GogWishlistItem, "product_id"),
+}
+_PRICE_MODELS = {
+    "audible": (AudibleWishlistPrice, "asin"),
+    "steam": (SteamWishlistPrice, "appid"),
+    "gog": (GogWishlistPrice, "product_id"),
+}
 
-def _lowest(db: Session, price_model, owner_field: str) -> dict:
+SORTS = {
+    "audible": {
+        "added": AudibleWishlistItem.added_at.desc(),
+        "title": AudibleWishlistItem.title.asc(),
+        "price": AudibleWishlistItem.current_price.asc(),
+        "rating": AudibleWishlistItem.rating.desc(),
+    },
+    "steam": {
+        "added": SteamWishlistItem.priority.asc(),
+        "title": SteamWishlistItem.name.asc(),
+        "price": SteamWishlistItem.current_price.asc(),
+        "rating": SteamWishlistItem.metacritic.desc(),
+    },
+    "gog": {
+        "added": GogWishlistItem.first_seen_at.desc(),
+        "title": GogWishlistItem.title.asc(),
+        "price": GogWishlistItem.current_price.asc(),
+    },
+}
+
+
+def _counts(db: Session) -> dict[str, int]:
+    out = {}
+    for source, (model, _) in _ITEM_MODELS.items():
+        out[source] = db.query(model).filter(model.removed_at.is_(None)).count()
+    return out
+
+
+def _lowest(db: Session, source: str) -> dict:
+    price_model, owner_field = _PRICE_MODELS[source]
     owner = getattr(price_model, owner_field)
     rows = (
         db.query(owner, func.min(price_model.price))
@@ -48,149 +89,93 @@ def _lowest(db: Session, price_model, owner_field: str) -> dict:
     return {key: low for key, low in rows if low is not None}
 
 
-def _row(source, key, title, subtitle, cover, url, item, owned, lowest, added_at, discount):
-    return {
-        "source": source,
-        "source_label": SOURCE_LABELS[source],
-        "key": key,
-        "title": title,
-        "subtitle": subtitle,
-        "cover": cover,
-        "url": url,
-        "current_price": item.current_price,
-        "list_price": item.list_price,
-        "currency": item.currency,
-        "discount_pct": discount,
-        "lowest": lowest,
-        "owned": owned,
-        "added_at": added_at,
-    }
+def _owned_keys(db: Session, source: str) -> set:
+    if source == "audible":
+        return {a for (a,) in db.query(AudibleBook.asin).all()}
+    if source == "steam":
+        return {a for (a,) in db.query(SteamGame.appid).all()}
+    return {p for (p,) in db.query(GogGame.product_id).all()}
 
 
-def _rows_audible(db: Session) -> list[dict]:
-    lows = _lowest(db, AudibleWishlistPrice, "asin")
-    owned = {a for (a,) in db.query(AudibleBook.asin).all()}
-    items = db.query(AudibleWishlistItem).filter(AudibleWishlistItem.removed_at.is_(None)).all()
-    return [
-        _row(
-            "audible",
-            i.asin,
-            i.title,
-            i.authors,
-            i.cover_url,
-            f"https://www.audible.com/pd/{i.asin}",
-            i,
-            i.asin in owned,
-            lows.get(i.asin),
-            i.added_at,
-            i.discount_pct,
+def _search(query, source: str, needle: str):
+    like = f"%{needle}%"
+    if source == "audible":
+        return query.filter(
+            or_(
+                AudibleWishlistItem.title.ilike(like),
+                AudibleWishlistItem.authors.ilike(like),
+                AudibleWishlistItem.narrators.ilike(like),
+            )
         )
-        for i in items
-    ]
-
-
-def _rows_steam(db: Session) -> list[dict]:
-    lows = _lowest(db, SteamWishlistPrice, "appid")
-    owned = {a for (a,) in db.query(SteamGame.appid).all()}
-    items = db.query(SteamWishlistItem).filter(SteamWishlistItem.removed_at.is_(None)).all()
-    return [
-        _row(
-            "steam",
-            i.appid,
-            i.name or f"App {i.appid}",
-            i.developers,
-            i.header_image,
-            f"https://store.steampowered.com/app/{i.appid}/",
-            i,
-            i.appid in owned,
-            lows.get(i.appid),
-            i.added_at,
-            i.discount_pct or None,
-        )
-        for i in items
-    ]
-
-
-def _rows_gog(db: Session) -> list[dict]:
-    lows = _lowest(db, GogWishlistPrice, "product_id")
-    owned = {p for (p,) in db.query(GogGame.product_id).all()}
-    items = db.query(GogWishlistItem).filter(GogWishlistItem.removed_at.is_(None)).all()
-    return [
-        _row(
-            "gog",
-            i.product_id,
-            i.title or f"Product {i.product_id}",
-            "",
-            i.cover_url,
-            i.store_url or f"https://www.gog.com/game/{i.product_id}",
-            i,
-            i.product_id in owned,
-            lows.get(i.product_id),
-            None,
-            i.discount_pct,
-        )
-        for i in items
-    ]
-
-
-SORTS = {
-    "added": lambda r: (r["added_at"] is None, -(r["added_at"] or datetime.min).timestamp() if r["added_at"] else 0),
-    "title": lambda r: r["title"].lower(),
-    "price": lambda r: r["current_price"] if r["current_price"] is not None else float("inf"),
-    "discount": lambda r: -(r["discount_pct"] or 0),
-}
+    if source == "steam":
+        return query.filter(or_(SteamWishlistItem.name.ilike(like), SteamWishlistItem.developers.ilike(like)))
+    return query.filter(GogWishlistItem.title.ilike(like))
 
 
 def _context(
     db: Session,
+    source: str,
     q: str = "",
     sort: str = "added",
-    source: str = "",
     deals_only: bool = False,
-    results: dict | None = None,
-    errors: dict | None = None,
+    result: dict | None = None,
+    error: str | None = None,
 ) -> dict:
-    rows = _rows_audible(db) + _rows_steam(db) + _rows_gog(db)
-
-    counts = {s: sum(1 for r in rows if r["source"] == s) for s in SOURCES}
-    deal_count = sum(1 for r in rows if r["discount_pct"])
-
-    shown = rows
-    if source in SOURCES:
-        shown = [r for r in shown if r["source"] == source]
-    if deals_only:
-        shown = [r for r in shown if r["discount_pct"]]
+    model, key_field = _ITEM_MODELS[source]
+    query = db.query(model).filter(model.removed_at.is_(None))
     if q:
-        needle = q.lower()
-        shown = [r for r in shown if needle in r["title"].lower() or needle in (r["subtitle"] or "").lower()]
-    shown = sorted(shown, key=SORTS.get(sort, SORTS["added"]))
+        query = _search(query, source, q)
 
+    sorts = SORTS[source]
+    items = query.order_by(sorts.get(sort, sorts["added"])).all()
+    if deals_only:
+        items = [i for i in items if i.discount_pct]
+
+    counts = _counts(db)
     return {
-        "rows": shown,
-        "total": len(rows),
-        "counts": counts,
-        "deal_count": deal_count,
+        "items": items,
+        "key_field": key_field,
+        "owned_keys": _owned_keys(db, source),
+        "lowest_prices": _lowest(db, source),
+        "source": source,
         "sources": SOURCES,
         "source_labels": SOURCE_LABELS,
+        "counts": counts,
+        "total": counts[source],
+        "deal_count": sum(
+            1 for i in db.query(model).filter(model.removed_at.is_(None)).all() if i.discount_pct
+        ),
         "q": q,
         "sort": sort,
-        "source": source,
+        "sorts": list(sorts.keys()),
         "deals_only": deals_only,
-        "results": results or {},
-        "errors": errors or {},
+        "last_synced": db.query(func.max(model.last_seen_at)).scalar(),
+        "result": result,
+        "error": error,
     }
 
 
 @router.get("", response_class=HTMLResponse)
+def wishlist_index(db: Session = Depends(get_db)):
+    """Land on a store that has something in it, rather than a default tab
+    that happens to be empty while another holds hundreds."""
+    counts = _counts(db)
+    target = next((s for s in SOURCES if counts[s]), SOURCES[0])
+    return RedirectResponse(f"/wishlist/{target}", status_code=303)
+
+
+@router.get("/{source}", response_class=HTMLResponse)
 def wishlist_page(
     request: Request,
+    source: str,
     q: str = "",
     sort: str = "added",
-    source: str = "",
     deals_only: bool = False,
     db: Session = Depends(get_db),
 ):
-    context = _context(db, q.strip(), sort, source, deals_only)
+    if source not in SOURCES:
+        raise HTTPException(status_code=404, detail="Unknown wishlist source")
+    context = _context(db, source, q.strip(), sort, deals_only)
     template = "wishlist/_table.html" if request.headers.get("HX-Request") else "wishlist/index.html"
     return templates.TemplateResponse(request, template, context)
 
@@ -204,7 +189,7 @@ async def _run_refresh(source: str, db: Session):
 
 
 @router.post(
-    "/refresh/{source}",
+    "/{source}/refresh",
     response_class=HTMLResponse,
     dependencies=[Depends(rate_limit(_refresh_limiter, "wishlist-refresh")), Depends(require_csrf)],
 )
@@ -218,19 +203,16 @@ async def refresh_wishlist(
     if source not in SOURCES:
         raise HTTPException(status_code=404, detail="Unknown wishlist source")
 
-    results: dict = {}
-    errors: dict = {}
+    result = error = None
     try:
-        results[source] = await _run_refresh(source, db)
+        result = await _run_refresh(source, db)
     except (audible_sync.NotConnectedError, store_wishlist_sync.NotConnectedError) as exc:
-        errors[source] = str(exc)
+        error = str(exc)
     except Exception as exc:
-        # Three undocumented-ish sources; a shape change should read as one
-        # broken connector, not a broken page.
-        errors[source] = (
+        error = (
             f"The {SOURCE_LABELS[source]} wishlist refresh failed ({type(exc).__name__}). "
             "Reconnect it in Settings if this persists."
         )
 
-    context = _context(db, q.strip(), sort, results=results, errors=errors)
+    context = _context(db, source, q.strip(), sort, result=result, error=error)
     return templates.TemplateResponse(request, "wishlist/_table.html", context)
