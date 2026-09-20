@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import applog, backup, version
+from app import applog, backup, humble_key, version
 from app.config import settings
 from app.db import SessionLocal
 from app.deps import AuthMiddleware, SecurityHeadersMiddleware
@@ -66,11 +66,30 @@ def _startup_warnings() -> list[str]:
     return warnings
 
 
+def _restore_humble_key_file() -> None:
+    """humble-cli's key file lives in the image, not the /data volume, so a
+    container recreation wipes it while the credential in the database
+    survives — leaving downloads failing with "config file not found" against
+    a UI that still says Humble is connected. Rewriting it from the database
+    at boot makes that self-correcting instead of something to re-paste after
+    every image update.
+    """
+    db = SessionLocal()
+    try:
+        if humble_key.sync_key_file_from_db(db):
+            print("Restored humble-cli's key file from the stored credential.", file=sys.stderr)
+    except Exception as exc:  # pragma: no cover - never block startup over this
+        print(f"WARNING: could not restore humble-cli's key file: {type(exc).__name__}", file=sys.stderr)
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.ensure_dirs()
     for warning in _startup_warnings():
         print(f"WARNING: {warning}", file=sys.stderr)
+    _restore_humble_key_file()
     refresh.sweep_stale_runs()
     worker.sweep_stale_jobs()
     await worker.try_dispatch_queued_downloads()  # picks up any jobs left STATUS_QUEUED across a restart
