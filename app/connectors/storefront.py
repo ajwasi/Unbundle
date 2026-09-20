@@ -183,6 +183,35 @@ def _named(entries: object, key: str) -> list[str]:
     return out
 
 
+# Which resolved_paths key holds an item's art, most preferred first, paired
+# with its retina variant where one exists.
+#
+# There is no single key every item uses, and the split runs along bundle
+# type: book and comic items carry front_page_art_imgix, while game items
+# frequently have that null and populate featured_image instead. An earlier
+# version read only front_page_art_imgix (plus preview_image) because it was
+# checked against three book bundles — which is exactly how a narrow sample
+# produces a rule that looks universal and silently drops half a games
+# bundle's covers.
+_IMAGE_KEYS = (
+    ("front_page_art_imgix", "front_page_art_imgix_retina"),
+    ("featured_image", ""),
+    ("preview_image", "preview_image_bonus_retina"),
+)
+
+
+def _item_images(resolved: dict) -> dict:
+    """First populated art key wins, and the 2x only comes from that same
+    entry — pairing a retina URL with a different image's 1x would serve two
+    unrelated pictures depending on screen density."""
+    for key, retina_key in _IMAGE_KEYS:
+        url = resolved.get(key)
+        if isinstance(url, str) and url:
+            retina = resolved.get(retina_key) if retina_key else ""
+            return {"image_url": url, "image_url_2x": retina if isinstance(retina, str) else ""}
+    return {"image_url": "", "image_url_2x": ""}
+
+
 def _availability(item: dict) -> tuple[list[str], list[str]]:
     """Split availability_icons into (formats, delivery methods).
 
@@ -268,10 +297,7 @@ async def fetch_bundle_detail(product_url: str, force: bool = False) -> Storefro
             publishers=_named(item.get("publishers"), "publisher-name"),
             formats=formats,
             delivery_methods=delivery,
-            # front_page_art_imgix is the cover; resolved_paths.featured_image
-            # was None on every item checked, so it is not a usable fallback.
-            image_url=resolved.get("front_page_art_imgix") or resolved.get("preview_image") or "",
-            image_url_2x=resolved.get("front_page_art_imgix_retina") or "",
+            **_item_images(resolved),
         )
         items.append(si)
         items_by_name[machine_name] = si

@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import nh3
+import pytest
 
 from app.connectors.storefront import StorefrontBundle, StorefrontBundleDetail, StorefrontItem, StorefrontTier
 from tests.factories import make_order, make_subproduct
@@ -474,3 +475,43 @@ def test_description_html_is_sanitized_before_it_reaches_the_page():
     assert "javascript:" not in clean
     assert "onerror" not in clean
     assert "<p>Fine</p>" in clean
+
+
+# ------------------------------------------------- storefront item art keys
+
+@pytest.mark.parametrize(
+    "resolved,expected_url,expected_2x",
+    [
+        # Books and comics: the portrait key art, with its own retina pair.
+        (
+            {"front_page_art_imgix": "a.png", "front_page_art_imgix_retina": "a2.png", "featured_image": "f.png"},
+            "a.png",
+            "a2.png",
+        ),
+        # Games frequently null that key and populate featured_image instead,
+        # which is why half a games bundle used to render with no covers.
+        ({"front_page_art_imgix": None, "featured_image": "f.png"}, "f.png", ""),
+        ({"front_page_art_imgix": "", "featured_image": "", "preview_image": "p.png"}, "p.png", ""),
+        ({}, "", ""),
+        ({"front_page_art_imgix": None, "featured_image": None, "preview_image": None}, "", ""),
+    ],
+)
+def test_item_art_falls_back_across_the_keys_humble_actually_uses(resolved, expected_url, expected_2x):
+    from app.connectors import storefront
+
+    images = storefront._item_images(resolved)
+    assert images["image_url"] == expected_url
+    assert images["image_url_2x"] == expected_2x
+
+
+def test_a_retina_url_is_never_paired_with_a_different_images_one_x():
+    # front_page_art_imgix_retina belongs to front_page_art_imgix. Carrying it
+    # over to a featured_image fallback would serve two unrelated pictures
+    # depending on screen density.
+    from app.connectors import storefront
+
+    images = storefront._item_images(
+        {"front_page_art_imgix": None, "front_page_art_imgix_retina": "wrong2x.png", "featured_image": "f.png"}
+    )
+    assert images["image_url"] == "f.png"
+    assert images["image_url_2x"] == ""
