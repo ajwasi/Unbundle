@@ -474,3 +474,13 @@ def test_description_html_is_sanitized_before_it_reaches_the_page():
     assert "javascript:" not in clean
     assert "onerror" not in clean
     assert "<p>Fine</p>" in clean
+
+
+def test_description_disclosure_is_a_real_control_not_a_bare_marker(authed_client):
+    # The native <details> triangle is a ~10px hit target that doesn't read as
+    # pressable, so content behind it goes unfound. Both views get the styled
+    # disclosure and a label that says what opening it does.
+    for params in ({}, {"view": "grid"}):
+        resp = _compare(authed_client, _detailed_item(), **params)
+        assert 'class="item-description disclosure"' in resp.text
+        assert "Read description" in resp.text
