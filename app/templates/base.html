@@ -46,6 +46,7 @@
         {% endif %}
       </div>
       <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Home</a>
+      <a href="/deals" class="{{ 'active' if request.url.path.startswith('/deals') else '' }}">Deals</a>
       <a href="/bundles" class="{{ 'active' if request.url.path.startswith('/bundles') else '' }}">Bundles</a>
       <a href="/catalog" class="{{ 'active' if request.url.path.startswith('/catalog') else '' }}">Catalog</a>
       <a href="/finance" class="{{ 'active' if request.url.path.startswith('/finance') else '' }}">Finance</a>

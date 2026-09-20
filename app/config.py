@@ -84,6 +84,12 @@ class Settings(BaseSettings):
     # of the real APIs — a fake but realistic backend (see mock_api/), so the app
     # can be explored fully populated without connecting any real account. Off by
     # default; see README's "Try it without connecting accounts" section.
+    # GOG's catalogue prices are per-market; these decide which storefront's
+    # prices the Deals page shows. Env-only (no migration) because changing
+    # market is a deployment decision, not something to toggle per visit.
+    gog_country: str = "US"
+    gog_currency: str = "USD"
+
     demo_mode: bool = False
     mock_api_base_url: str = "http://mock-api:8090"
 
