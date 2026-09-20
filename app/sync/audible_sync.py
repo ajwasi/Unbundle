@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.connectors import audible_connector
 from app.models.audible_book import AudibleBook
+from app.models.audible_wishlist import AudibleWishlistItem, AudibleWishlistPrice
 from app.models.credential import SOURCE_AUDIBLE, STATUS_ERROR, STATUS_OK, Credential
 from app.security import encrypt_json
 
@@ -89,3 +90,88 @@ async def refresh_audible_library(db: Session) -> int:
 
 def _set_credential_status(db: Session, status: str, error: str | None) -> None:
     Credential.set_status(db, SOURCE_AUDIBLE, status, error)
+
+
+def _record_price_if_changed(db: Session, item: AudibleWishlistItem, now: datetime) -> bool:
+    """Append a price observation only when it actually moved.
+
+    Every row in audible_wishlist_price therefore means something happened,
+    which is what makes "cheapest it has been" answerable without storing a
+    row per title per refresh forever.
+    """
+    latest = (
+        db.query(AudibleWishlistPrice)
+        .filter(AudibleWishlistPrice.asin == item.asin)
+        .order_by(AudibleWishlistPrice.captured_at.desc())
+        .first()
+    )
+    if latest and latest.price == item.current_price and latest.list_price == item.list_price:
+        return False
+    db.add(
+        AudibleWishlistPrice(
+            asin=item.asin,
+            price=item.current_price,
+            list_price=item.list_price,
+            currency=item.currency,
+            captured_at=now,
+        )
+    )
+    return True
+
+
+async def refresh_audible_wishlist(db: Session) -> dict:
+    """Pull the wishlist and upsert it. Returns a summary for the UI."""
+    payload = get_audible_credential(db)
+    if not payload:
+        raise NotConnectedError("Audible is not connected yet — connect it in Settings.")
+
+    try:
+        auth = audible.Authenticator.from_dict(dict(payload))
+        entries = await audible_connector.fetch_wishlist(auth)
+        save_authenticator(db, auth)
+    except Exception as exc:
+        _set_credential_status(db, STATUS_ERROR, str(exc))
+        raise
+
+    now = datetime.utcnow()
+    seen: set[str] = set()
+    new = price_changes = 0
+
+    for entry in entries:
+        seen.add(entry.asin)
+        row = db.get(AudibleWishlistItem, entry.asin)
+        if row is None:
+            row = AudibleWishlistItem(asin=entry.asin, first_seen_at=now)
+            db.add(row)
+            new += 1
+        row.title = entry.title
+        row.subtitle = entry.subtitle
+        row.authors = entry.authors
+        row.narrators = entry.narrators
+        row.cover_url = entry.cover_url
+        row.runtime_minutes = entry.runtime_minutes
+        row.current_price = entry.current_price
+        row.list_price = entry.list_price
+        row.currency = entry.currency
+        row.added_at = entry.added_at
+        row.last_seen_at = now
+        row.removed_at = None
+        db.flush()  # the price row's FK needs this item to exist first
+        if _record_price_if_changed(db, row, now):
+            price_changes += 1
+
+    removed = 0
+    if seen:
+        stale = (
+            db.query(AudibleWishlistItem)
+            .filter(AudibleWishlistItem.removed_at.is_(None))
+            .filter(~AudibleWishlistItem.asin.in_(seen))
+            .all()
+        )
+        for row in stale:
+            row.removed_at = now
+            removed += 1
+
+    db.commit()
+    _set_credential_status(db, STATUS_OK, None)
+    return {"total": len(entries), "new": new, "price_changes": price_changes, "removed": removed}
