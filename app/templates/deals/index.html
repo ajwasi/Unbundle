@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Deals — Unbundle{% endblock %}
+{% block content %}
+<h1>Deals</h1>
+<p class="muted">
+  Discounted games from GOG's public catalogue, matched against your synced GOG
+  library so you can see at a glance what you already own. Not a curated
+  "deal of the day" &mdash; GOG does not publish one &mdash; these are the
+  steepest current discounts.
+</p>
+{% include "deals/_table.html" %}
+{% endblock %}

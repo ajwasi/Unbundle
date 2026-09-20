@@ -14,7 +14,7 @@ from app.db import SessionLocal
 from app.deps import AuthMiddleware, SecurityHeadersMiddleware
 from app.downloads import worker
 from app.oidc import is_auth_configured
-from app.routers import amazon_music, auth, audible, wishlist, bundles, catalog, docs, downloads, finance, gog, home, metrics, steam, tags, version as version_router, settings as settings_router
+from app.routers import amazon_music, auth, audible, deals, wishlist, bundles, catalog, docs, downloads, finance, gog, home, metrics, steam, tags, version as version_router, settings as settings_router
 from app.sync import refresh
 from app.telemetry import instrument_app
 
@@ -133,6 +133,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.include_router(auth.router)
 app.include_router(settings_router.router)
 app.include_router(home.router)
+app.include_router(deals.router)
 app.include_router(bundles.router)
 app.include_router(catalog.router)
 app.include_router(downloads.router)

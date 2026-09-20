@@ -1,0 +1,94 @@
+<div id="deals-table">
+  {% if error %}<p class="text-error">{{ error }}</p>{% endif %}
+
+  <div class="toolbar">
+    <form hx-post="/deals/refresh" hx-target="#deals-table" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="hidden" name="sort" value="{{ sort }}">
+      <input type="hidden" name="hide_owned" value="{{ 'true' if hide_owned else '' }}">
+      <input type="hidden" name="min_discount" value="{{ min_discount }}">
+      <button type="submit" class="secondary">Refresh</button>
+      <span class="muted htmx-indicator">Asking GOG&hellip;</span>
+    </form>
+    <span class="muted">
+      Showing the top {{ fetched_count }} of {{ total_discounted }} discounted title(s)
+      {%- if gog_connected %} &mdash; you own {{ owned_count }} of them{% endif %}
+    </span>
+  </div>
+
+  {% if not gog_connected %}
+  <p class="muted">
+    Connect <strong>GOG</strong> in <a href="/settings">Settings</a> to see which of these
+    you already own. The deals themselves need no account.
+  </p>
+  {% endif %}
+
+  <div class="toolbar">
+    <input type="search" id="deals-q" name="q" value="{{ q }}" placeholder="Search title or developer"
+           hx-get="/deals" hx-trigger="keyup changed delay:300ms, search"
+           hx-target="#deals-table" hx-swap="outerHTML"
+           hx-include="#deals-sort,#deals-hide-owned,#deals-min" style="flex: 1; max-width: 20rem;">
+    <select id="deals-sort" name="sort" hx-get="/deals" hx-trigger="change"
+            hx-target="#deals-table" hx-swap="outerHTML" hx-include="#deals-q,#deals-hide-owned,#deals-min">
+      <option value="discount" {{ "selected" if sort == "discount" else "" }}>Biggest discount</option>
+      <option value="price" {{ "selected" if sort == "price" else "" }}>Lowest price</option>
+      <option value="rating" {{ "selected" if sort == "rating" else "" }}>Highest rated</option>
+      <option value="title" {{ "selected" if sort == "title" else "" }}>Title</option>
+    </select>
+    <select id="deals-min" name="min_discount" hx-get="/deals" hx-trigger="change"
+            hx-target="#deals-table" hx-swap="outerHTML" hx-include="#deals-q,#deals-sort,#deals-hide-owned">
+      <option value="0" {{ "selected" if min_discount == 0 else "" }}>Any discount</option>
+      <option value="50" {{ "selected" if min_discount == 50 else "" }}>50%+</option>
+      <option value="75" {{ "selected" if min_discount == 75 else "" }}>75%+</option>
+      <option value="90" {{ "selected" if min_discount == 90 else "" }}>90%+</option>
+    </select>
+    {% if gog_connected %}
+    <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
+      <input type="checkbox" id="deals-hide-owned" name="hide_owned" value="true" {{ "checked" if hide_owned else "" }}
+             hx-get="/deals" hx-trigger="change" hx-target="#deals-table" hx-swap="outerHTML"
+             hx-include="#deals-q,#deals-sort,#deals-min">
+      Hide what I own
+    </label>
+    {% endif %}
+    <span class="muted">{{ deals|length }} shown</span>
+  </div>
+
+  <div class="item-grid">
+    {% for d in deals %}
+    <article class="item-card {{ 'is-owned' if d.product_id in owned_ids else '' }}">
+      {% if d.cover_url %}
+      <img class="item-cover" src="{{ d.cover_url }}" alt="" loading="lazy">
+      {% endif %}
+      <div class="item-body">
+        <h3>{{ d.title }}</h3>
+        <p class="item-meta">
+          {% if d.discount_pct %}<span class="badge badge-ok">-{{ d.discount_pct }}%</span>{% endif %}
+          {% if d.price_final is not none %}
+          <strong>{{ "%.2f"|format(d.price_final) }} {{ d.currency }}</strong>
+          {% if d.price_base is not none and d.price_base > d.price_final %}
+          <span class="muted" style="text-decoration: line-through;">{{ "%.2f"|format(d.price_base) }}</span>
+          {% endif %}
+          {% endif %}
+        </p>
+        {% if d.developers %}<p class="item-meta"><span class="item-meta-label">By</span> {{ d.developers | join(", ") }}</p>{% endif %}
+        {% if d.genres %}<p class="item-meta">{{ d.genres | join(" · ") }}</p>{% endif %}
+        <p class="item-meta">
+          {% for os in d.operating_systems %}<span class="badge badge-not-configured">{{ os }}</span> {% endfor %}
+          {% if d.rating %}<span class="muted tip" title="GOG reviews score, out of 5.">{{ d.rating }}/5</span>{% endif %}
+        </p>
+        <p class="item-meta">
+          {% if d.product_id in owned_ids %}
+          <span class="badge badge-ok">Already owned</span>
+          {% else %}
+          <span class="badge badge-not-configured">New to you</span>
+          {% endif %}
+          <a href="{{ d.store_url }}" target="_blank" rel="noopener">View on GOG &rarr;</a>
+        </p>
+      </div>
+    </article>
+    {% else %}
+    <p class="muted">{% if error %}No deals to show.{% elif q or hide_owned or min_discount %}No deals match those filters.{% else %}No discounted titles returned.{% endif %}</p>
+    {% endfor %}
+  </div>
+</div>
