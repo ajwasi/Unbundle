@@ -148,7 +148,7 @@ def test_owned_titles_are_matched_by_product_id(authed_client, db):
     with _patch_fetch([_deal(1, "Owned Game"), _deal(2, "Unowned Game")]):
         resp = authed_client.get("/deals")
 
-    assert "Already owned" in resp.text
+    assert ">Owned<" in resp.text
     assert "New to you" in resp.text
     assert "you own 1 of them" in resp.text
 

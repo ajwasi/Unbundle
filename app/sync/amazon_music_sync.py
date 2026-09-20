@@ -23,7 +23,6 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime
-from urllib.parse import urlencode
 
 import httpx
 from sqlalchemy.orm import Session
@@ -112,15 +111,19 @@ def _fetch_page(client, base: str, headers_field: str, cursor: str) -> dict:
     if cursor:
         fields["next"] = cursor
 
-    # The body is urlencoded, but the Content-Type is text/plain — that
-    # combination is confirmed from a real capture, and it is not an oddity:
-    # text/plain is a CORS "simple" type, so the browser skips the preflight
-    # the API's own access-control-allow-methods (GET, OPTIONS) implies it
-    # would otherwise need. Sending the honest
-    # application/x-www-form-urlencoded instead gets a flat 400.
+    # A JSON body sent under a text/plain Content-Type. Both halves are
+    # deliberate and both are read off a real capture:
+    #
+    #   * JSON, because DevTools rendered the payload as a quoted tree
+    #     (sortBy "RECENTLY_ADDED"), which is how it shows JSON — a urlencoded
+    #     body renders unquoted. Sending urlencoded produced a bare Tomcat 400,
+    #     consistent with the servlet finding no parameters it could parse.
+    #   * text/plain, because it is a CORS "simple" type, so the browser skips
+    #     the preflight this API's own access-control-allow-methods
+    #     (GET, OPTIONS) implies it would otherwise need.
     resp = client.post(
         f"{base}{amc.PURCHASED_TRACKS_PATH}",
-        content=urlencode(fields),
+        content=json.dumps(fields),
         headers={"Content-Type": "text/plain;charset=UTF-8"},
     )
     if resp.status_code in (401, 403):

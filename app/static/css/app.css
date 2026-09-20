@@ -479,6 +479,87 @@ main {
   margin: 0.6rem 0 0;
 }
 
+/* Deals grid. Separate from .item-card because the failure mode here is
+   different: every deal carries the same *kinds* of facts but wildly
+   different lengths of them, so without pinning the parts the rows end up
+   ragged — price on one card level with the developer on its neighbour. */
+.deal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.deal-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.deal-card.is-owned {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+  background: color-mix(in srgb, var(--success) 5%, var(--surface));
+}
+
+.deal-cover {
+  width: 100%;
+  /* GOG's coverVertical is a 2:3 portrait key art. */
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  background: var(--bg);
+}
+
+.deal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.7rem 0.8rem;
+  flex: 1;
+}
+
+/* Two lines always, so the price line below starts at the same height on
+   every card in a row whether the title is "Vampyr" or a three-clause
+   special edition subtitle. */
+.deal-title {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.3;
+  min-height: 2.6em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.deal-price { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+.deal-price strong { font-size: 1.05rem; }
+.deal-was { color: var(--muted); text-decoration: line-through; font-size: 0.85rem; }
+
+.deal-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  /* One line each: a five-studio credit must not make this card taller than
+     its neighbours. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pins the ownership row to the bottom of every card regardless of how much
+   sits above it — this is what actually makes the grid read as a grid. */
+.deal-footer {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
 /* Compare-page item presentation, shared by the grid and list views. */
 .item-grid {
   display: grid;
