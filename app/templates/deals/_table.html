@@ -54,37 +54,39 @@
     <span class="muted">{{ deals|length }} shown</span>
   </div>
 
-  <div class="item-grid">
+  <div class="deal-grid">
     {% for d in deals %}
-    <article class="item-card {{ 'is-owned' if d.product_id in owned_ids else '' }}">
+    <article class="deal-card {{ 'is-owned' if d.product_id in owned_ids else '' }}">
       {% if d.cover_url %}
-      <img class="item-cover" src="{{ d.cover_url }}" alt="" loading="lazy">
+      <img class="deal-cover" src="{{ d.cover_url }}" alt="" loading="lazy">
       {% endif %}
-      <div class="item-body">
-        <h3>{{ d.title }}</h3>
-        <p class="item-meta">
+      <div class="deal-body">
+        <h3 class="deal-title" title="{{ d.title }}">{{ d.title }}</h3>
+
+        <p class="deal-price">
           {% if d.discount_pct %}<span class="badge badge-ok">-{{ d.discount_pct }}%</span>{% endif %}
           {% if d.price_final is not none %}
           <strong>{{ "%.2f"|format(d.price_final) }} {{ d.currency }}</strong>
           {% if d.price_base is not none and d.price_base > d.price_final %}
-          <span class="muted" style="text-decoration: line-through;">{{ "%.2f"|format(d.price_base) }}</span>
+          <span class="deal-was">{{ "%.2f"|format(d.price_base) }}</span>
           {% endif %}
           {% endif %}
         </p>
-        {% if d.developers %}<p class="item-meta"><span class="item-meta-label">By</span> {{ d.developers | join(", ") }}</p>{% endif %}
-        {% if d.genres %}<p class="item-meta">{{ d.genres | join(" · ") }}</p>{% endif %}
-        <p class="item-meta">
-          {% for os in d.operating_systems %}<span class="badge badge-not-configured">{{ os }}</span> {% endfor %}
-          {% if d.rating %}<span class="muted tip" title="GOG reviews score, out of 5.">{{ d.rating }}/5</span>{% endif %}
+
+        <p class="deal-meta" title="{{ d.developers | join(', ') }}">{{ d.developers | join(", ") or "&mdash;" | safe }}</p>
+        <p class="deal-meta" title="{{ d.genres | join(' / ') }}">
+          {{ d.genres | join(" · ") }}{% if d.rating %} &middot; {{ d.rating }}/5{% endif %}
         </p>
-        <p class="item-meta">
+        <p class="deal-meta">{{ d.operating_systems | join(" · ") }}</p>
+
+        <div class="deal-footer">
           {% if d.product_id in owned_ids %}
-          <span class="badge badge-ok">Already owned</span>
+          <span class="badge badge-ok">Owned</span>
           {% else %}
-          <span class="badge badge-not-configured">New to you</span>
+          <span class="muted">New to you</span>
           {% endif %}
-          <a href="{{ d.store_url }}" target="_blank" rel="noopener">View on GOG &rarr;</a>
-        </p>
+          <a href="{{ d.store_url }}" target="_blank" rel="noopener">GOG &rarr;</a>
+        </div>
       </div>
     </article>
     {% else %}

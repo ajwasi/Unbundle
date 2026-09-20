@@ -118,7 +118,7 @@ def test_refresh_requires_a_stored_audible_login(db):
 
 # ------------------------------------- request shape (the 400 investigation)
 
-def test_page_request_is_urlencoded_but_sent_as_text_plain():
+def test_page_request_is_json_sent_under_a_text_plain_content_type():
     # Confirmed from a real capture: the body is urlencoded while the
     # Content-Type is text/plain, which is how the web player avoids a CORS
     # preflight. Sending application/x-www-form-urlencoded gets a flat 400.
@@ -135,9 +135,12 @@ def test_page_request_is_urlencoded_but_sent_as_text_plain():
             sync._fetch_page(client, "https://example.invalid", '{"x":"y"}', "CURSOR")
 
     assert captured["headers"]["Content-Type"] == "text/plain;charset=UTF-8"
-    assert "sortBy=RECENTLY_ADDED" in captured["content"]
-    assert "next=CURSOR" in captured["content"]
-    assert captured["content"].startswith("headers=")
+    # JSON, not urlencoded: DevTools rendered the real payload as a quoted
+    # tree, and a urlencoded body drew a bare Tomcat 400 from the servlet.
+    body = json.loads(captured["content"])
+    assert body["sortBy"] == "RECENTLY_ADDED"
+    assert body["next"] == "CURSOR"
+    assert body["headers"] == '{"x":"y"}'
 
 
 def test_a_400_surfaces_amazons_own_message():
