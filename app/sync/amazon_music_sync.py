@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from app.connectors import amazon_music_connector as amc
 from app.connectors.amazon_music_probe import BASE_HEADERS, cookies_from_audible_credential
 from app.connectors.amazon_music_probe import NotConnectedError as _ProbeNotConnectedError
+from app.connectors import amazon_music_template as tmpl
 from app.models.amazon_music_track import AmazonMusicTrack
 
 # One page is 50 rows (confirmed: multiSelectBar.itemCount). A pause between
@@ -106,8 +107,12 @@ def _fetch_config(client) -> dict:
     return resp.json()
 
 
-def _fetch_page(client, base: str, headers_field: str, cursor: str) -> dict:
-    fields = {"headers": headers_field, "sortBy": amc.SORT_RECENTLY_ADDED, "userHash": "{}"}
+class NoTemplateError(Exception):
+    """No captured request has been saved, so there is no shape to send."""
+
+
+def _fetch_page(client, base: str, headers_field: str, user_hash: str, cursor: str) -> dict:
+    fields = {"headers": headers_field, "sortBy": amc.SORT_RECENTLY_ADDED, "userHash": user_hash}
     if cursor:
         fields["next"] = cursor
 
@@ -227,12 +232,28 @@ def refresh_purchased_tracks(db: Session) -> dict:
     new_total = updated_total = 0
     pages = 0
 
+    template = tmpl.load_template(db)
+    if template is None:
+        raise NoTemplateError(
+            "No sync template saved yet. Capture the Purchased view request and save it "
+            "in Settings — Amazon's required fields are undocumented, so the only reliable "
+            "shape is one its own web player sent."
+        )
+
     with httpx.Client(cookies=cookies, headers=BASE_HEADERS, timeout=30.0, follow_redirects=True) as client:
-        headers_field = _auth_headers_field(_fetch_config(client))
+        config = _fetch_config(client)
+        token = config.get("accessToken") or ""
+        if not token:
+            raise amc.AmazonMusicAuthError(
+                "Amazon did not return an access token — the stored Audible login may have expired."
+            )
+        # Everything but the token comes from the captured request; the token
+        # is the only part that goes stale.
+        headers_field = tmpl.with_fresh_token(template.headers_field, token)
 
         cursor = ""
         while pages < MAX_PAGES:
-            payload = _fetch_page(client, amc.api_base(), headers_field, cursor)
+            payload = _fetch_page(client, amc.api_base(), headers_field, template.user_hash, cursor)
             tracks = amc.parse_tracks(payload)
             pages += 1
 
