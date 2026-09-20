@@ -325,3 +325,120 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
             )
         )
     return books
+
+
+# ---------------------------------------------------------------- wishlist
+
+# GET /1.0/wishlist, unlike the catalogue endpoint, sorts by price server
+# side and pages 50 at a time — a wishlist is tens of items, so a full
+# refresh is one or two calls. Response groups mirror fetch_library's
+# superset approach: Amazon silently ignores ones it doesn't recognise.
+WISHLIST_RESPONSE_GROUPS = "contributors,media,price,product_attrs,product_desc,product_plan_details,product_plans,rating"
+WISHLIST_PAGE_SIZE = 50
+# A wishlist this long is already implausible; the cap stops a paging bug
+# from looping against Amazon indefinitely.
+WISHLIST_MAX_PAGES = 20
+
+
+@dataclass
+class AudibleWishlistData:
+    asin: str
+    title: str
+    subtitle: str
+    authors: str
+    narrators: str
+    cover_url: str
+    runtime_minutes: int
+    current_price: float | None
+    list_price: float | None
+    currency: str
+    added_at: datetime | None
+
+
+def _money(node: object) -> tuple[float | None, str]:
+    """Audible wraps an amount as {"base": 14.95, "currency_code": "USD"}."""
+    if not isinstance(node, dict):
+        return None, ""
+    base = node.get("base")
+    currency = node.get("currency_code") or ""
+    try:
+        return (float(base) if base is not None else None), str(currency)
+    except (TypeError, ValueError):
+        return None, str(currency)
+
+
+def _wishlist_prices(item: dict) -> tuple[float | None, float | None, str]:
+    """(current, list, currency) from the price response group.
+
+    Shape is inferred from the catalogue endpoint's documented one — a
+    `price` object holding `lowest_price` and `list_price` sub-objects — and
+    is written to degrade rather than fail: an item whose prices are absent
+    or shaped differently still syncs, it just shows no discount. `price.base`
+    is a last resort for a flatter shape.
+    """
+    price_obj = item.get("price")
+    if not isinstance(price_obj, dict):
+        return None, None, ""
+
+    current, currency = _money(price_obj.get("lowest_price"))
+    listed, list_currency = _money(price_obj.get("list_price"))
+    if current is None:
+        current, flat_currency = _money(price_obj)
+        currency = currency or flat_currency
+    return current, listed, currency or list_currency
+
+
+def _parse_added_at(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def parse_wishlist_item(item: dict) -> AudibleWishlistData | None:
+    asin = item.get("asin")
+    if not asin:
+        return None
+    images = item.get("product_images") or {}
+    cover = images.get("500") or next(iter(images.values()), "")
+    current, listed, currency = _wishlist_prices(item)
+    return AudibleWishlistData(
+        asin=asin,
+        title=item.get("title") or asin,
+        subtitle=item.get("subtitle") or "",
+        authors=", ".join(a["name"] for a in item.get("authors") or [] if a.get("name")),
+        narrators=", ".join(n["name"] for n in item.get("narrators") or [] if n.get("name")),
+        cover_url=cover,
+        runtime_minutes=int(item.get("runtime_length_min") or 0),
+        current_price=current,
+        list_price=listed,
+        currency=currency,
+        added_at=_parse_added_at(item.get("date_added")),
+    )
+
+
+async def fetch_wishlist(auth: "audible.Authenticator") -> list[AudibleWishlistData]:
+    """Every page of the wishlist. Raises whatever the client raises — the
+    caller maps it to a reconnect prompt."""
+    items: list[AudibleWishlistData] = []
+    async with audible.AsyncClient(auth) as client:
+        for page in range(WISHLIST_MAX_PAGES):
+            resp = await client.get(
+                "wishlist",
+                params={
+                    "response_groups": WISHLIST_RESPONSE_GROUPS,
+                    "num_results": WISHLIST_PAGE_SIZE,
+                    "page": page,
+                    "sort_by": "-DateAdded",
+                },
+            )
+            raw = resp.get("products") or resp.get("items") or []
+            for entry in raw:
+                parsed = parse_wishlist_item(entry)
+                if parsed:
+                    items.append(parsed)
+            if len(raw) < WISHLIST_PAGE_SIZE:
+                break
+    return items

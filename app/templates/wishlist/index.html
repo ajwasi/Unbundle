@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Wishlist — Unbundle{% endblock %}
+{% block content %}
+<h1>Wishlist</h1>
+<p class="muted">
+  Your Audible wishlist, with what each title costs now and the lowest price seen
+  since tracking began. Steam and GOG wishlists can be added here later &mdash; both
+  are reachable with credentials this app already holds.
+</p>
+{% include "wishlist/_table.html" %}
+{% endblock %}

@@ -14,7 +14,7 @@ from app.db import SessionLocal
 from app.deps import AuthMiddleware, SecurityHeadersMiddleware
 from app.downloads import worker
 from app.oidc import is_auth_configured
-from app.routers import amazon_music, auth, audible, bundles, catalog, docs, downloads, finance, gog, home, metrics, steam, tags, version as version_router, settings as settings_router
+from app.routers import amazon_music, auth, audible, wishlist, bundles, catalog, docs, downloads, finance, gog, home, metrics, steam, tags, version as version_router, settings as settings_router
 from app.sync import refresh
 from app.telemetry import instrument_app
 
@@ -141,6 +141,7 @@ app.include_router(steam.router)
 app.include_router(gog.router)
 app.include_router(audible.router)
 app.include_router(amazon_music.router)
+app.include_router(wishlist.router)
 app.include_router(tags.router)
 app.include_router(metrics.router)
 app.include_router(version_router.router)
