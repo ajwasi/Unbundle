@@ -515,3 +515,13 @@ def test_a_retina_url_is_never_paired_with_a_different_images_one_x():
     )
     assert images["image_url"] == "f.png"
     assert images["image_url_2x"] == ""
+
+
+def test_description_disclosure_is_a_real_control_not_a_bare_marker(authed_client):
+    # The native <details> triangle is a ~10px hit target that doesn't read as
+    # pressable, so content behind it goes unfound. Both views get the styled
+    # disclosure and a label that says what opening it does.
+    for params in ({}, {"view": "grid"}):
+        resp = _compare(authed_client, _detailed_item(), **params)
+        assert 'class="item-description disclosure"' in resp.text
+        assert "Read description" in resp.text

@@ -38,8 +38,8 @@
         <p class="item-meta"><span class="item-meta-label">Type</span> {{ row.content_type or "—" }}</p>
         {% include "home/_compare_item_meta.html" %}
         {% if row.description %}
-        <details class="item-description">
-          <summary>Description</summary>
+        <details class="item-description disclosure">
+          <summary>Read description</summary>
           <div>{{ row.description | safe }}</div>
         </details>
         {% endif %}
@@ -83,8 +83,8 @@
               <strong>{{ row.name }}</strong>
               {% include "home/_compare_item_meta.html" %}
               {% if row.description %}
-              <details class="item-description">
-                <summary>Description</summary>
+              <details class="item-description disclosure">
+                <summary>Read description</summary>
                 <div>{{ row.description | safe }}</div>
               </details>
               {% endif %}
