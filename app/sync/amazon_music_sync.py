@@ -5,14 +5,18 @@ mint `.amazon.<tld>` website cookies from its refresh token, and those cookies
 were confirmed (2026-09-19) to authenticate against music.amazon.com —
 config.json came back with a populated customer id.
 
-ONE PIECE HERE IS INFERRED, NOT CONFIRMED. Two facts are established:
-config.json returns an `accessToken`, and a real captured request carries its
-auth in a form field named `headers` holding
-`{"x-amzn-authentication": {"interface": …, "accessToken": …}}`. That those
-two connect — that the token from config.json is accepted in that field — has
-never been tested end to end, because doing so requires a live authenticated
-call. If a refresh fails with an auth error, this assembly is the first thing
-to suspect, not the cookies.
+The `headers` field a showPurchasedTracks call carries is not assembled from
+scratch. An earlier version synthesised it from config.json alone and drew a
+bare Tomcat 400 — the endpoint's required subset of its ~twenty x-amzn-*
+entries is undocumented, and guessing at it did not work. What does work
+(confirmed 2026-09-20, a real sync returned 3.5 MB of JSON) is replaying a
+request Amazon's own web player sent, captured once and stored via
+app.connectors.amazon_music_template. Every sync starts from that captured
+shape; see _session_fields_from_config() and with_fresh_session() for exactly
+which parts of it still get refreshed and why the access token alone was not
+enough — a template that only refreshed the token got a 200 back with zero
+tracks, because the response body was Amazon's own generic error dialog
+rather than the real page.
 
 Manual refresh only: this app has no scheduler, and the route is behind the
 same rate limiter as every other refresh.
@@ -65,30 +69,19 @@ _CONFIG_TO_HEADER = {
 }
 
 
-def _auth_headers_field(config: dict) -> str:
-    """Build the `headers` field a web-player call carries.
+def _session_fields_from_config(config: dict) -> dict[str, str]:
+    """The session-scoped x-amzn-* headers config.json can supply right now,
+    as header name -> value, for splicing into a captured template.
 
-    x-amzn-authentication's shape is copied verbatim from a real captured
-    request. The rest are added because a capture's visible tail showed only
-    the last few entries — the field was 3.5 kB, so most of it was cut off
-    before it reached us — and these are the ones config.json actually
-    supplies. Sending a superset the API already declares it accepts is safer
-    than sending only the fragment that happened to be visible.
+    montanaCsrf and sessionId are bound to the specific browser session that
+    produced them — a template that only refreshed the access token got a
+    200 back with zero tracks, because the response body was Amazon's own
+    generic error dialog rather than the real page. Pairing a captured CSRF
+    with this app's own freshly-minted cookies is exactly the mismatched pair
+    CSRF protection exists to catch, and Amazon does not surface that as an
+    HTTP error.
     """
-    token = config.get("accessToken") or ""
-    if not token:
-        raise amc.AmazonMusicAuthError("Amazon did not return an access token — the stored login may have expired.")
-
-    fields = {
-        "x-amzn-authentication": json.dumps(
-            {
-                "interface": "ClientAuthenticationInterface.v1_0.ClientTokenElement",
-                "accessToken": token,
-            }
-        ),
-        "x-amzn-feature-flags": "hd-supported",
-        "x-amzn-age-band": "ADULT",
-    }
+    fields: dict[str, str] = {}
     for config_key, header_name in _CONFIG_TO_HEADER.items():
         value = config.get(config_key)
         if isinstance(value, str) and value:
@@ -97,7 +90,7 @@ def _auth_headers_field(config: dict) -> str:
             # montanaCsrf is an object in some responses; pass it through as
             # JSON rather than str()-ing a dict into something unparseable.
             fields[header_name] = json.dumps(value)
-    return json.dumps(fields)
+    return fields
 
 
 def _fetch_config(client) -> dict:
@@ -266,9 +259,11 @@ def refresh_purchased_tracks(db: Session) -> dict:
             raise amc.AmazonMusicAuthError(
                 "Amazon did not return an access token — the stored Audible login may have expired."
             )
-        # Everything but the token comes from the captured request; the token
-        # is the only part that goes stale.
-        headers_field = tmpl.with_fresh_token(template.headers_field, token)
+        # The access token and the session-scoped headers (CSRF, session id)
+        # all go stale independently of the ~fifteen other captured fields
+        # that don't — see with_fresh_session()'s docstring for why refreshing
+        # only the token was not enough.
+        headers_field = tmpl.with_fresh_session(template.headers_field, token, _session_fields_from_config(config))
 
         cursor = ""
         diagnostic = None
