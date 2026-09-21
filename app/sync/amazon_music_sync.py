@@ -28,6 +28,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.connectors import amazon_music_connector as amc
+from app.connectors import amazon_music_probe as probe
 from app.connectors.amazon_music_probe import BASE_HEADERS, cookies_from_audible_credential
 from app.connectors.amazon_music_probe import NotConnectedError as _ProbeNotConnectedError
 from app.connectors import amazon_music_template as tmpl
@@ -213,6 +214,24 @@ def flag_missing(db: Session, seen_asins: set[str], now: datetime | None = None)
     return len(stale)
 
 
+def _diagnose_empty_page(payload: dict) -> dict:
+    """A page returned valid JSON but parse_tracks() found nothing in it.
+
+    Rather than report a silent zero, this reuses the same shape-detection
+    built for the Settings probe card — find_record_nodes/largest_list_shapes/
+    collection_sizes/referenced_endpoints all report key *names*, paths and
+    counts, never values, so this is safe to render straight onto the
+    Amazon Music page without a second capture-and-paste round trip.
+    """
+    top_level_keys = sorted(payload.keys()) if isinstance(payload, dict) else []
+    return {
+        "top_level_keys": top_level_keys,
+        "collection_sizes": probe.collection_sizes(payload)[:20],
+        "record_shapes": probe.find_record_nodes(payload) or probe.largest_list_shapes(payload),
+        "endpoints": probe.referenced_endpoints(payload)[:20],
+    }
+
+
 def refresh_purchased_tracks(db: Session) -> dict:
     """Page through the whole purchased library and upsert it.
 
@@ -252,6 +271,7 @@ def refresh_purchased_tracks(db: Session) -> dict:
         headers_field = tmpl.with_fresh_token(template.headers_field, token)
 
         cursor = ""
+        diagnostic = None
         while pages < MAX_PAGES:
             payload = _fetch_page(client, amc.api_base(), headers_field, template.user_hash, cursor)
             tracks = amc.parse_tracks(payload)
@@ -262,6 +282,13 @@ def refresh_purchased_tracks(db: Session) -> dict:
                 new_total += new
                 updated_total += updated
                 seen.update(t.track_asin for t in tracks)
+            elif diagnostic is None:
+                # A 200/JSON page that yields no tracks is not the same
+                # failure as an auth error or a 4xx — the request worked, but
+                # the response didn't match the shape parse_tracks() expects.
+                # Captured once (the first such page), not every page, since
+                # later pages of the same shape would only repeat it.
+                diagnostic = _diagnose_empty_page(payload)
 
             cursor = amc.parse_next_cursor(payload)
             if not cursor:
@@ -271,7 +298,7 @@ def refresh_purchased_tracks(db: Session) -> dict:
     missing = flag_missing(db, seen, started)
     mark_compilations(db)
 
-    return {
+    result = {
         "pages": pages,
         "tracks_seen": len(seen),
         "new": new_total,
@@ -279,3 +306,6 @@ def refresh_purchased_tracks(db: Session) -> dict:
         "missing": missing,
         "finished_at": datetime.utcnow(),
     }
+    if not seen and diagnostic is not None:
+        result["diagnostic"] = diagnostic
+    return result

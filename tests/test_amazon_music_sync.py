@@ -7,7 +7,10 @@ import httpx
 import pytest
 
 from app.connectors import amazon_music_connector as amc
+from app.connectors import amazon_music_template as tmpl
 from app.models.amazon_music_track import AmazonMusicTrack
+from app.models.credential import SOURCE_AUDIBLE, STATUS_OK, Credential
+from app.security import encrypt_json
 from app.sync import amazon_music_sync as sync
 
 FIXTURE = Path(__file__).parent / "fixtures" / "amazon_music_purchased_tracks.json"
@@ -174,3 +177,120 @@ def test_auth_headers_omit_fields_config_json_did_not_provide():
     fields = json.loads(sync._auth_headers_field({"accessToken": "Atna|EXAMPLE"}))
     assert "x-amzn-device-id" not in fields
     assert "x-amzn-authentication" in fields
+
+
+# --------------------------------------------- zero-track diagnostics
+
+def test_diagnose_empty_page_reports_names_paths_and_counts_only():
+    payload = {
+        "customerId": "SHOULD-NEVER-APPEAR",
+        "methods": [
+            {
+                "template": {
+                    "widgets": [{"rows": [{"primaryText": "x", "secondaryText": "y"} for _ in range(12)]}],
+                    "multiSelectBar": {"actionButton1": {"onItemSelected": []}},
+                }
+            }
+        ],
+    }
+    diag = sync._diagnose_empty_page(payload)
+
+    assert diag["top_level_keys"] == ["customerId", "methods"]
+    assert any("rows[] = 12" in s for s in diag["collection_sizes"])
+    # No semantic field names here, so this must fall back to the largest
+    # list rather than come back empty.
+    assert diag["record_shapes"]
+    assert "SHOULD-NEVER-APPEAR" not in json.dumps(diag)
+
+
+def test_diagnose_empty_page_on_a_non_dict_payload_does_not_crash():
+    diag = sync._diagnose_empty_page([1, 2, 3])
+    assert diag["top_level_keys"] == []
+
+
+def _connect_audible_for_sync(db):
+    db.add(
+        Credential(
+            source=SOURCE_AUDIBLE,
+            status=STATUS_OK,
+            encrypted_payload=encrypt_json({"website_cookies": {"at-main": "x"}, "locale_code": "us"}),
+        )
+    )
+    db.commit()
+
+
+class _Auth:
+    website_cookies = {"at-main": "x"}
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls()
+
+
+def _config_response():
+    return httpx.Response(
+        200, json={"accessToken": "Atna|NEW"}, request=httpx.Request("GET", "https://music.amazon.com/config.json")
+    )
+
+
+def test_refresh_reports_a_diagnostic_when_the_page_has_no_tracks(db):
+    _connect_audible_for_sync(db)
+    tmpl.save_template(
+        db,
+        tmpl.SyncTemplate(
+            path=amc.PURCHASED_TRACKS_PATH,
+            headers_field=json.dumps({"x-amzn-authentication": json.dumps({"accessToken": "OLD"})}),
+            user_hash="{}",
+            captured_at="now",
+        ),
+    )
+
+    no_tracks_page = httpx.Response(
+        200,
+        json={"methods": [{"template": {"widgets": [{"rows": [{"a": 1}, {"a": 2}]}]}}]},
+        request=httpx.Request("POST", "https://x/api/showPurchasedTracks"),
+    )
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", return_value=no_tracks_page
+    ):
+        result = sync.refresh_purchased_tracks(db)
+
+    assert result["tracks_seen"] == 0
+    assert "diagnostic" in result
+    assert result["diagnostic"]["record_shapes"]
+
+
+def test_refresh_reports_no_diagnostic_when_tracks_are_found(db):
+    _connect_audible_for_sync(db)
+    tmpl.save_template(
+        db,
+        tmpl.SyncTemplate(
+            path=amc.PURCHASED_TRACKS_PATH,
+            headers_field=json.dumps({"x-amzn-authentication": json.dumps({"accessToken": "OLD"})}),
+            user_hash="{}",
+            captured_at="now",
+        ),
+    )
+
+    real_page = httpx.Response(
+        200,
+        json=json.loads(FIXTURE.read_text(encoding="utf-8")),
+        request=httpx.Request("POST", "https://x/api/showPurchasedTracks"),
+    )
+    # The fixture embeds a `next` cursor (it exists to prove pagination
+    # parsing works), so a mock returning it on every call would loop until
+    # MAX_PAGES with a real sleep between each — a second, cursor-free page
+    # is what lets this test terminate after two calls instead of ~400.
+    last_page = httpx.Response(
+        200, json={"methods": []}, request=httpx.Request("POST", "https://x/api/showPurchasedTracks")
+    )
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", side_effect=[real_page, last_page]
+    ), patch("time.sleep"):
+        result = sync.refresh_purchased_tracks(db)
+
+    assert result["pages"] == 2
+    assert result["tracks_seen"] == 2
+    assert "diagnostic" not in result
