@@ -182,8 +182,22 @@ def parse_track_item(item: dict) -> PurchasedTrack | None:
     )
 
 
-def parse_tracks(payload: dict) -> list[PurchasedTrack]:
-    """Every row in the response, wherever the widget tree puts it.
+def parse_tracks_with_yield(
+    payload: dict, unmatched_limit: int = 5
+) -> tuple[list[PurchasedTrack], int, list[list[str]]]:
+    """Same extraction as parse_tracks(), plus the two things that make a
+    *partial* yield legible instead of silent.
+
+    A headline track count alone cannot tell "this account genuinely has few
+    tracks" apart from "most rows are being silently skipped" — both look
+    identical from the outside. `candidates` is every item dict this walk
+    actually examined, matched or not, so it and the track count together
+    show the real yield ratio. `unmatched_shapes` is the key *names* — never
+    values — of up to `unmatched_limit` distinct shapes among the items that
+    did not produce an ASIN: whether those are real track rows this parser
+    doesn't yet handle, or genuinely non-track widgets (section headers, ads,
+    rails) that should be skipped, is exactly what a redesign would change
+    and exactly what a bare "N tracks synced" cannot distinguish.
 
     Finds `items` lists by walking rather than by the confirmed path
     methods[].template.widgets[].items[], so an extra wrapper level in a
@@ -191,6 +205,9 @@ def parse_tracks(payload: dict) -> list[PurchasedTrack]:
     """
     tracks: list[PurchasedTrack] = []
     seen: set[str] = set()
+    candidates = 0
+    unmatched_shapes: list[list[str]] = []
+
     for node in _walk(payload):
         if not isinstance(node, dict):
             continue
@@ -200,10 +217,28 @@ def parse_tracks(payload: dict) -> list[PurchasedTrack]:
         for item in items:
             if not isinstance(item, dict):
                 continue
+            candidates += 1
             track = parse_track_item(item)
-            if track and track.track_asin not in seen:
-                seen.add(track.track_asin)
-                tracks.append(track)
+            if track:
+                if track.track_asin not in seen:
+                    seen.add(track.track_asin)
+                    tracks.append(track)
+            elif len(unmatched_shapes) < unmatched_limit:
+                shape = sorted(item.keys())
+                if shape not in unmatched_shapes:
+                    unmatched_shapes.append(shape)
+
+    return tracks, candidates, unmatched_shapes
+
+
+def parse_tracks(payload: dict) -> list[PurchasedTrack]:
+    """Every row in the response, wherever the widget tree puts it.
+
+    Thin wrapper over parse_tracks_with_yield() for callers that only need
+    the tracks — parsing tests and the download-side code, say — without
+    also carrying the yield-diagnostic numbers.
+    """
+    tracks, _candidates, _unmatched = parse_tracks_with_yield(payload)
     return tracks
 
 

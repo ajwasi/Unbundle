@@ -280,3 +280,97 @@ def test_refresh_reports_no_diagnostic_when_tracks_are_found(db):
     assert result["pages"] == 2
     assert result["tracks_seen"] == 2
     assert "diagnostic" not in result
+
+
+def test_refresh_reports_candidates_and_unmatched_shapes_for_a_low_yield_page(db):
+    # This is the real symptom that motivated the yield diagnostics: a page
+    # that returns some tracks (not zero, so the empty-page diagnostic never
+    # fires) but drops most of its rows, with no prior way to see that it
+    # happened at all.
+    _connect_audible_for_sync(db)
+    tmpl.save_template(
+        db,
+        tmpl.SyncTemplate(
+            path=amc.PURCHASED_TRACKS_PATH,
+            headers_field=json.dumps({"x-amzn-authentication": json.dumps({"accessToken": "OLD"})}),
+            user_hash="{}",
+            captured_at="now",
+        ),
+    )
+
+    low_yield_page = httpx.Response(
+        200,
+        json={
+            "methods": [
+                {
+                    "template": {
+                        "widgets": [
+                            {
+                                "items": [
+                                    {
+                                        "primaryText": "Matches",
+                                        "button": {
+                                            "observer": {
+                                                "storageKey": "B076HFF4Q3",
+                                                "storageGroup": "TRACK_RATINGS",
+                                            }
+                                        },
+                                        "onCheckboxSelected": {"states": {}},
+                                    },
+                                    {"primaryText": "No asin here", "onCheckboxSelected": {"states": {}}},
+                                    {"primaryText": "Also no asin", "onCheckboxSelected": {"states": {}}},
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        request=httpx.Request("POST", "https://x/api/showPurchasedTracks"),
+    )
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", return_value=low_yield_page
+    ):
+        result = sync.refresh_purchased_tracks(db)
+
+    assert result["tracks_seen"] == 1
+    assert result["candidates_seen"] == 3
+    assert "diagnostic" not in result  # tracks were found — the total-failure path is a different case
+    assert result["unmatched_item_shapes"] == [["onCheckboxSelected", "primaryText"]]
+
+
+def test_refresh_reports_no_unmatched_shapes_when_every_row_matches(db):
+    _connect_audible_for_sync(db)
+    tmpl.save_template(
+        db,
+        tmpl.SyncTemplate(
+            path=amc.PURCHASED_TRACKS_PATH,
+            headers_field=json.dumps({"x-amzn-authentication": json.dumps({"accessToken": "OLD"})}),
+            user_hash="{}",
+            captured_at="now",
+        ),
+    )
+
+    all_match_page = httpx.Response(
+        200,
+        json={
+            "items": [
+                {
+                    "primaryText": "T",
+                    "button": {"observer": {"storageKey": "B076HFF4Q3", "storageGroup": "TRACK_RATINGS"}},
+                    "onCheckboxSelected": {"states": {}},
+                }
+            ]
+        },
+        request=httpx.Request("POST", "https://x/api/showPurchasedTracks"),
+    )
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", return_value=all_match_page
+    ):
+        result = sync.refresh_purchased_tracks(db)
+
+    assert result["candidates_seen"] == 1
+    assert result["tracks_seen"] == 1
+    assert "unmatched_item_shapes" not in result
