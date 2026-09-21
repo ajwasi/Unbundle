@@ -92,3 +92,54 @@ def test_demo_mode_points_at_the_mock_api(monkeypatch):
 def test_live_mode_points_at_amazon(monkeypatch):
     monkeypatch.setattr("app.config.settings.demo_mode", False)
     assert amc.api_base() == amc.API_HOST
+
+
+# ------------------------------------------------------- yield diagnostics
+
+def test_parse_tracks_with_yield_reports_the_true_denominator(payload):
+    # A headline "2 tracks" cannot tell "this page only had 2 rows" apart
+    # from "this page had many rows and only 2 were recognised" — candidates
+    # is what makes that distinction visible.
+    tracks, candidates, unmatched = amc.parse_tracks_with_yield(payload)
+
+    assert [t.track_asin for t in tracks] == ["B076HFF4Q3", "B07BFJR1HC"]
+    assert candidates == 3  # all three fixture rows, matched or not
+    assert unmatched == [["componentType", "onCheckboxSelected", "primaryText", "rowIndex", "secondaryText1", "secondaryText2", "secondaryText3"]]
+
+
+def test_unmatched_shapes_report_names_never_values(payload):
+    flat = json.dumps(amc.parse_tracks_with_yield(payload)[2])
+    # The unmatched row's own primaryText is "A Row With No Asin" — a key
+    # name report must not also carry that value along with it.
+    assert "A Row With No Asin" not in flat
+
+
+def test_unmatched_shapes_deduplicate_and_respect_the_limit():
+    # Twenty identical non-track rows are one shape, not twenty repeats of it.
+    payload = {"items": [{"foo": 1, "bar": 2} for _ in range(20)]}
+    _tracks, candidates, unmatched = amc.parse_tracks_with_yield(payload, unmatched_limit=5)
+
+    assert candidates == 20
+    assert unmatched == [["bar", "foo"]]
+
+
+def test_a_page_with_nothing_but_matching_rows_reports_no_unmatched_shapes():
+    payload = {
+        "items": [
+            {
+                "primaryText": "T",
+                "button": {"observer": {"storageKey": "B076HFF4Q3", "storageGroup": "TRACK_RATINGS"}},
+                "onCheckboxSelected": {"states": {}},
+            }
+        ]
+    }
+    tracks, candidates, unmatched = amc.parse_tracks_with_yield(payload)
+    assert len(tracks) == 1
+    assert candidates == 1
+    assert unmatched == []
+
+
+def test_parse_tracks_is_unchanged_by_the_new_wrapper(payload):
+    # parse_tracks() must keep returning exactly what it always did — only
+    # the internals moved into parse_tracks_with_yield().
+    assert amc.parse_tracks(payload) == amc.parse_tracks_with_yield(payload)[0]

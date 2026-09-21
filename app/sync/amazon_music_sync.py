@@ -267,10 +267,19 @@ def refresh_purchased_tracks(db: Session) -> dict:
 
         cursor = ""
         diagnostic = None
+        candidates_total = 0
+        unmatched_shapes: list[list[str]] = []
         while pages < MAX_PAGES:
             payload = _fetch_page(client, amc.api_base(), headers_field, template.user_hash, cursor)
-            tracks = amc.parse_tracks(payload)
+            tracks, candidates, page_unmatched = amc.parse_tracks_with_yield(payload)
             pages += 1
+            candidates_total += candidates
+            # Kept across pages up to the function's own limit, not reset per
+            # page: a shape that recurs on every page is one sample, not
+            # dozens of the same thing.
+            for shape in page_unmatched:
+                if shape not in unmatched_shapes and len(unmatched_shapes) < 5:
+                    unmatched_shapes.append(shape)
 
             if tracks:
                 new, updated = upsert_tracks(db, tracks, started)
@@ -296,11 +305,19 @@ def refresh_purchased_tracks(db: Session) -> dict:
     result = {
         "pages": pages,
         "tracks_seen": len(seen),
+        # Always reported, not just on total failure: a headline track count
+        # cannot tell "this library genuinely has few tracks" apart from
+        # "most rows are being silently skipped" — a sync that recognised 27
+        # of 27 rows and one that recognised 27 of 6,000 both say "27 tracks"
+        # unless the denominator is shown too.
+        "candidates_seen": candidates_total,
         "new": new_total,
         "updated": updated_total,
         "missing": missing,
         "finished_at": datetime.utcnow(),
     }
+    if unmatched_shapes:
+        result["unmatched_item_shapes"] = unmatched_shapes
     if not seen and diagnostic is not None:
         result["diagnostic"] = diagnostic
     return result

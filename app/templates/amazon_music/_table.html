@@ -3,10 +3,30 @@
   {% if refresh_result %}
   <p>
     <span class="badge badge-ok">Synced</span>
-    {{ refresh_result.tracks_seen }} track(s) over {{ refresh_result.pages }} page(s)
+    {{ refresh_result.tracks_seen }} track(s) recognised
+    {%- if refresh_result.candidates_seen and refresh_result.candidates_seen != refresh_result.tracks_seen %}
+    out of {{ refresh_result.candidates_seen }} row(s) seen
+    {%- endif %}, over {{ refresh_result.pages }} page(s)
     &mdash; {{ refresh_result.new }} new, {{ refresh_result.updated }} updated{% if refresh_result.missing %},
     {{ refresh_result.missing }} no longer listed{% endif %}.
   </p>
+  {% if refresh_result.candidates_seen and refresh_result.tracks_seen < refresh_result.candidates_seen %}
+  <p class="text-error" style="margin-bottom: 0.4rem;">
+    Most rows on the page were not recognised as tracks. That is more likely a parsing
+    gap than an empty library &mdash; details below are key names only, no title, price
+    or account data.
+  </p>
+  {% endif %}
+  {% if refresh_result.unmatched_item_shapes %}
+  <details class="disclosure">
+    <summary>Show rows that didn't look like a track ({{ refresh_result.unmatched_item_shapes|length }})</summary>
+    <div class="scroll-box" style="margin-top: 0.6rem;">
+      {% for shape in refresh_result.unmatched_item_shapes %}
+      <p class="muted" style="font-family: monospace; margin: 0 0 0.5rem;">{{ shape|join(", ") }}</p>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
   {% if refresh_result.diagnostic %}
   {% set d = refresh_result.diagnostic %}
   <p class="text-error" style="margin-bottom: 0.4rem;">

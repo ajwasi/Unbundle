@@ -60,13 +60,18 @@ def test_htmx_request_returns_only_the_table(authed_client, db):
 
 
 def test_refresh_reports_a_successful_sync(authed_client, db):
+    # No candidates_seen here on purpose: a summary that omits it (an older
+    # caller, or a shape the router doesn't control) must render fine rather
+    # than the template choking on a missing key.
     summary = {"pages": 2, "tracks_seen": 51, "new": 3, "updated": 48, "missing": 1}
     with patch.object(sync, "refresh_purchased_tracks", return_value=summary):
         resp = authed_client.post("/amazon-music/refresh")
 
     assert resp.status_code == 200
-    assert "51 track(s) over 2 page(s)" in resp.text
+    assert "51 track(s) recognised" in resp.text
+    assert "over 2 page(s)" in resp.text
     assert "3 new" in resp.text
+    assert "out of" not in resp.text
 
 
 def test_refresh_without_audible_explains_rather_than_500s(authed_client):
