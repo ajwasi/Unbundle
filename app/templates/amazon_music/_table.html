@@ -7,6 +7,38 @@
     &mdash; {{ refresh_result.new }} new, {{ refresh_result.updated }} updated{% if refresh_result.missing %},
     {{ refresh_result.missing }} no longer listed{% endif %}.
   </p>
+  {% if refresh_result.diagnostic %}
+  {% set d = refresh_result.diagnostic %}
+  <p class="text-error" style="margin-bottom: 0.4rem;">
+    Amazon answered with valid JSON, but nothing in it looked like a track &mdash; the response
+    shape may not match what this app expects. Details below are key names, paths and counts
+    only; no title, price or account data is included.
+  </p>
+  <details class="disclosure">
+    <summary>Show what the response actually contained</summary>
+    <div class="scroll-box" style="margin-top: 0.6rem;">
+      <p><strong>Top-level keys ({{ d.top_level_keys|length }})</strong></p>
+      <p class="muted" style="font-family: monospace;">{{ d.top_level_keys|join(", ") or "(none — not a JSON object)" }}</p>
+
+      {% if d.record_shapes %}
+      <p><strong>Likely data records</strong></p>
+      {% for path, fields in d.record_shapes %}
+      <p style="margin: 0 0 0.6rem;"><code>{{ path }}</code><br><span class="muted">{{ fields|join(", ") }}</span></p>
+      {% endfor %}
+      {% endif %}
+
+      {% if d.collection_sizes %}
+      <p><strong>Collection sizes</strong></p>
+      <pre>{{ d.collection_sizes|join("\n") }}</pre>
+      {% endif %}
+
+      {% if d.endpoints %}
+      <p><strong>API endpoints referenced</strong></p>
+      <pre>{{ d.endpoints|join("\n") }}</pre>
+      {% endif %}
+    </div>
+  </details>
+  {% endif %}
   {% endif %}
 
   <div class="toolbar">
