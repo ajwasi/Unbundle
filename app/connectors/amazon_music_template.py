@@ -4,11 +4,21 @@ Amazon's web player sends a `headers` field of roughly twenty x-amzn-*
 entries, and the endpoint's required subset is undocumented. Synthesising it
 from config.json produced a bare Tomcat 400; replaying a real captured
 request produced 3.5 MB of JSON. So rather than keep guessing which fields
-matter, this keeps the captured shape and refreshes only the part that
-actually expires.
+matter, this keeps the captured shape and refreshes only the parts that
+actually go stale.
+
+That turned out to be more than the access token. A sync that refreshed only
+the token got a 200 back with zero tracks — the body was Amazon's own generic
+error dialog (`template.closeButton` + `screenMode`, the same fallback its
+`onError` handlers reach for elsewhere), not a hard rejection. The cause:
+`x-amzn-csrf` and `x-amzn-session-id` are bound to the specific browser
+session that produced the capture, and replaying them alongside this app's
+own freshly-minted cookies is exactly the mismatched pair CSRF protection
+exists to catch. See with_fresh_session() below.
 
 What is stored:
-  * the `headers` field verbatim, with its access token replaced at send time
+  * the `headers` field verbatim, with its access token and session-scoped
+    fields replaced at send time
   * `userHash` verbatim
   * the request path
 
@@ -138,12 +148,25 @@ def clear_template(db: Session) -> bool:
     return True
 
 
-def with_fresh_token(headers_field: str, access_token: str) -> str:
-    """Swap the captured access token for a current one.
+def with_fresh_session(headers_field: str, access_token: str, session_fields: dict[str, str] | None = None) -> str:
+    """Swap the access token and every session-scoped header for current
+    values, leaving the rest of the captured shape untouched.
 
-    The token is the only part of the captured shape that expires — device
-    ids, marketplace, weblab flags and the rest stay valid — so this is the
-    whole of what a refresh has to do.
+    The access token is the obvious thing that expires. It is not the only
+    one: `x-amzn-csrf` and `x-amzn-session-id` are bound to the specific
+    browser session that produced the capture, and pairing a captured value
+    with this app's own freshly-minted cookies is exactly the mismatched pair
+    CSRF protection exists to catch. Amazon does not surface that as an HTTP
+    error — it returns 200 with its own generic error dialog instead, which
+    reads as a clean success until the response body is actually inspected.
+
+    `session_fields` is already-resolved header name -> value, so this module
+    never needs to know Amazon's config.json field names; that mapping stays
+    in amazon_music_sync.py, where it lived before the template approach
+    existed. A field config.json doesn't supply this time is left at its
+    captured value rather than dropped — stale-but-present is no worse than
+    what the original capture already proved acceptable at least once,
+    whereas an absent header is untested.
 
     x-amzn-authentication holds a JSON *string*, not an object, so it is
     parsed and re-serialised rather than patched textually; a blind
@@ -173,4 +196,9 @@ def with_fresh_token(headers_field: str, access_token: str) -> str:
     # about the new one; dropping it is more honest than inventing a value.
     envelope.pop("expirationMS", None)
     fields[AUTH_FIELD] = json.dumps(envelope)
+
+    for header_name, value in (session_fields or {}).items():
+        if value:
+            fields[header_name] = value
+
     return json.dumps(fields)

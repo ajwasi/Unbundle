@@ -77,11 +77,12 @@ def test_a_capture_with_no_body_is_rejected():
 # ------------------------------------------------------- refreshing it
 
 
-def test_only_the_access_token_is_replaced():
-    out = json.loads(tmpl.with_fresh_token(HEADERS_FIELD, "Atna|NEW-TOKEN"))
+def test_with_no_session_fields_only_the_access_token_is_replaced():
+    out = json.loads(tmpl.with_fresh_session(HEADERS_FIELD, "Atna|NEW-TOKEN", {}))
 
-    # Every captured field survives untouched — those are the ones whose
-    # necessity is undocumented, which is the whole reason for the template.
+    # Every other captured field survives untouched — those are the ones
+    # whose necessity is undocumented, which is the whole reason for the
+    # template.
     assert out["x-amzn-device-id"] == "DEV123"
     assert out["x-amzn-device-type-id"] == "TYPE123"
     assert out["x-amzn-feature-flags"] == "hd-supported"
@@ -91,20 +92,40 @@ def test_only_the_access_token_is_replaced():
     assert envelope["interface"] == "ClientAuthenticationInterface.v1_0.ClientTokenElement"
 
 
+def test_session_fields_overlay_onto_the_captured_headers():
+    # x-amzn-device-id is untouched (not in session_fields); x-amzn-csrf is
+    # new — a captured CSRF paired with this app's own fresh cookies is
+    # exactly the mismatch CSRF protection exists to catch.
+    out = json.loads(
+        tmpl.with_fresh_session(HEADERS_FIELD, "NEW", {"x-amzn-csrf": "fresh-csrf", "x-amzn-session-id": "sess-2"})
+    )
+
+    assert out["x-amzn-csrf"] == "fresh-csrf"
+    assert out["x-amzn-session-id"] == "sess-2"
+    assert out["x-amzn-device-id"] == "DEV123"  # untouched
+
+
+def test_a_blank_session_field_value_leaves_the_captured_one_in_place():
+    # An absent value from config.json this time round is untested, not
+    # proven bad — the captured value already worked at least once.
+    out = json.loads(tmpl.with_fresh_session(HEADERS_FIELD, "NEW", {"x-amzn-device-id": ""}))
+    assert out["x-amzn-device-id"] == "DEV123"
+
+
 def test_the_captured_expiry_is_dropped_rather_than_carried_over():
     # expirationMS describes the OLD token; keeping it would be a lie about
     # the new one.
-    envelope = json.loads(json.loads(tmpl.with_fresh_token(HEADERS_FIELD, "NEW"))["x-amzn-authentication"])
+    envelope = json.loads(json.loads(tmpl.with_fresh_session(HEADERS_FIELD, "NEW", {}))["x-amzn-authentication"])
     assert "expirationMS" not in envelope
 
 
 def test_the_old_token_never_survives_a_refresh():
-    assert "OLD-TOKEN" not in tmpl.with_fresh_token(HEADERS_FIELD, "NEW")
+    assert "OLD-TOKEN" not in tmpl.with_fresh_session(HEADERS_FIELD, "NEW", {})
 
 
 def test_an_unreadable_template_asks_for_a_fresh_capture():
     with pytest.raises(tmpl.TemplateError, match="fresh capture"):
-        tmpl.with_fresh_token("not json at all", "NEW")
+        tmpl.with_fresh_session("not json at all", "NEW", {})
 
 
 # ----------------------------------------------------------- persistence

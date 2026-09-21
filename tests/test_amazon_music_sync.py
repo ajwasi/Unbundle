@@ -91,20 +91,6 @@ def test_an_album_whose_tracks_disagree_about_the_artist_is_a_compilation(db):
     assert db.get(AmazonMusicTrack, "T2").is_compilation is True
 
 
-def test_auth_header_field_matches_the_captured_shape():
-    field = sync._auth_headers_field({"accessToken": "Atna|EXAMPLE"})
-    outer = json.loads(field)
-    inner = json.loads(outer["x-amzn-authentication"])
-
-    assert inner["interface"] == "ClientAuthenticationInterface.v1_0.ClientTokenElement"
-    assert inner["accessToken"] == "Atna|EXAMPLE"
-
-
-def test_a_config_without_a_token_is_an_auth_error_not_a_crash():
-    with pytest.raises(amc.AmazonMusicAuthError, match="access token"):
-        sync._auth_headers_field({})
-
-
 @pytest.mark.parametrize("status", [401, 403])
 def test_a_rejected_login_raises_a_reconnect_message(status):
     resp = httpx.Response(status, text="denied", request=httpx.Request("GET", "https://x"))
@@ -154,8 +140,8 @@ def test_a_400_surfaces_amazons_own_message():
                 sync._fetch_page(client, "https://example.invalid", "{}", "{}", "")
 
 
-def test_auth_headers_include_the_session_fields_config_json_supplies():
-    field = sync._auth_headers_field(
+def test_session_fields_are_read_off_the_confirmed_config_json_mapping():
+    fields = sync._session_fields_from_config(
         {
             "accessToken": "Atna|EXAMPLE",
             "deviceId": "DEV123",
@@ -164,19 +150,19 @@ def test_auth_headers_include_the_session_fields_config_json_supplies():
             "montanaCsrf": {"token": "abc", "ts": 1},
         }
     )
-    fields = json.loads(field)
 
     assert fields["x-amzn-device-id"] == "DEV123"
     assert fields["x-amzn-device-type-id"] == "TYPE123"
     assert fields["x-amzn-session-id"] == "SESS123"
     # An object csrf is passed through as JSON, not str()-ed into a dict repr.
     assert json.loads(fields["x-amzn-csrf"])["token"] == "abc"
+    # accessToken has its own dedicated path (with_fresh_session's envelope
+    # swap); it must not also leak in here as a bare header.
+    assert "accessToken" not in fields
 
 
-def test_auth_headers_omit_fields_config_json_did_not_provide():
-    fields = json.loads(sync._auth_headers_field({"accessToken": "Atna|EXAMPLE"}))
-    assert "x-amzn-device-id" not in fields
-    assert "x-amzn-authentication" in fields
+def test_session_fields_omit_what_config_json_did_not_supply():
+    assert sync._session_fields_from_config({"accessToken": "Atna|EXAMPLE"}) == {}
 
 
 # --------------------------------------------- zero-track diagnostics
