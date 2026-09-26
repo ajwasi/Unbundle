@@ -16,14 +16,36 @@
     gap than an empty library &mdash; details below are key names only, no title, price
     or account data.
   </p>
-  {% endif %}
-  {% if refresh_result.unmatched_item_shapes %}
+  {# Same condition as the warning above, not refresh_result.unmatched_item_shapes on
+     its own — those used to be two independent checks, so the warning could promise
+     "details below" and then show nothing if no unmatched *shape* was captured even
+     though rows were clearly still missing. This block now always appears alongside
+     the warning, and says so plainly when the shape list itself came back empty,
+     since that is a distinct and equally worth-reporting finding: it means the
+     shortfall rows are not being silently skipped, they are all resolving to
+     *something*, just not becoming new or updated tracks. #}
   <details class="disclosure">
-    <summary>Show rows that didn't look like a track ({{ refresh_result.unmatched_item_shapes|length }})</summary>
+    <summary>
+      {%- if refresh_result.unmatched_item_shapes -%}
+      Show rows that didn't look like a track ({{ refresh_result.unmatched_item_shapes|length }})
+      {%- else -%}
+      Why no unmatched row shape was captured
+      {%- endif -%}
+    </summary>
     <div class="scroll-box" style="margin-top: 0.6rem;">
+      {% if refresh_result.unmatched_item_shapes %}
       {% for shape in refresh_result.unmatched_item_shapes %}
       <p class="muted" style="font-family: monospace; margin: 0 0 0.5rem;">{{ shape|join(", ") }}</p>
       {% endfor %}
+      {% else %}
+      <p class="muted">
+        Every row this sync examined produced <em>something</em> recognisable as a track —
+        none were skipped outright — but almost all of them resolved to the same
+        {{ refresh_result.tracks_seen }} track(s) rather than a distinct one each time. That
+        points at rows picking up a shared or cross-referenced value instead of their own
+        identity, which is a different problem from rows being silently dropped.
+      </p>
+      {% endif %}
     </div>
   </details>
   {% endif %}

@@ -74,6 +74,41 @@ def test_refresh_reports_a_successful_sync(authed_client, db):
     assert "out of" not in resp.text
 
 
+def test_a_shortfall_with_no_captured_shapes_says_so_instead_of_vanishing(authed_client, db):
+    # The real bug this guards: the warning and the disclosure used to be
+    # gated on two different conditions (tracks_seen < candidates_seen vs.
+    # unmatched_item_shapes being truthy), so a real sync could show "details
+    # below are key names only" and then render nothing below it at all —
+    # exactly what a live sync (27 recognised of 10,000 seen, 234 updated)
+    # actually hit, since almost all of the shortfall was rows resolving to
+    # an already-seen track rather than rows failing to match at all.
+    summary = {"pages": 200, "tracks_seen": 27, "candidates_seen": 10000, "new": 0, "updated": 234, "missing": 0}
+    with patch.object(sync, "refresh_purchased_tracks", return_value=summary):
+        resp = authed_client.post("/amazon-music/refresh")
+
+    assert resp.status_code == 200
+    assert "Most rows on the page were not recognised" in resp.text
+    assert "Why no unmatched row shape was captured" in resp.text
+    assert "resolved to the same" in resp.text
+
+
+def test_a_shortfall_with_captured_shapes_still_shows_them(authed_client, db):
+    summary = {
+        "pages": 1,
+        "tracks_seen": 1,
+        "candidates_seen": 3,
+        "new": 1,
+        "updated": 0,
+        "missing": 0,
+        "unmatched_item_shapes": [["componentType", "primaryText"]],
+    }
+    with patch.object(sync, "refresh_purchased_tracks", return_value=summary):
+        resp = authed_client.post("/amazon-music/refresh")
+
+    assert "Show rows that didn't look like a track (1)" in resp.text
+    assert "Why no unmatched row shape was captured" not in resp.text
+
+
 def test_refresh_without_audible_explains_rather_than_500s(authed_client):
     resp = authed_client.post("/amazon-music/refresh")
     assert resp.status_code == 200
