@@ -92,6 +92,25 @@ def test_a_shortfall_with_no_captured_shapes_says_so_instead_of_vanishing(authed
     assert "resolved to the same" in resp.text
 
 
+def test_a_shortfall_names_the_download_id_mismatch_when_present(authed_client, db):
+    summary = {
+        "pages": 200,
+        "tracks_seen": 27,
+        "candidates_seen": 10000,
+        "new": 0,
+        "updated": 234,
+        "missing": 0,
+        "download_ids_seen": 6213,
+    }
+    with patch.object(sync, "refresh_purchased_tracks", return_value=summary):
+        resp = authed_client.post("/amazon-music/refresh")
+
+    assert resp.status_code == 200
+    assert "6213" in resp.text
+    assert "distinct per-row" in resp.text
+    assert "the value currently used for a track" in resp.text
+
+
 def test_a_shortfall_with_captured_shapes_still_shows_them(authed_client, db):
     summary = {
         "pages": 1,

@@ -374,3 +374,50 @@ def test_refresh_reports_no_unmatched_shapes_when_every_row_matches(db):
     assert result["candidates_seen"] == 1
     assert result["tracks_seen"] == 1
     assert "unmatched_item_shapes" not in result
+
+
+def test_refresh_flags_a_shared_asin_via_the_download_id_mismatch(db):
+    # The exact live symptom that motivated this: thousands of rows, each
+    # with its own distinct download_id, all resolving to the same handful
+    # of ASINs — every row "matches" (no unmatched shapes), yet tracks_seen
+    # stays tiny. download_ids_seen is what makes that visible instead of
+    # looking identical to a genuinely small library.
+    _connect_audible_for_sync(db)
+    tmpl.save_template(
+        db,
+        tmpl.SyncTemplate(
+            path=amc.PURCHASED_TRACKS_PATH,
+            headers_field=json.dumps({"x-amzn-authentication": json.dumps({"accessToken": "OLD"})}),
+            user_hash="{}",
+            captured_at="now",
+        ),
+    )
+
+    def row(download_uuid: str) -> dict:
+        return {
+            "primaryText": "T",
+            "button": {"observer": {"storageKey": "B076HFF4Q3", "storageGroup": "TRACK_RATINGS"}},
+            "onCheckboxSelected": {"states": {download_uuid: {}}},
+        }
+
+    collapsed_page = httpx.Response(
+        200,
+        json={
+            "items": [
+                row("c64eeeb1-e203-4c0a-9213-43ac6202c74a"),
+                row("a941e672-3d37-43df-9c99-3232473fdf27"),
+                row("11111111-1111-1111-1111-111111111111"),
+            ]
+        },
+        request=httpx.Request("POST", "https://x/api/showPurchasedTracks"),
+    )
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", return_value=collapsed_page
+    ):
+        result = sync.refresh_purchased_tracks(db)
+
+    assert result["candidates_seen"] == 3
+    assert result["tracks_seen"] == 1  # all three collapse to the one ASIN
+    assert "unmatched_item_shapes" not in result  # every row matched something
+    assert result["download_ids_seen"] == 3  # but each row had its own identity

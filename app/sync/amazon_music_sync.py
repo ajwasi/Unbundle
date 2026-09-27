@@ -269,11 +269,13 @@ def refresh_purchased_tracks(db: Session) -> dict:
         diagnostic = None
         candidates_total = 0
         unmatched_shapes: list[list[str]] = []
+        download_ids_seen: set[str] = set()
         while pages < MAX_PAGES:
             payload = _fetch_page(client, amc.api_base(), headers_field, template.user_hash, cursor)
-            tracks, candidates, page_unmatched = amc.parse_tracks_with_yield(payload)
+            tracks, candidates, page_unmatched, page_download_ids = amc.parse_tracks_with_yield(payload)
             pages += 1
             candidates_total += candidates
+            download_ids_seen.update(page_download_ids)
             # Kept across pages up to the function's own limit, not reset per
             # page: a shape that recurs on every page is one sample, not
             # dozens of the same thing.
@@ -318,6 +320,15 @@ def refresh_purchased_tracks(db: Session) -> dict:
     }
     if unmatched_shapes:
         result["unmatched_item_shapes"] = unmatched_shapes
+    # Only meaningful alongside a shortfall, and only when it says something
+    # tracks_seen doesn't already: a distinct-download_id count level with
+    # tracks_seen is not news, but one far above it — the live sync that
+    # prompted this had ~27 tracks_seen against thousands of candidates —
+    # means the ASIN being used for identity is shared across rows that each
+    # carry their own distinct download_id, which points at the ASIN source
+    # rather than at rows being silently dropped.
+    if seen and len(seen) < candidates_total and len(download_ids_seen) > len(seen):
+        result["download_ids_seen"] = len(download_ids_seen)
     if not seen and diagnostic is not None:
         result["diagnostic"] = diagnostic
     return result
