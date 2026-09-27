@@ -184,8 +184,8 @@ def parse_track_item(item: dict) -> PurchasedTrack | None:
 
 def parse_tracks_with_yield(
     payload: dict, unmatched_limit: int = 5
-) -> tuple[list[PurchasedTrack], int, list[list[str]]]:
-    """Same extraction as parse_tracks(), plus the two things that make a
+) -> tuple[list[PurchasedTrack], int, list[list[str]], list[str]]:
+    """Same extraction as parse_tracks(), plus the things that make a
     *partial* yield legible instead of silent.
 
     A headline track count alone cannot tell "this account genuinely has few
@@ -199,6 +199,20 @@ def parse_tracks_with_yield(
     rails) that should be skipped, is exactly what a redesign would change
     and exactly what a bare "N tracks synced" cannot distinguish.
 
+    `matched_download_ids` is the download_id of every item that *did*
+    produce an ASIN, one entry per matched row regardless of whether that
+    ASIN duplicates one already seen on this page. That duplicate-inclusive
+    list exists to answer a narrower, sharper question than the shape
+    diagnostics above: when almost every row resolves to the *same handful*
+    of ASINs rather than failing to match at all — a live sync surfaced
+    exactly this, thousands of rows all landing on ~27 ASINs — the ASIN
+    being extracted may not be the row's own identity. download_id is a
+    second, independently-confirmed per-row identifier (it is what
+    /api/downloadTrack takes to resolve one specific track), so comparing
+    how many *distinct* download_ids show up against how many distinct
+    ASINs do tells the caller, from data already in hand, whether the ASIN
+    source is scoped too broadly — no second capture needed to check.
+
     Finds `items` lists by walking rather than by the confirmed path
     methods[].template.widgets[].items[], so an extra wrapper level in a
     future response shape doesn't empty the sync silently.
@@ -207,6 +221,7 @@ def parse_tracks_with_yield(
     seen: set[str] = set()
     candidates = 0
     unmatched_shapes: list[list[str]] = []
+    matched_download_ids: list[str] = []
 
     for node in _walk(payload):
         if not isinstance(node, dict):
@@ -220,6 +235,8 @@ def parse_tracks_with_yield(
             candidates += 1
             track = parse_track_item(item)
             if track:
+                if track.download_id:
+                    matched_download_ids.append(track.download_id)
                 if track.track_asin not in seen:
                     seen.add(track.track_asin)
                     tracks.append(track)
@@ -228,7 +245,7 @@ def parse_tracks_with_yield(
                 if shape not in unmatched_shapes:
                     unmatched_shapes.append(shape)
 
-    return tracks, candidates, unmatched_shapes
+    return tracks, candidates, unmatched_shapes, matched_download_ids
 
 
 def parse_tracks(payload: dict) -> list[PurchasedTrack]:
@@ -238,7 +255,7 @@ def parse_tracks(payload: dict) -> list[PurchasedTrack]:
     the tracks — parsing tests and the download-side code, say — without
     also carrying the yield-diagnostic numbers.
     """
-    tracks, _candidates, _unmatched = parse_tracks_with_yield(payload)
+    tracks, _candidates, _unmatched, _download_ids = parse_tracks_with_yield(payload)
     return tracks
 
 

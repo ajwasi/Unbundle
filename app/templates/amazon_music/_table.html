@@ -46,6 +46,15 @@
         identity, which is a different problem from rows being silently dropped.
       </p>
       {% endif %}
+      {% if refresh_result.download_ids_seen %}
+      <p class="muted" style="margin-top: 0.6rem;">
+        A second, independently-checked identifier tells the same story: rows that matched
+        carried <strong>{{ refresh_result.download_ids_seen }}</strong> distinct per-row
+        identifier(s), versus only <strong>{{ refresh_result.tracks_seen }}</strong> distinct
+        track(s) above. Since a per-row identifier this different from the track count can't
+        both be right, the value currently used for a track's identity is the one to fix.
+      </p>
+      {% endif %}
     </div>
   </details>
   {% endif %}

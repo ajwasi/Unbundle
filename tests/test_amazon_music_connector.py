@@ -100,7 +100,7 @@ def test_parse_tracks_with_yield_reports_the_true_denominator(payload):
     # A headline "2 tracks" cannot tell "this page only had 2 rows" apart
     # from "this page had many rows and only 2 were recognised" — candidates
     # is what makes that distinction visible.
-    tracks, candidates, unmatched = amc.parse_tracks_with_yield(payload)
+    tracks, candidates, unmatched, _download_ids = amc.parse_tracks_with_yield(payload)
 
     assert [t.track_asin for t in tracks] == ["B076HFF4Q3", "B07BFJR1HC"]
     assert candidates == 3  # all three fixture rows, matched or not
@@ -117,7 +117,7 @@ def test_unmatched_shapes_report_names_never_values(payload):
 def test_unmatched_shapes_deduplicate_and_respect_the_limit():
     # Twenty identical non-track rows are one shape, not twenty repeats of it.
     payload = {"items": [{"foo": 1, "bar": 2} for _ in range(20)]}
-    _tracks, candidates, unmatched = amc.parse_tracks_with_yield(payload, unmatched_limit=5)
+    _tracks, candidates, unmatched, _download_ids = amc.parse_tracks_with_yield(payload, unmatched_limit=5)
 
     assert candidates == 20
     assert unmatched == [["bar", "foo"]]
@@ -133,7 +133,7 @@ def test_a_page_with_nothing_but_matching_rows_reports_no_unmatched_shapes():
             }
         ]
     }
-    tracks, candidates, unmatched = amc.parse_tracks_with_yield(payload)
+    tracks, candidates, unmatched, _download_ids = amc.parse_tracks_with_yield(payload)
     assert len(tracks) == 1
     assert candidates == 1
     assert unmatched == []
@@ -143,3 +143,32 @@ def test_parse_tracks_is_unchanged_by_the_new_wrapper(payload):
     # parse_tracks() must keep returning exactly what it always did — only
     # the internals moved into parse_tracks_with_yield().
     assert amc.parse_tracks(payload) == amc.parse_tracks_with_yield(payload)[0]
+
+
+def test_matched_download_ids_include_every_row_even_a_duplicate_asin():
+    # The real bug this exists to catch: a live sync where thousands of rows
+    # each carried their own distinct download_id but collapsed onto the same
+    # handful of ASINs. tracks[] dedupes by ASIN (by design — it's what gets
+    # upserted), which would silently hide that collapse; matched_download_ids
+    # must not also dedupe by ASIN, or the comparison this exists for is lost.
+    def row(asin: str, download_uuid: str) -> dict:
+        return {
+            "primaryText": "Some Title",
+            "button": {"observer": {"storageGroup": "TRACK_RATINGS", "storageKey": asin}},
+            "onCheckboxSelected": {"states": {download_uuid: {}}},
+        }
+
+    payload = {
+        "items": [
+            row("B076HFF4Q3", "c64eeeb1-e203-4c0a-9213-43ac6202c74a"),
+            row("B076HFF4Q3", "a941e672-3d37-43df-9c99-3232473fdf27"),
+            row("B076HFF4Q3", "11111111-1111-1111-1111-111111111111"),
+        ]
+    }
+
+    tracks, candidates, _unmatched, download_ids = amc.parse_tracks_with_yield(payload)
+
+    assert candidates == 3
+    assert len(tracks) == 1  # collapsed by ASIN, as tracks[] always has been
+    assert len(download_ids) == 3  # but every row's own identifier survives
+    assert len(set(download_ids)) == 3  # and all three are genuinely distinct
