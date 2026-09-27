@@ -10,6 +10,15 @@
     &mdash; {{ refresh_result.new }} new, {{ refresh_result.updated }} updated{% if refresh_result.missing %},
     {{ refresh_result.missing }} no longer listed{% endif %}.
   </p>
+  {% if refresh_result.second_pass_only_tracks %}
+  <p class="muted" style="margin-bottom: 0.4rem;">
+    This sync pages through your library twice, sorted two different ways &mdash; a single
+    ordering has been seen to stop around 10,000 rows on libraries larger than that, and a
+    second, differently-sorted pass can reach rows the first one's cutoff missed. This time,
+    <strong>{{ refresh_result.second_pass_only_tracks }}</strong> track(s) were found only by
+    the second pass.
+  </p>
+  {% endif %}
   {% if refresh_result.candidates_seen and refresh_result.tracks_seen < refresh_result.candidates_seen %}
   <p class="text-error" style="margin-bottom: 0.4rem;">
     Most rows on the page were not recognised as tracks. That is more likely a parsing

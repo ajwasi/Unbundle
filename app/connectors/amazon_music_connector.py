@@ -45,6 +45,18 @@ DOWNLOAD_TRACK_PATH = "/api/downloadTrack"
 # Z-A. Recently-added is the useful one for an incremental inventory.
 SORT_RECENTLY_ADDED = "RECENTLY_ADDED"
 
+# Confirmed value from a real capture (2026-09-27) taken while attempting to
+# select an alternate sort in the web player — the exact option clicked isn't
+# confirmed, and "NONE" likely means "no explicit sort" rather than literally
+# alphabetical. What matters for amazon_music_sync's two-pass strategy isn't
+# that meaning, only that it's a *different* ordering criterion than
+# RECENTLY_ADDED: if showPurchasedTracks pagination has a result-window limit
+# (its behavior matches one, capping out at ~10,000 rows regardless of true
+# library size), a differently-ordered pass walks the underlying index in a
+# different sequence and can surface rows the first pass's window never
+# reached, purely by not stopping in the same place.
+SORT_NONE = "NONE"
+
 ASIN_RE = re.compile(r"^[A-Z0-9]{10}$")
 ALBUM_LINK_RE = re.compile(r"/albums/([A-Z0-9]{10})")
 ARTIST_LINK_RE = re.compile(r"/artists/([A-Z0-9]{10})")

@@ -120,6 +120,25 @@ def test_refresh_reports_a_successful_sync(authed_client, db):
     assert "out of" not in resp.text
 
 
+def test_refresh_reports_tracks_found_only_by_the_second_pass(authed_client, db):
+    summary = {"pages": 4, "tracks_seen": 51, "new": 3, "updated": 48, "missing": 1, "second_pass_only_tracks": 7}
+    with patch.object(sync, "refresh_purchased_tracks", return_value=summary):
+        resp = authed_client.post("/amazon-music/refresh")
+
+    assert resp.status_code == 200
+    assert "7" in resp.text
+    assert "found only by" in resp.text
+
+
+def test_refresh_with_no_second_pass_extras_omits_that_note(authed_client, db):
+    summary = {"pages": 2, "tracks_seen": 51, "new": 3, "updated": 48, "missing": 1, "second_pass_only_tracks": 0}
+    with patch.object(sync, "refresh_purchased_tracks", return_value=summary):
+        resp = authed_client.post("/amazon-music/refresh")
+
+    assert resp.status_code == 200
+    assert "found only by" not in resp.text
+
+
 def test_a_shortfall_with_no_captured_shapes_says_so_instead_of_vanishing(authed_client, db):
     # The real bug this guards: the warning and the disclosure used to be
     # gated on two different conditions (tracks_seen < candidates_seen vs.

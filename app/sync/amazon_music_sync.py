@@ -69,8 +69,8 @@ class NoTemplateError(Exception):
     """No captured request has been saved, so there is no shape to send."""
 
 
-def _fetch_page(client, base: str, headers_field: str, user_hash: str, cursor: str) -> dict:
-    fields = {"headers": headers_field, "sortBy": amc.SORT_RECENTLY_ADDED, "userHash": user_hash}
+def _fetch_page(client, base: str, headers_field: str, user_hash: str, cursor: str, sort_by: str = amc.SORT_RECENTLY_ADDED) -> dict:
+    fields = {"headers": headers_field, "sortBy": sort_by, "userHash": user_hash}
     if cursor:
         fields["next"] = cursor
 
@@ -189,8 +189,71 @@ def _diagnose_empty_page(payload: dict) -> dict:
     }
 
 
+def _page_through(client, headers_field: str, user_hash: str, sort_by: str, db: Session, started: datetime) -> dict:
+    """Pages through one full sortBy ordering, upserting as it goes.
+
+    A single ordering's pagination has been observed to stop cleanly (a page
+    with no `next` cursor, no error) at around 10,000 rows on a library
+    confirmed larger than that — the classic signature of a search-index
+    result-window limit (Elasticsearch's default is exactly 10,000), not a
+    bug in this loop. Called twice by refresh_purchased_tracks with two
+    different, both confirmed-real sortBy values for exactly that reason: a
+    differently-ordered pass walks whatever index backs this endpoint in a
+    different sequence, and can reach rows the first pass's window never did,
+    purely by not stopping in the same place. Every row upserted here still
+    goes through upsert_tracks' own download_id-based identity, so a row both
+    passes reach is just an "updated" the second time, never a duplicate.
+    """
+    seen: set[str] = set()
+    new_total = updated_total = 0
+    pages = 0
+    candidates_total = 0
+    unmatched_shapes: list[list[str]] = []
+    diagnostic = None
+    cursor = ""
+    while pages < MAX_PAGES:
+        payload = _fetch_page(client, amc.api_base(), headers_field, user_hash, cursor, sort_by)
+        tracks, candidates, page_unmatched = amc.parse_tracks_with_yield(payload)
+        pages += 1
+        candidates_total += candidates
+        # Kept across pages up to the function's own limit, not reset per
+        # page: a shape that recurs on every page is one sample, not
+        # dozens of the same thing.
+        for shape in page_unmatched:
+            if shape not in unmatched_shapes and len(unmatched_shapes) < 5:
+                unmatched_shapes.append(shape)
+
+        if tracks:
+            new, updated = upsert_tracks(db, tracks, started)
+            new_total += new
+            updated_total += updated
+            seen.update(t.download_id for t in tracks)
+        elif diagnostic is None:
+            # A 200/JSON page that yields no tracks is not the same
+            # failure as an auth error or a 4xx — the request worked, but
+            # the response didn't match the shape parse_tracks() expects.
+            # Captured once (the first such page), not every page, since
+            # later pages of the same shape would only repeat it.
+            diagnostic = _diagnose_empty_page(payload)
+
+        cursor = amc.parse_next_cursor(payload)
+        if not cursor:
+            break
+        time.sleep(PAGE_DELAY_SECONDS)
+
+    return {
+        "seen": seen,
+        "new": new_total,
+        "updated": updated_total,
+        "pages": pages,
+        "candidates": candidates_total,
+        "unmatched_shapes": unmatched_shapes,
+        "diagnostic": diagnostic,
+    }
+
+
 def refresh_purchased_tracks(db: Session) -> dict:
-    """Page through the whole purchased library and upsert it.
+    """Page through the whole purchased library, twice, and upsert it.
 
     Returns a summary dict for the UI. Raises NotConnectedError when there is
     no Audible login to derive cookies from, and AmazonMusicAuthError when
@@ -204,9 +267,6 @@ def refresh_purchased_tracks(db: Session) -> dict:
         raise NotConnectedError("Audible isn't connected, so there's no Amazon login to sync music with.") from exc
 
     started = datetime.utcnow()
-    seen: set[str] = set()
-    new_total = updated_total = 0
-    pages = 0
 
     template = tmpl.load_template(db)
     if template is None:
@@ -229,59 +289,40 @@ def refresh_purchased_tracks(db: Session) -> dict:
         # only the token was not enough.
         headers_field = tmpl.with_fresh_session(template.headers_field, token, probe.session_fields_from_config(config))
 
-        cursor = ""
-        diagnostic = None
-        candidates_total = 0
-        unmatched_shapes: list[list[str]] = []
-        while pages < MAX_PAGES:
-            payload = _fetch_page(client, amc.api_base(), headers_field, template.user_hash, cursor)
-            tracks, candidates, page_unmatched = amc.parse_tracks_with_yield(payload)
-            pages += 1
-            candidates_total += candidates
-            # Kept across pages up to the function's own limit, not reset per
-            # page: a shape that recurs on every page is one sample, not
-            # dozens of the same thing.
-            for shape in page_unmatched:
-                if shape not in unmatched_shapes and len(unmatched_shapes) < 5:
-                    unmatched_shapes.append(shape)
+        first = _page_through(client, headers_field, template.user_hash, amc.SORT_RECENTLY_ADDED, db, started)
+        second = _page_through(client, headers_field, template.user_hash, amc.SORT_NONE, db, started)
 
-            if tracks:
-                new, updated = upsert_tracks(db, tracks, started)
-                new_total += new
-                updated_total += updated
-                seen.update(t.download_id for t in tracks)
-            elif diagnostic is None:
-                # A 200/JSON page that yields no tracks is not the same
-                # failure as an auth error or a 4xx — the request worked, but
-                # the response didn't match the shape parse_tracks() expects.
-                # Captured once (the first such page), not every page, since
-                # later pages of the same shape would only repeat it.
-                diagnostic = _diagnose_empty_page(payload)
-
-            cursor = amc.parse_next_cursor(payload)
-            if not cursor:
-                break
-            time.sleep(PAGE_DELAY_SECONDS)
+    seen = first["seen"] | second["seen"]
+    # How many tracks only the second pass ever reached — the number that
+    # actually tells you whether the two-pass strategy did anything, versus
+    # just reporting a track count with no way to see that.
+    second_pass_only = len(second["seen"] - first["seen"])
 
     missing = flag_missing(db, seen, started)
     mark_compilations(db)
 
+    unmatched_shapes: list[list[str]] = []
+    for shape in first["unmatched_shapes"] + second["unmatched_shapes"]:
+        if shape not in unmatched_shapes and len(unmatched_shapes) < 5:
+            unmatched_shapes.append(shape)
+
     result = {
-        "pages": pages,
+        "pages": first["pages"] + second["pages"],
         "tracks_seen": len(seen),
         # Always reported, not just on total failure: a headline track count
         # cannot tell "this library genuinely has few tracks" apart from
         # "most rows are being silently skipped" — a sync that recognised 27
         # of 27 rows and one that recognised 27 of 6,000 both say "27 tracks"
         # unless the denominator is shown too.
-        "candidates_seen": candidates_total,
-        "new": new_total,
-        "updated": updated_total,
+        "candidates_seen": first["candidates"] + second["candidates"],
+        "new": first["new"] + second["new"],
+        "updated": first["updated"] + second["updated"],
         "missing": missing,
+        "second_pass_only_tracks": second_pass_only,
         "finished_at": datetime.utcnow(),
     }
     if unmatched_shapes:
         result["unmatched_item_shapes"] = unmatched_shapes
-    if not seen and diagnostic is not None:
-        result["diagnostic"] = diagnostic
+    if not seen and (first["diagnostic"] or second["diagnostic"]):
+        result["diagnostic"] = first["diagnostic"] or second["diagnostic"]
     return result
