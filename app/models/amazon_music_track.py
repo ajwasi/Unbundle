@@ -18,18 +18,23 @@ class AmazonMusicTrack(Base):
     download URL, but only after minting a download for that one track).
     "Purchased" is implied by the endpoint, not stored per row.
 
-    `track_asin` is the primary key rather than `download_id` because it is the
-    stable catalogue identity; download_id is a per-library-object UUID.
+    `download_id` is the primary key, not `track_asin`. An earlier version
+    keyed on track_asin, assuming it was the stable catalogue identity; a
+    live sync disproved that — 10,000 purchased rows produced only 27
+    distinct track_asin values (each one silently overwritten by whichever
+    row synced last) while download_id was distinct on every single row.
+    Whatever track_asin actually keys off — the album is the leading guess,
+    never confirmed — it is kept only as metadata below.
     """
 
     __tablename__ = "amazon_music_track"
 
-    track_asin: Mapped[str] = mapped_column(String(20), primary_key=True)
-
     # The UUID keyed under the row's onCheckboxSelected.states — this is what
     # POST /api/downloadTrack takes as its `id`, and it appears again as
     # `cdoid` on the signed CloudFront URL that call returns.
-    download_id: Mapped[str] = mapped_column(String(64), nullable=False, default="", index=True)
+    download_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    track_asin: Mapped[str] = mapped_column(String(20), nullable=False, default="", index=True)
 
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     artist: Mapped[str] = mapped_column(String(300), nullable=False, default="")

@@ -6,16 +6,22 @@ tree describing how to draw the page, where each row is presentation slots
 (`primaryText`, `secondaryText1`…) rather than named fields. Everything here
 is therefore a *tolerant extraction* from that tree, not a schema mapping.
 
-Two consequences worth stating plainly:
+Three consequences worth stating plainly:
 
   * This is more fragile than a data API. The slots carry meaning only by
     position, so an Amazon redesign can silently change what `secondaryText2`
-    means. Parsing is defensive everywhere and a row that yields no ASIN is
-    skipped rather than guessed at.
+    means. Parsing is defensive everywhere and a row that yields no
+    download_id is skipped rather than guessed at.
   * Field *locations* below are confirmed against one real capture
-    (2026-09-19); field *nesting* is not assumed. The track ASIN and the
+    (2026-09-19); field *nesting* is not assumed. download_id and the
     per-row deeplinks are found by searching each row's own subtree, because
     their exact depth was never verified and searching is robust to it.
+  * A row's identity is download_id, not the ASIN found under its
+    thumbs-up widget. That ASIN looked like the row's own catalogue ASIN in
+    the one capture this parser was built against, but a live sync of 10,000
+    rows disproved it — it collapsed onto 27 distinct values while
+    download_id was distinct on every row. See _find_asin_in_storage_key's
+    docstring for the full story; track_asin is kept only as metadata.
 
 Pagination is a cursor named `next`, absent on the first call and carried on
 an embedded showPurchasedTracks URL in each response.
@@ -111,10 +117,16 @@ def parse_duration(display: str) -> int | None:
 
 
 def _find_asin_in_storage_key(item: dict) -> str:
-    """The track's catalogue ASIN, carried as the thumbs-up widget's storage
-    key (storageGroup TRACK_RATINGS). Searched rather than indexed by path:
-    its exact nesting under `button.observer` is confirmed once, in one
-    capture, and a sibling widget could just as well carry it tomorrow.
+    """An ASIN carried as the thumbs-up widget's storage key (storageGroup
+    TRACK_RATINGS) — kept as informational metadata only, NOT as identity.
+
+    It was assumed to be the row's own catalogue ASIN because that held in
+    one capture, but a live sync disproved it: 10,000 rows produced only 27
+    distinct values here, while download_id (see _find_download_id) was
+    distinct on every single one. Whatever this value actually keys off —
+    the album is the leading guess, never confirmed — it repeats across many
+    rows of the same purchased library, so parse_track_item() no longer
+    requires it and PurchasedTrack.track_asin is no longer anyone's identity.
     """
     for node in _walk(item):
         if isinstance(node, dict):
@@ -158,19 +170,21 @@ def _find_cover_url(item: dict) -> str:
 
 
 def parse_track_item(item: dict) -> PurchasedTrack | None:
-    """One rendered row -> one track, or None when it carries no ASIN.
+    """One rendered row -> one track, or None when it carries no download_id.
 
-    A row without an ASIN has no stable identity to key on, so it is dropped
+    download_id, not the storage-key ASIN, is the row's real identity — see
+    _find_asin_in_storage_key's docstring for how that was confirmed. A row
+    without a download_id has no stable identity to key on, so it is dropped
     rather than stored under a guessed key.
     """
-    asin = _find_asin_in_storage_key(item)
-    if not asin:
+    download_id = _find_download_id(item)
+    if not download_id:
         return None
 
     duration_display = (item.get("secondaryText3") or "").strip()
     return PurchasedTrack(
-        track_asin=asin,
-        download_id=_find_download_id(item),
+        track_asin=_find_asin_in_storage_key(item),
+        download_id=download_id,
         title=(item.get("primaryText") or "").strip(),
         artist=(item.get("secondaryText1") or "").strip(),
         artist_asin=_find_link_asin(item, ARTIST_LINK_RE),
@@ -184,8 +198,8 @@ def parse_track_item(item: dict) -> PurchasedTrack | None:
 
 def parse_tracks_with_yield(
     payload: dict, unmatched_limit: int = 5
-) -> tuple[list[PurchasedTrack], int, list[list[str]], list[str]]:
-    """Same extraction as parse_tracks(), plus the things that make a
+) -> tuple[list[PurchasedTrack], int, list[list[str]]]:
+    """Same extraction as parse_tracks(), plus the two things that make a
     *partial* yield legible instead of silent.
 
     A headline track count alone cannot tell "this account genuinely has few
@@ -194,24 +208,18 @@ def parse_tracks_with_yield(
     actually examined, matched or not, so it and the track count together
     show the real yield ratio. `unmatched_shapes` is the key *names* — never
     values — of up to `unmatched_limit` distinct shapes among the items that
-    did not produce an ASIN: whether those are real track rows this parser
-    doesn't yet handle, or genuinely non-track widgets (section headers, ads,
-    rails) that should be skipped, is exactly what a redesign would change
-    and exactly what a bare "N tracks synced" cannot distinguish.
+    did not produce a download_id: whether those are real track rows this
+    parser doesn't yet handle, or genuinely non-track widgets (section
+    headers, ads, rails) that should be skipped, is exactly what a redesign
+    would change and exactly what a bare "N tracks synced" cannot
+    distinguish.
 
-    `matched_download_ids` is the download_id of every item that *did*
-    produce an ASIN, one entry per matched row regardless of whether that
-    ASIN duplicates one already seen on this page. That duplicate-inclusive
-    list exists to answer a narrower, sharper question than the shape
-    diagnostics above: when almost every row resolves to the *same handful*
-    of ASINs rather than failing to match at all — a live sync surfaced
-    exactly this, thousands of rows all landing on ~27 ASINs — the ASIN
-    being extracted may not be the row's own identity. download_id is a
-    second, independently-confirmed per-row identifier (it is what
-    /api/downloadTrack takes to resolve one specific track), so comparing
-    how many *distinct* download_ids show up against how many distinct
-    ASINs do tells the caller, from data already in hand, whether the ASIN
-    source is scoped too broadly — no second capture needed to check.
+    Deduplicates by download_id, not track_asin: an earlier version deduped
+    by the storage-key ASIN on the assumption that it was the row's own
+    identity, and a live sync disproved that outright — 10,000 rows
+    collapsed onto 27 ASINs while every single one carried its own distinct
+    download_id. See _find_asin_in_storage_key's and parse_track_item's
+    docstrings for the full story.
 
     Finds `items` lists by walking rather than by the confirmed path
     methods[].template.widgets[].items[], so an extra wrapper level in a
@@ -221,7 +229,6 @@ def parse_tracks_with_yield(
     seen: set[str] = set()
     candidates = 0
     unmatched_shapes: list[list[str]] = []
-    matched_download_ids: list[str] = []
 
     for node in _walk(payload):
         if not isinstance(node, dict):
@@ -235,17 +242,15 @@ def parse_tracks_with_yield(
             candidates += 1
             track = parse_track_item(item)
             if track:
-                if track.download_id:
-                    matched_download_ids.append(track.download_id)
-                if track.track_asin not in seen:
-                    seen.add(track.track_asin)
+                if track.download_id not in seen:
+                    seen.add(track.download_id)
                     tracks.append(track)
             elif len(unmatched_shapes) < unmatched_limit:
                 shape = sorted(item.keys())
                 if shape not in unmatched_shapes:
                     unmatched_shapes.append(shape)
 
-    return tracks, candidates, unmatched_shapes, matched_download_ids
+    return tracks, candidates, unmatched_shapes
 
 
 def parse_tracks(payload: dict) -> list[PurchasedTrack]:
@@ -255,7 +260,7 @@ def parse_tracks(payload: dict) -> list[PurchasedTrack]:
     the tracks — parsing tests and the download-side code, say — without
     also carrying the yield-diagnostic numbers.
     """
-    tracks, _candidates, _unmatched, _download_ids = parse_tracks_with_yield(payload)
+    tracks, _candidates, _unmatched = parse_tracks_with_yield(payload)
     return tracks
 
 
