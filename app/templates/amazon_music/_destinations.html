@@ -1,0 +1,40 @@
+<table>
+  <thead><tr><th scope="col">Name</th><th scope="col">Path</th><th scope="col">Default</th><th></th></tr></thead>
+  <tbody>
+    {% for dest in destinations %}
+    <tr>
+      <td>{{ dest.name }}</td>
+      <td class="path-cell">{{ dest.path }}</td>
+      <td>
+        {% if dest.is_default %}
+        <span class="badge badge-ok">Default</span>
+        {% else %}
+        <form hx-post="/amazon-music/destinations/{{ dest.id }}/set-default" hx-target="#amazon-music-destinations" hx-swap="innerHTML" style="display: inline;">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+          <button type="submit" class="secondary">Make default</button>
+        </form>
+        {% endif %}
+      </td>
+      <td>
+        <form hx-post="/amazon-music/destinations/{{ dest.id }}/delete" hx-target="#amazon-music-destinations" hx-swap="innerHTML"
+              hx-confirm="Delete this destination? Files already downloaded there are not affected." style="display: inline;">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+          <button type="submit" class="danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">No destinations configured yet — downloads go to this app's own "Amazon Music" folder.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<form hx-post="/amazon-music/destinations" hx-target="#amazon-music-destinations" hx-swap="innerHTML"
+      style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 0.75rem;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <label for="music-dest-name" class="sr-only">Destination name</label>
+  <input id="music-dest-name" type="text" name="name" placeholder="Name (e.g. NAS Music Share)" required style="flex: 1; min-width: 10rem;">
+  <label for="music-dest-path" class="sr-only">Destination path</label>
+  <input id="music-dest-path" type="text" name="path" placeholder="/mnt/library/music" required style="flex: 2; min-width: 14rem;">
+  <button type="submit">Add destination</button>
+</form>

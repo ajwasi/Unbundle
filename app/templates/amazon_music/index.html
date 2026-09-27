@@ -6,5 +6,18 @@
   Music you have purchased from Amazon. Metadata only &mdash; this reads the same
   private API the web player uses, so it is undocumented and may break without notice.
 </p>
+
+<details class="disclosure" style="margin-bottom: 1rem;">
+  <summary>Download destinations</summary>
+  <div id="amazon-music-destinations" style="margin-top: 0.75rem;">
+    {% include "amazon_music/_destinations.html" %}
+  </div>
+</details>
+
+<div style="margin-bottom: 1rem;">
+  <h3 style="margin-bottom: 0.4rem;">Active downloads</h3>
+  {% include "amazon_music/_active_downloads.html" %}
+</div>
+
 {% include "amazon_music/_table.html" %}
 {% endblock %}

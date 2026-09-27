@@ -1,0 +1,36 @@
+<div id="amazon-music-active-downloads" hx-get="/amazon-music/downloads/active" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML">
+  {% if active_downloads %}
+  <table>
+    <thead>
+      <tr><th scope="col">Title</th><th scope="col">Artist</th><th scope="col">Status</th><th scope="col">Progress</th></tr>
+    </thead>
+    <tbody>
+      {% for job in active_downloads %}
+      <tr>
+        <td>{{ job.title }}</td>
+        <td>{{ job.artist }}</td>
+        <td>
+          {% if job.status == "running" %}
+          <span class="badge badge-pending">Downloading</span>
+          {% else %}
+          <span class="badge badge-not-configured">Queued</span>
+          {% endif %}
+        </td>
+        <td style="min-width: 12rem;">
+          {% if job.status == "running" and job.expected_size_bytes %}
+          <progress value="{{ job.progress_bytes }}" max="{{ job.expected_size_bytes }}" style="width: 100%; display: block; margin-bottom: 0.2rem;"></progress>
+          <span class="muted" style="font-size: 0.85em;">{{ job.progress_bytes | human_size }} / {{ job.expected_size_bytes | human_size }}</span>
+          {% elif job.status == "running" %}
+          <span class="muted">Starting&hellip;</span>
+          {% else %}
+          <span class="muted">Waiting&hellip;</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <span class="muted">No download running.</span>
+  {% endif %}
+</div>

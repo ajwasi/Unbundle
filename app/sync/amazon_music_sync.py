@@ -12,7 +12,7 @@ entries is undocumented, and guessing at it did not work. What does work
 (confirmed 2026-09-20, a real sync returned 3.5 MB of JSON) is replaying a
 request Amazon's own web player sent, captured once and stored via
 app.connectors.amazon_music_template. Every sync starts from that captured
-shape; see _session_fields_from_config() and with_fresh_session() for exactly
+shape; see probe.session_fields_from_config() and with_fresh_session() for exactly
 which parts of it still get refreshed and why the access token alone was not
 enough — a template that only refreshed the token got a 200 back with zero
 tracks, because the response body was Amazon's own generic error dialog
@@ -55,42 +55,6 @@ class AmazonMusicRequestError(Exception):
     """Amazon rejected the request itself (a 4xx that is not 401/403), with
     its own message attached. Distinct from an auth error: the credentials
     were fine and the request was not."""
-
-
-# config.json key -> the x-amzn-* header the API expects. Every target name
-# below appears verbatim in the API's own CORS access-control-allow-headers
-# list, and every source key appears verbatim in a real config.json — so the
-# mapping is read off two confirmed lists rather than guessed.
-_CONFIG_TO_HEADER = {
-    "deviceId": "x-amzn-device-id",
-    "deviceType": "x-amzn-device-type-id",
-    "sessionId": "x-amzn-session-id",
-    "montanaCsrf": "x-amzn-csrf",
-}
-
-
-def _session_fields_from_config(config: dict) -> dict[str, str]:
-    """The session-scoped x-amzn-* headers config.json can supply right now,
-    as header name -> value, for splicing into a captured template.
-
-    montanaCsrf and sessionId are bound to the specific browser session that
-    produced them — a template that only refreshed the access token got a
-    200 back with zero tracks, because the response body was Amazon's own
-    generic error dialog rather than the real page. Pairing a captured CSRF
-    with this app's own freshly-minted cookies is exactly the mismatched pair
-    CSRF protection exists to catch, and Amazon does not surface that as an
-    HTTP error.
-    """
-    fields: dict[str, str] = {}
-    for config_key, header_name in _CONFIG_TO_HEADER.items():
-        value = config.get(config_key)
-        if isinstance(value, str) and value:
-            fields[header_name] = value
-        elif value:
-            # montanaCsrf is an object in some responses; pass it through as
-            # JSON rather than str()-ing a dict into something unparseable.
-            fields[header_name] = json.dumps(value)
-    return fields
 
 
 def _fetch_config(client) -> dict:
@@ -263,7 +227,7 @@ def refresh_purchased_tracks(db: Session) -> dict:
         # all go stale independently of the ~fifteen other captured fields
         # that don't — see with_fresh_session()'s docstring for why refreshing
         # only the token was not enough.
-        headers_field = tmpl.with_fresh_session(template.headers_field, token, _session_fields_from_config(config))
+        headers_field = tmpl.with_fresh_session(template.headers_field, token, probe.session_fields_from_config(config))
 
         cursor = ""
         diagnostic = None
