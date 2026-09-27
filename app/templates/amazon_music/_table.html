@@ -43,7 +43,6 @@
       <thead>
         <tr>
           <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#music-download-form .track-check').forEach(c => c.checked = this.checked); updateMusicSelectedButton();"></th>
-          <th></th>
           <th>Title</th>
           <th>Artist</th>
           <th>Album</th>
@@ -55,11 +54,6 @@
         {% for t in tracks %}
         <tr class="{{ 'row-expired' if t.missing_since else '' }}">
           <td class="table-lead-col"><input type="checkbox" class="track-check" name="download_id" value="{{ t.download_id }}" onchange="updateMusicSelectedButton();"></td>
-          <td>
-            {% if t.cover_url %}
-            <img src="{{ t.cover_url }}" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
-            {% endif %}
-          </td>
           <td>
             {{ t.title }}
             {% if new_cutoff and t.first_seen_at >= new_cutoff %}<span class="badge badge-ok">New</span>{% endif %}
@@ -82,7 +76,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="muted">
+        <tr><td colspan="6" class="muted">
           {% if q %}No tracks match.{% else %}Nothing synced yet — click "Sync Amazon Music" above.{% endif %}
         </td></tr>
         {% endfor %}
