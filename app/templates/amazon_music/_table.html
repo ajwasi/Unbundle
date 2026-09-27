@@ -1,4 +1,26 @@
 <div id="amazon-music-table">
+  {% if track_order_error %}<p class="text-error">{{ track_order_error }}</p>{% endif %}
+  {% if album_key and album_key != "none" %}
+  <div class="toolbar" style="margin-bottom: 0.75rem;">
+    <form hx-post="/amazon-music/albums/{{ album_key }}/sync-track-order" hx-target="#amazon-music-table" hx-swap="outerHTML"
+          style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="hidden" name="sort" value="{{ sort }}">
+      <button type="submit">{{ "Re-sync track order" if catalog_sync else "Sync track order" }}</button>
+      <span class="muted htmx-indicator">Fetching this album's real track order from Amazon&hellip;</span>
+    </form>
+    <span class="muted">
+      {% if catalog_sync %}
+      Track order synced <span title="{{ catalog_sync.synced_at.strftime('%Y-%m-%d %H:%M') }} UTC">{{ catalog_sync.synced_at | time_since }}</span>
+      &mdash; {{ catalog_sync.tracks_matched }} of {{ catalog_sync.tracks_found }} tracks matched
+      {% else %}
+      Track order not yet fetched
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+
   <div class="toolbar">
     <input type="search" id="music-q" name="q" value="{{ q }}" placeholder="Search title, artist, album"
            hx-get="/amazon-music/albums/{{ album_key }}" hx-trigger="keyup changed delay:300ms, search"
@@ -7,6 +29,7 @@
     <select id="music-sort" name="sort" hx-get="/amazon-music/albums/{{ album_key }}" hx-trigger="change"
             hx-target="#amazon-music-table" hx-swap="outerHTML" hx-include="#music-q,#music-show-missing">
       <option value="added" {{ "selected" if sort == "added" else "" }}>Recently added</option>
+      <option value="track_number" {{ "selected" if sort == "track_number" else "" }}>Track #</option>
       <option value="title" {{ "selected" if sort == "title" else "" }}>Title</option>
       <option value="artist" {{ "selected" if sort == "artist" else "" }}>Artist</option>
       <option value="duration" {{ "selected" if sort == "duration" else "" }}>Duration</option>
@@ -43,6 +66,7 @@
       <thead>
         <tr>
           <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#music-download-form .track-check').forEach(c => c.checked = this.checked); updateMusicSelectedButton();"></th>
+          <th>#</th>
           <th>Title</th>
           <th>Artist</th>
           <th>Album</th>
@@ -54,6 +78,7 @@
         {% for t in tracks %}
         <tr class="{{ 'row-expired' if t.missing_since else '' }}">
           <td class="table-lead-col"><input type="checkbox" class="track-check" name="download_id" value="{{ t.download_id }}" onchange="updateMusicSelectedButton();"></td>
+          <td class="muted">{{ t.track_number or "—" }}</td>
           <td>
             {{ t.title }}
             {% if new_cutoff and t.first_seen_at >= new_cutoff %}<span class="badge badge-ok">New</span>{% endif %}
@@ -76,7 +101,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="muted">
+        <tr><td colspan="7" class="muted">
           {% if q %}No tracks match.{% else %}Nothing synced yet — click "Sync Amazon Music" above.{% endif %}
         </td></tr>
         {% endfor %}

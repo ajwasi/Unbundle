@@ -42,6 +42,15 @@ class AmazonMusicTrack(Base):
     album: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     album_asin: Mapped[str] = mapped_column(String(20), nullable=False, default="")
 
+    # 1-based position within its album's own tracklist — confirmed available
+    # only via an on-demand fetch of Amazon's catalog-browsing page for the
+    # album (see amazon_music_sync.sync_album_track_order), not from the
+    # purchased-library sync this app otherwise relies on. There is no
+    # explicit "track number" field even there; this is the row's position in
+    # that response's own ordered track list, matched back to this row by
+    # title. Null until that on-demand fetch has run and found a match.
+    track_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Kept as Amazon renders it ("3:57") alongside a parsed value, because the
     # display format is a UI string this app does not control — storing only
     # the parse would silently lose anything that doesn't match, and storing

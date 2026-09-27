@@ -8,6 +8,7 @@ import pytest
 
 from app.connectors import amazon_music_connector as amc
 from app.connectors import amazon_music_template as tmpl
+from app.models.amazon_music_album_catalog_sync import AmazonMusicAlbumCatalogSync
 from app.models.amazon_music_track import AmazonMusicTrack
 from app.models.credential import SOURCE_AUDIBLE, STATUS_OK, Credential
 from app.security import encrypt_json
@@ -483,3 +484,148 @@ def test_a_second_pass_that_finds_nothing_new_reports_zero(db):
 
     assert result["tracks_seen"] == 1
     assert result["second_pass_only_tracks"] == 0
+
+
+# ------------------------------------------------- on-demand track order
+
+def _save_template_for_order(db, user_hash="{}"):
+    tmpl.save_template(
+        db,
+        tmpl.SyncTemplate(
+            path=amc.PURCHASED_TRACKS_PATH,
+            headers_field=json.dumps({"x-amzn-authentication": json.dumps({"accessToken": "OLD"})}),
+            user_hash=user_hash,
+            captured_at="now",
+        ),
+    )
+
+
+def _add_track_for_order(db, download_id, album_asin, title, **overrides):
+    now = datetime.utcnow()
+    defaults = dict(
+        download_id=download_id, track_asin="X", album_asin=album_asin, album="Some Album",
+        artist="Some Artist", title=title, first_seen_at=now, last_seen_at=now,
+    )
+    defaults.update(overrides)
+    db.add(AmazonMusicTrack(**defaults))
+    db.commit()
+
+
+def _catalog_album_response(titles):
+    return httpx.Response(
+        200,
+        json={
+            "methods": [
+                {
+                    "template": {
+                        "interface": "Web.TemplatesInterface.v1_0.Touch.DetailTemplateInterface.DetailTemplate",
+                        "widgets": [
+                            {
+                                "items": [
+                                    {
+                                        "interface": "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveRowItemElement",
+                                        "primaryText": t,
+                                    }
+                                    for t in titles
+                                ]
+                            }
+                        ],
+                    }
+                }
+            ]
+        },
+        request=httpx.Request("POST", "https://x/api/showHome"),
+    )
+
+
+def test_sync_album_track_order_numbers_matched_tracks(db):
+    _connect_audible_for_sync(db)
+    _save_template_for_order(db)
+    _add_track_for_order(db, "d1", "ALBUM1", "Track One")
+    _add_track_for_order(db, "d2", "ALBUM1", "Track Two")
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", return_value=_catalog_album_response(["Track One", "Track Two"])
+    ):
+        result = sync.sync_album_track_order(db, "ALBUM1")
+
+    assert result == {"tracks_found": 2, "tracks_matched": 2, "total_tracks": 2}
+    assert db.get(AmazonMusicTrack, "d1").track_number == 1
+    assert db.get(AmazonMusicTrack, "d2").track_number == 2
+
+    sync_row = db.get(AmazonMusicAlbumCatalogSync, "ALBUM1")
+    assert sync_row.tracks_found == 2
+    assert sync_row.tracks_matched == 2
+
+
+def test_sync_album_track_order_leaves_unmatched_tracks_unnumbered(db):
+    _connect_audible_for_sync(db)
+    _save_template_for_order(db)
+    _add_track_for_order(db, "d1", "ALBUM1", "Track One")
+    _add_track_for_order(db, "d2", "ALBUM1", "A Bonus Track Not In The Catalog Listing")
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", return_value=_catalog_album_response(["Track One"])
+    ):
+        result = sync.sync_album_track_order(db, "ALBUM1")
+
+    assert result == {"tracks_found": 1, "tracks_matched": 1, "total_tracks": 2}
+    assert db.get(AmazonMusicTrack, "d1").track_number == 1
+    assert db.get(AmazonMusicTrack, "d2").track_number is None
+
+
+def test_sync_album_track_order_clears_a_stale_number_on_resync(db):
+    # A later fetch (e.g. after Amazon changes a reissue's tracklist) that no
+    # longer lists a track must not leave it wearing a number from the
+    # previous fetch.
+    _connect_audible_for_sync(db)
+    _save_template_for_order(db)
+    _add_track_for_order(db, "d1", "ALBUM1", "Track One")
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()):
+        with patch("httpx.Client.post", return_value=_catalog_album_response(["Track One"])):
+            sync.sync_album_track_order(db, "ALBUM1")
+        assert db.get(AmazonMusicTrack, "d1").track_number == 1
+
+        with patch("httpx.Client.post", return_value=_catalog_album_response(["A Different Track"])):
+            sync.sync_album_track_order(db, "ALBUM1")
+        assert db.get(AmazonMusicTrack, "d1").track_number is None
+
+
+def test_sync_album_track_order_sends_the_confirmed_request_shape(db):
+    _connect_audible_for_sync(db)
+    _save_template_for_order(db, user_hash="SHOULD-NOT-BE-SENT")
+    _add_track_for_order(db, "d1", "ALBUM1", "Track One")
+
+    captured = {}
+
+    def _fake_post(self, url, content=None, **kwargs):
+        captured["url"] = url
+        captured["body"] = json.loads(content)
+        return _catalog_album_response(["Track One"])
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", _fake_post
+    ):
+        sync.sync_album_track_order(db, "ALBUM1")
+
+    assert captured["url"] == f"{amc.API_HOST}{amc.SHOW_HOME_PATH}"
+    # A genuinely different body shape from showPurchasedTracks — no
+    # sortBy/userHash, confirmed from a real capture.
+    assert "sortBy" not in captured["body"]
+    assert "userHash" not in captured["body"]
+    deeplink = json.loads(captured["body"]["deeplink"])
+    assert deeplink["deeplink"] == "/albums/ALBUM1"
+    assert deeplink["interface"] == "DeeplinkInterface.v1_0.DeeplinkClientInformation"
+
+
+def test_sync_album_track_order_surfaces_amazons_error_text(db):
+    _connect_audible_for_sync(db)
+    _save_template_for_order(db)
+
+    resp = httpx.Response(400, text="Bad deeplink", request=httpx.Request("POST", "https://x/api/showHome"))
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", return_value=resp
+    ):
+        with pytest.raises(sync.AmazonMusicRequestError, match="Bad deeplink"):
+            sync.sync_album_track_order(db, "ALBUM1")

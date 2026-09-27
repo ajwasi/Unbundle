@@ -156,7 +156,12 @@
             <img src="{{ a.cover_url }}" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
             {% endif %}
           </td>
-          <td><a href="/amazon-music/albums/{{ a.album_key }}">{{ a.album }}</a></td>
+          <td>
+            <a href="/amazon-music/albums/{{ a.album_key }}">{{ a.album }}</a>
+            {% if a.track_order_synced %}
+            <span class="badge badge-ok tip" title="This album's real track order has been fetched from Amazon." style="font-size: 0.7em;">Ordered</span>
+            {% endif %}
+          </td>
           <td>{{ a.artist }}</td>
           <td>
             {{ a.track_count }}

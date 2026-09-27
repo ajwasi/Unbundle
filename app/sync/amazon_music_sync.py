@@ -36,6 +36,7 @@ from app.connectors import amazon_music_probe as probe
 from app.connectors.amazon_music_probe import BASE_HEADERS, cookies_from_audible_credential
 from app.connectors.amazon_music_probe import NotConnectedError as _ProbeNotConnectedError
 from app.connectors import amazon_music_template as tmpl
+from app.models.amazon_music_album_catalog_sync import AmazonMusicAlbumCatalogSync
 from app.models.amazon_music_track import AmazonMusicTrack
 
 # One page is 50 rows (confirmed: multiSelectBar.itemCount). A pause between
@@ -189,6 +190,43 @@ def _diagnose_empty_page(payload: dict) -> dict:
     }
 
 
+def _authenticate(db: Session) -> tuple[dict, tmpl.SyncTemplate]:
+    """Cookies plus the captured request template — the two prerequisites
+    every call into Amazon Music's API needs, shared by the purchased-library
+    sync and the on-demand per-album track-order fetch alike. Raises
+    NotConnectedError/NoTemplateError, which both callers handle identically.
+    """
+    try:
+        cookies = cookies_from_audible_credential(db)
+    except _ProbeNotConnectedError as exc:
+        # Re-raised under this module's own name so routers import one symbol
+        # for "nothing to sync with" rather than reaching into the probe.
+        raise NotConnectedError("Audible isn't connected, so there's no Amazon login to sync music with.") from exc
+
+    template = tmpl.load_template(db)
+    if template is None:
+        raise NoTemplateError(
+            "No sync template saved yet. Capture the Purchased view request and save it "
+            "in Settings — Amazon's required fields are undocumented, so the only reliable "
+            "shape is one its own web player sent."
+        )
+    return cookies, template
+
+
+def _fresh_headers_field(client, template: tmpl.SyncTemplate) -> str:
+    config = _fetch_config(client)
+    token = config.get("accessToken") or ""
+    if not token:
+        raise amc.AmazonMusicAuthError(
+            "Amazon did not return an access token — the stored Audible login may have expired."
+        )
+    # The access token and the session-scoped headers (CSRF, session id)
+    # all go stale independently of the ~fifteen other captured fields
+    # that don't — see with_fresh_session()'s docstring for why refreshing
+    # only the token was not enough.
+    return tmpl.with_fresh_session(template.headers_field, token, probe.session_fields_from_config(config))
+
+
 def _page_through(client, headers_field: str, user_hash: str, sort_by: str, db: Session, started: datetime) -> dict:
     """Pages through one full sortBy ordering, upserting as it goes.
 
@@ -259,35 +297,11 @@ def refresh_purchased_tracks(db: Session) -> dict:
     no Audible login to derive cookies from, and AmazonMusicAuthError when
     Amazon rejects what it derives — neither is a 500.
     """
-    try:
-        cookies = cookies_from_audible_credential(db)
-    except _ProbeNotConnectedError as exc:
-        # Re-raised under this module's own name so routers import one symbol
-        # for "nothing to sync with" rather than reaching into the probe.
-        raise NotConnectedError("Audible isn't connected, so there's no Amazon login to sync music with.") from exc
-
+    cookies, template = _authenticate(db)
     started = datetime.utcnow()
 
-    template = tmpl.load_template(db)
-    if template is None:
-        raise NoTemplateError(
-            "No sync template saved yet. Capture the Purchased view request and save it "
-            "in Settings — Amazon's required fields are undocumented, so the only reliable "
-            "shape is one its own web player sent."
-        )
-
     with httpx.Client(cookies=cookies, headers=BASE_HEADERS, timeout=30.0, follow_redirects=True) as client:
-        config = _fetch_config(client)
-        token = config.get("accessToken") or ""
-        if not token:
-            raise amc.AmazonMusicAuthError(
-                "Amazon did not return an access token — the stored Audible login may have expired."
-            )
-        # The access token and the session-scoped headers (CSRF, session id)
-        # all go stale independently of the ~fifteen other captured fields
-        # that don't — see with_fresh_session()'s docstring for why refreshing
-        # only the token was not enough.
-        headers_field = tmpl.with_fresh_session(template.headers_field, token, probe.session_fields_from_config(config))
+        headers_field = _fresh_headers_field(client, template)
 
         first = _page_through(client, headers_field, template.user_hash, amc.SORT_RECENTLY_ADDED, db, started)
         second = _page_through(client, headers_field, template.user_hash, amc.SORT_NONE, db, started)
@@ -326,3 +340,73 @@ def refresh_purchased_tracks(db: Session) -> dict:
     if not seen and (first["diagnostic"] or second["diagnostic"]):
         result["diagnostic"] = first["diagnostic"] or second["diagnostic"]
     return result
+
+
+def sync_album_track_order(db: Session, album_asin: str) -> dict:
+    """On demand only, never part of refresh_purchased_tracks: fetch one
+    album's real tracklist from Amazon's catalog-browsing page (POST
+    /api/showHome with a deeplink of /albums/<asin>) and use its order to
+    number this app's own already-synced tracks for that album.
+
+    A genuinely different request from showPurchasedTracks — confirmed from a
+    real capture (2026-09-27) of https://music.amazon.com/albums/<asin> — not
+    a variant of it: the body is {"deeplink": ..., "headers": ...} with no
+    sortBy/userHash, and the response is Amazon's general catalog template,
+    not the purchased-library one. Deliberately not folded into the regular
+    sync: that already makes two full passes over the whole library, and
+    hitting this per-album endpoint for every album on top of that would be
+    one more request per album for data most of the time nobody looks at.
+
+    Matches by exact title within the album — track_asin was disproven as a
+    reliable per-track identity already (see AmazonMusicTrack's own
+    docstring), so it isn't trusted for this matching either, and this
+    catalog response carries no download_id at all to match on instead.
+    A track whose title doesn't appear in this fetch keeps no track_number
+    (cleared first, so a track dropped from a reissue's listing doesn't keep
+    a stale number from a previous, different fetch).
+    """
+    cookies, template = _authenticate(db)
+
+    with httpx.Client(cookies=cookies, headers=BASE_HEADERS, timeout=30.0, follow_redirects=True) as client:
+        headers_field = _fresh_headers_field(client, template)
+
+        deeplink_field = json.dumps(
+            {"interface": "DeeplinkInterface.v1_0.DeeplinkClientInformation", "deeplink": f"/albums/{album_asin}"}
+        )
+        resp = client.post(
+            f"{amc.api_base()}{amc.SHOW_HOME_PATH}",
+            content=json.dumps({"deeplink": deeplink_field, "headers": headers_field}),
+            headers={"Content-Type": "text/plain;charset=UTF-8"},
+        )
+        if resp.status_code in (401, 403):
+            raise amc.AmazonMusicAuthError("Amazon rejected the stored login. Reconnect Audible in Settings.")
+        if resp.status_code >= 400:
+            detail = (resp.text or "").strip()[:400]
+            raise AmazonMusicRequestError(f"Amazon returned {resp.status_code} for {amc.SHOW_HOME_PATH}: {detail}")
+        resp.raise_for_status()
+        payload = resp.json()
+
+    titles = amc.parse_catalog_album_track_titles(payload)
+
+    rows = db.query(AmazonMusicTrack).filter(AmazonMusicTrack.album_asin == album_asin).all()
+    by_title: dict[str, list[AmazonMusicTrack]] = {}
+    for row in rows:
+        by_title.setdefault(row.title, []).append(row)
+        row.track_number = None
+
+    matched = 0
+    for position, title in enumerate(titles, start=1):
+        for row in by_title.get(title, []):
+            row.track_number = position
+            matched += 1
+
+    sync_row = db.get(AmazonMusicAlbumCatalogSync, album_asin)
+    if sync_row is None:
+        sync_row = AmazonMusicAlbumCatalogSync(album_asin=album_asin)
+        db.add(sync_row)
+    sync_row.synced_at = datetime.utcnow()
+    sync_row.tracks_found = len(titles)
+    sync_row.tracks_matched = matched
+    db.commit()
+
+    return {"tracks_found": len(titles), "tracks_matched": matched, "total_tracks": len(rows)}

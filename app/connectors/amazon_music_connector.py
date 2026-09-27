@@ -40,6 +40,11 @@ from app.config import settings
 API_HOST = "https://na.web.skill.music.a2z.com"
 PURCHASED_TRACKS_PATH = "/api/showPurchasedTracks"
 DOWNLOAD_TRACK_PATH = "/api/downloadTrack"
+# Confirmed from a real capture (2026-09-27) of https://music.amazon.com/albums/<asin>:
+# a generic server-driven-UI renderer, not an album-specific endpoint — see
+# amazon_music_sync.sync_album_track_order for the request shape (a "deeplink"
+# field naming the page to render, not sortBy/userHash like the paths above).
+SHOW_HOME_PATH = "/api/showHome"
 
 # Confirmed value from a real request; the sort dropdown also offers A-Z and
 # Z-A. Recently-added is the useful one for an incremental inventory.
@@ -323,3 +328,33 @@ def find_signed_download_url(payload: Any) -> str:
         if (host == "cloudfront.net" or host.endswith(".cloudfront.net")) and "cdoid" in url.params:
             return text
     return ""
+
+
+def parse_catalog_album_track_titles(payload: dict) -> list[str]:
+    """Ordered track titles from a catalog album-detail response (POST
+    /api/showHome with a deeplink of /albums/<asin>), confirmed from a real
+    capture (2026-09-27).
+
+    There is no explicit track-number field anywhere in this response —
+    order is carried purely by position in the track table's own `items`
+    array, which is why this returns a plain ordered list of titles rather
+    than (title, number) pairs; the caller assigns 1-based positions itself
+    from list position, and matches titles back to its own already-synced
+    rows (track_asin was disproven as a reliable per-track key already, so
+    it is not used for matching here either — see that field's own
+    docstring on AmazonMusicTrack).
+
+    Found by walking for the DescriptiveRowItemElement interface
+    specifically, not just any "items" list like parse_tracks_with_yield
+    does for the purchased-library feed: a catalog album page's response
+    also embeds unrelated item lists (site-wide navigation, a "new
+    releases" activity feed for followed artists) using different
+    interfaces entirely, and only this one names an actual track row.
+    """
+    titles = []
+    for node in _walk(payload):
+        if isinstance(node, dict) and str(node.get("interface", "")).endswith("DescriptiveRowItemElement"):
+            title = node.get("primaryText")
+            if isinstance(title, str) and title:
+                titles.append(title)
+    return titles

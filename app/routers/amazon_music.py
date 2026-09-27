@@ -18,6 +18,7 @@ from app.amazon_music import downloader
 from app.connectors.amazon_music_connector import AmazonMusicAuthError
 from app.csrf import require_csrf
 from app.deps import get_db
+from app.models.amazon_music_album_catalog_sync import AmazonMusicAlbumCatalogSync
 from app.models.amazon_music_destination import AmazonMusicDestination
 from app.models.amazon_music_track import AmazonMusicTrack
 from app.ratelimit import RateLimiter, rate_limit
@@ -34,6 +35,11 @@ SORTS = {
     "artist": AmazonMusicTrack.artist.asc(),
     "album": AmazonMusicTrack.album.asc(),
     "duration": AmazonMusicTrack.duration_seconds.asc(),
+    # Unnumbered tracks (no on-demand catalog fetch has run, or this one
+    # wasn't matched) sort last rather than first — SQLite's own default put
+    # NULLs first, ahead of every real track number, which is backwards for
+    # this specific sort.
+    "track_number": AmazonMusicTrack.track_number.asc().nulls_last(),
 }
 
 # "New since last refresh" is relative to the most recent sync, not a fixed
@@ -95,6 +101,20 @@ def _album_summary(db: Session, album_key: str) -> dict | None:
     }
 
 
+def _catalog_sync_status(db: Session, album_key: str) -> dict | None:
+    """Whether/when this album's real track order was last fetched on demand
+    — None for the no-album-asin bucket (there is no single catalog album to
+    look up for a grouping of tracks that each lack one) and for an album
+    that has never been synced this way at all.
+    """
+    if album_key == _NO_ALBUM_KEY:
+        return None
+    row = db.get(AmazonMusicAlbumCatalogSync, album_key)
+    if row is None:
+        return None
+    return {"synced_at": row.synced_at, "tracks_found": row.tracks_found, "tracks_matched": row.tracks_matched}
+
+
 def _context(db: Session, q: str = "", sort: str = "added", show_missing: bool = False, album_key: str = "") -> dict:
     base_query = db.query(AmazonMusicTrack)
     if album_key:
@@ -126,6 +146,7 @@ def _context(db: Session, q: str = "", sort: str = "added", show_missing: bool =
         "show_missing": show_missing,
         "album_key": album_key,
         "album_summary": _album_summary(db, album_key) if album_key else None,
+        "catalog_sync": _catalog_sync_status(db, album_key) if album_key else None,
         "total": base_query.count(),
         "missing_count": base_query.filter(AmazonMusicTrack.missing_since.isnot(None)).count(),
         "new_cutoff": new_cutoff,
@@ -157,6 +178,10 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
         query = query.filter(or_(AmazonMusicTrack.album.ilike(like), AmazonMusicTrack.artist.ilike(like)))
 
     active_ids = {a["download_id"] for a in downloader.get_active_downloads(db)}
+    # One query for every album's sync status, not one per album — this
+    # function already loads every matching track in a single query for the
+    # same reason.
+    order_synced_asins = {row[0] for row in db.query(AmazonMusicAlbumCatalogSync.album_asin).all()}
 
     groups: dict[str, dict] = {}
     # cover_url is a presigned, expiring S3 URL (see AmazonMusicTrack's own
@@ -178,6 +203,7 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
                 "track_count": 0,
                 "missing_count": 0,
                 "downloading": False,
+                "track_order_synced": key in order_synced_asins,
                 "first_seen_at": t.first_seen_at,
             }
         g["track_count"] += 1
@@ -411,6 +437,39 @@ async def download_album(
     return templates.TemplateResponse(
         request, "amazon_music/_albums_table.html", _albums_context(db, q.strip(), sort, show_missing)
     )
+
+
+@router.post("/albums/{album_key}/sync-track-order", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def sync_album_track_order_route(
+    request: Request,
+    album_key: str,
+    q: str = Form(""),
+    sort: str = Form("added"),
+    show_missing: bool = Form(False),
+    db: Session = Depends(get_db),
+):
+    error = None
+    if album_key == _NO_ALBUM_KEY:
+        # No single catalog album to look up for a grouping of tracks that
+        # each lack their own album deep link — nothing sane to fetch.
+        error = "This group isn't a single Amazon album, so there's no track order to fetch for it."
+    else:
+        try:
+            amazon_music_sync.sync_album_track_order(db, album_key)
+        except amazon_music_sync.NotConnectedError as exc:
+            error = str(exc)
+        except AmazonMusicAuthError as exc:
+            error = str(exc)
+        except amazon_music_sync.AmazonMusicRequestError as exc:
+            error = str(exc)
+        except amazon_music_sync.NoTemplateError as exc:
+            error = str(exc)
+        except Exception as exc:
+            error = f"The track-order fetch failed ({type(exc).__name__}). Amazon may have changed this page."
+
+    context = _context(db, q.strip(), sort, show_missing, album_key)
+    context["track_order_error"] = error
+    return templates.TemplateResponse(request, "amazon_music/_table.html", context)
 
 
 # Declared after /downloads/active on purpose: Starlette matches routes in
