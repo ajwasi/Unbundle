@@ -71,13 +71,27 @@ def _album_asin_filter(album_key: str):
 
 
 def _album_summary(db: Session, album_key: str) -> dict | None:
-    row = db.query(AmazonMusicTrack).filter(_album_asin_filter(album_key)).first()
-    if row is None:
+    rows = db.query(AmazonMusicTrack).filter(_album_asin_filter(album_key)).all()
+    if not rows:
         return None
+    # Same freshness-over-first-seen picking as _album_rows — a presigned
+    # cover_url expires, and an arbitrarily-picked row's own one may already
+    # have, even while another track in the same album still has a live one.
+    cover_url = ""
+    cover_refreshed_at = None
+    for t in rows:
+        if not t.cover_url:
+            continue
+        refreshed = t.cover_url_refreshed_at or t.first_seen_at
+        if not cover_url or refreshed > cover_refreshed_at:
+            cover_url = t.cover_url
+            cover_refreshed_at = refreshed
+    row = rows[0]
     return {
         "album_key": album_key,
         "album": row.album or "(Unknown album)",
         "artist": "Various Artists" if row.is_compilation else row.artist,
+        "cover_url": cover_url,
     }
 
 
@@ -131,8 +145,9 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
     A personal purchased library tops out somewhere in the tens of thousands
     of rows at most — well within "load them all and group with a dict"
     territory — and doing it here avoids a GROUP BY query that has no clean
-    way to express "pick any one non-blank cover" or "is any track in this
-    album currently downloading" without real aggregate-function hackiness.
+    way to express "pick the freshest non-blank cover" or "is any track in
+    this album currently downloading" without real aggregate-function
+    hackiness.
     """
     query = db.query(AmazonMusicTrack)
     if not show_missing:
@@ -144,6 +159,13 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
     active_ids = {a["download_id"] for a in downloader.get_active_downloads(db)}
 
     groups: dict[str, dict] = {}
+    # cover_url is a presigned, expiring S3 URL (see AmazonMusicTrack's own
+    # docstring) — picking merely the first non-blank one seen, with no
+    # regard for how recently it was refreshed, can land on one that expired
+    # sync-runs ago even while another track in the same album has a fresh
+    # one. cover_refreshed_at tracks the winning pick's own timestamp per
+    # album so a later, fresher track can still displace an earlier pick.
+    cover_refreshed_at: dict[str, datetime] = {}
     for t in query.all():
         key = _album_key(t.album_asin)
         g = groups.get(key)
@@ -161,8 +183,11 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
         g["track_count"] += 1
         if t.missing_since:
             g["missing_count"] += 1
-        if not g["cover_url"] and t.cover_url:
-            g["cover_url"] = t.cover_url
+        if t.cover_url:
+            refreshed = t.cover_url_refreshed_at or t.first_seen_at
+            if not g["cover_url"] or refreshed > cover_refreshed_at[key]:
+                g["cover_url"] = t.cover_url
+                cover_refreshed_at[key] = refreshed
         if t.download_id in active_ids:
             g["downloading"] = True
         if t.first_seen_at > g["first_seen_at"]:

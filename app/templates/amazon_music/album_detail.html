@@ -2,8 +2,15 @@
 {% block title %}{{ album_summary.album }} — Amazon Music — Unbundle{% endblock %}
 {% block content %}
 <p><a href="/amazon-music">&larr; Back to Albums</a></p>
-<h1>{{ album_summary.album }}</h1>
-<p class="muted">{{ album_summary.artist }} &mdash; {{ total }} track{{ "s" if total != 1 else "" }}</p>
+<div style="display: flex; gap: 1.25rem; align-items: flex-start; margin-bottom: 1rem;">
+  {% if album_summary.cover_url %}
+  <img src="{{ album_summary.cover_url }}" alt="" width="120" height="120" style="border-radius: 6px; flex-shrink: 0;">
+  {% endif %}
+  <div>
+    <h1 style="margin-bottom: 0.2rem;">{{ album_summary.album }}</h1>
+    <p class="muted">{{ album_summary.artist }} &mdash; {{ total }} track{{ "s" if total != 1 else "" }}</p>
+  </div>
+</div>
 
 <div style="margin-bottom: 1rem;">
   <h3 style="margin-bottom: 0.4rem;">Active downloads</h3>

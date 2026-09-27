@@ -37,6 +37,12 @@ def test_page_lists_synced_albums(authed_client, db):
     assert "/amazon-music/albums/B074JM9JHY" in resp.text
 
 
+def test_page_shows_album_cover_art(authed_client, db):
+    _seed(db)  # "Every Breath You Take" carries a real cover_url in the fixture
+    resp = authed_client.get("/amazon-music")
+    assert "<img" in resp.text
+
+
 def test_album_detail_page_lists_its_own_tracks(authed_client, db):
     _seed(db)
     resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
@@ -45,6 +51,15 @@ def test_album_detail_page_lists_its_own_tracks(authed_client, db):
     assert "The Police" in resp.text
     assert "4:13" in resp.text
     assert "The Dance" not in resp.text  # the other album's track stays out
+
+
+def test_album_detail_page_shows_one_cover_and_no_per_row_covers(authed_client, db):
+    _seed(db)  # "Every Breath You Take" carries a real cover_url in the fixture
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+
+    assert resp.text.count("<img") == 1  # the single album-level cover, not one per track
+    assert 'width="120"' in resp.text  # the larger, singular header image
+    assert 'width="40"' not in resp.text  # the old per-row thumbnail size is gone
 
 
 def test_album_detail_page_404s_for_an_unknown_key(authed_client, db):
@@ -476,6 +491,56 @@ def test_album_rows_counts_missing_tracks_without_hiding_the_album(db):
 
     assert rows[0]["track_count"] == 2
     assert rows[0]["missing_count"] == 1
+
+
+def test_album_rows_prefers_the_most_recently_refreshed_cover(db):
+    # The real bug this guards: cover_url is a presigned, expiring URL.
+    # Picking merely the first non-blank one seen (in arbitrary query order)
+    # can land on one that expired sync-runs ago, even while a later-synced
+    # track in the same album has a live one. "First" here is track d1
+    # (added first in _add_two_track_album), but its cover is the *older*
+    # one — the album must still pick d2's fresher cover.
+    stale = datetime(2020, 1, 1)
+    fresh = datetime(2026, 1, 1)
+    _add_two_track_album(
+        db,
+        first={"cover_url": "https://example.invalid/stale.jpg", "cover_url_refreshed_at": stale},
+        second={"cover_url": "https://example.invalid/fresh.jpg", "cover_url_refreshed_at": fresh},
+    )
+
+    rows = amazon_music_router._album_rows(db)
+
+    assert rows[0]["cover_url"] == "https://example.invalid/fresh.jpg"
+
+
+def test_album_rows_keeps_the_fresher_cover_even_when_seen_first(db):
+    # Same as above with the fresh one on the *first*-processed track, to
+    # confirm this is genuinely freshness-based and not just "last one wins".
+    stale = datetime(2020, 1, 1)
+    fresh = datetime(2026, 1, 1)
+    _add_two_track_album(
+        db,
+        first={"cover_url": "https://example.invalid/fresh.jpg", "cover_url_refreshed_at": fresh},
+        second={"cover_url": "https://example.invalid/stale.jpg", "cover_url_refreshed_at": stale},
+    )
+
+    rows = amazon_music_router._album_rows(db)
+
+    assert rows[0]["cover_url"] == "https://example.invalid/fresh.jpg"
+
+
+def test_album_summary_prefers_the_most_recently_refreshed_cover(db):
+    stale = datetime(2020, 1, 1)
+    fresh = datetime(2026, 1, 1)
+    _add_two_track_album(
+        db,
+        first={"cover_url": "https://example.invalid/stale.jpg", "cover_url_refreshed_at": stale},
+        second={"cover_url": "https://example.invalid/fresh.jpg", "cover_url_refreshed_at": fresh},
+    )
+
+    summary = amazon_music_router._album_summary(db, "ALBUM1")
+
+    assert summary["cover_url"] == "https://example.invalid/fresh.jpg"
 
 
 def test_sort_albums_by_track_count_descending():
