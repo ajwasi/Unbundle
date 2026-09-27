@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 from app.amazon_music import downloader
 from app.connectors import amazon_music_connector as amc
 from app.connectors.amazon_music_connector import AmazonMusicAuthError
+from app.models.amazon_music_album_catalog_sync import AmazonMusicAlbumCatalogSync
 from app.models.amazon_music_destination import AmazonMusicDestination
 from app.models.amazon_music_track import AmazonMusicTrack
 from app.routers import amazon_music as amazon_music_router
@@ -118,6 +119,87 @@ def test_album_detail_htmx_request_returns_only_the_table(authed_client, db):
     resp = authed_client.get("/amazon-music/albums/B074JM9JHY", headers={"HX-Request": "true"})
     assert "<html" not in resp.text
     assert 'id="amazon-music-table"' in resp.text
+
+
+# ------------------------------------------------------- on-demand track order
+
+def test_album_detail_page_shows_not_yet_fetched_by_default(authed_client, db):
+    _seed(db)
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+    assert "Track order not yet fetched" in resp.text
+    assert "Sync track order" in resp.text
+    assert "Re-sync" not in resp.text
+
+
+def test_album_detail_page_shows_synced_status_when_present(authed_client, db):
+    _seed(db)
+    db.add(AmazonMusicAlbumCatalogSync(album_asin="B074JM9JHY", tracks_found=1, tracks_matched=1))
+    db.commit()
+
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+    assert "Track order synced" in resp.text
+    assert "1 of 1 tracks matched" in resp.text
+    assert "Re-sync track order" in resp.text
+
+
+def test_no_album_bucket_never_shows_the_track_order_control(authed_client, db):
+    _seed(db)
+    resp = authed_client.get(f"/amazon-music/albums/{amazon_music_router._NO_ALBUM_KEY}")
+    assert "Sync track order" not in resp.text
+
+
+def test_sync_track_order_route_calls_the_sync_function(authed_client, db):
+    _seed(db)
+    with patch.object(sync, "sync_album_track_order", return_value={"tracks_found": 1, "tracks_matched": 1, "total_tracks": 1}) as mock_sync:
+        resp = authed_client.post("/amazon-music/albums/B074JM9JHY/sync-track-order")
+
+    assert resp.status_code == 200
+    mock_sync.assert_called_once_with(db, "B074JM9JHY")
+
+
+def test_sync_track_order_route_surfaces_amazons_error(authed_client, db):
+    _seed(db)
+    with patch.object(sync, "sync_album_track_order", side_effect=sync.AmazonMusicRequestError("Amazon said no")):
+        resp = authed_client.post("/amazon-music/albums/B074JM9JHY/sync-track-order")
+
+    assert resp.status_code == 200
+    assert "Amazon said no" in resp.text
+
+
+def test_sync_track_order_route_rejects_the_no_album_bucket(authed_client, db):
+    _seed(db)
+    with patch.object(sync, "sync_album_track_order") as mock_sync:
+        resp = authed_client.post(f"/amazon-music/albums/{amazon_music_router._NO_ALBUM_KEY}/sync-track-order")
+
+    assert resp.status_code == 200
+    assert "a single Amazon album" in resp.text
+    mock_sync.assert_not_called()
+
+
+def test_table_shows_track_number_and_dash_for_unnumbered(authed_client, db):
+    _seed(db)
+    row = db.get(AmazonMusicTrack, "c64eeeb1-e203-4c0a-9213-43ac6202c74a")
+    row.track_number = 3
+    db.commit()
+    now = datetime.utcnow()
+    db.add(AmazonMusicTrack(
+        download_id="unnumbered", track_asin="Z", album_asin="B074JM9JHY", album="Synchronicity",
+        artist="The Police", title="Unnumbered Bonus Track", first_seen_at=now, last_seen_at=now,
+    ))
+    db.commit()
+
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+    assert ">3<" in resp.text  # the numbered track
+    assert ">—<" in resp.text  # the one with no track_number
+
+
+def test_page_shows_ordered_badge_for_a_synced_album(authed_client, db):
+    _seed(db)
+    db.add(AmazonMusicAlbumCatalogSync(album_asin="B074JM9JHY", tracks_found=1, tracks_matched=1))
+    db.commit()
+
+    resp = authed_client.get("/amazon-music")
+    assert "Ordered" in resp.text
 
 
 def test_refresh_reports_a_successful_sync(authed_client, db):

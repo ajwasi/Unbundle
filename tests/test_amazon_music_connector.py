@@ -248,3 +248,70 @@ def test_find_signed_download_url_requires_cdoid_as_a_real_param():
     # other parameter's value (not its own key) is not the real delivery URL.
     not_quite = "https://d1.cloudfront.net/track.mp3?note=cdoid=fake"
     assert amc.find_signed_download_url({"url": not_quite}) == ""
+
+
+# ---------------------------------------------- catalog album track order
+
+def test_parse_catalog_album_track_titles_returns_titles_in_order():
+    payload = {
+        "methods": [
+            {
+                "interface": "TemplateListInterface.v1_0.CreateAndBindTemplateMethod",
+                "template": {
+                    "interface": "Web.TemplatesInterface.v1_0.Touch.DetailTemplateInterface.DetailTemplate",
+                    "headerText": {"text": "Big Brahms Box"},
+                    "widgets": [
+                        {
+                            "interface": "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveTableWidgetElement",
+                            "items": [
+                                {
+                                    "interface": "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveRowItemElement",
+                                    "primaryText": "Academic Festival Overture in C minor, Op. 80",
+                                },
+                                {
+                                    "interface": "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveRowItemElement",
+                                    "primaryText": "Tragic Overture, Op. 81",
+                                },
+                            ],
+                        }
+                    ],
+                },
+            }
+        ]
+    }
+    assert amc.parse_catalog_album_track_titles(payload) == [
+        "Academic Festival Overture in C minor, Op. 80",
+        "Tragic Overture, Op. 81",
+    ]
+
+
+def test_parse_catalog_album_track_titles_ignores_unrelated_item_shapes():
+    # A catalog album page's response also embeds unrelated item lists (site
+    # navigation, an activity feed of new releases) using different
+    # interfaces entirely — those must not be mistaken for track rows.
+    payload = {
+        "activityFeed": {
+            "items": [
+                {
+                    "interface": "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.SquareHorizontalItemElement",
+                    "primaryText": {"text": "New Album"},
+                    "secondaryText": "Some Artist - Some Album",
+                },
+            ]
+        },
+        "widgets": [
+            {
+                "items": [
+                    {
+                        "interface": "Web.TemplatesInterface.v1_0.Touch.WidgetsInterface.DescriptiveRowItemElement",
+                        "primaryText": "Real Track",
+                    },
+                ]
+            }
+        ],
+    }
+    assert amc.parse_catalog_album_track_titles(payload) == ["Real Track"]
+
+
+def test_parse_catalog_album_track_titles_returns_empty_when_absent():
+    assert amc.parse_catalog_album_track_titles({"template": {"widgets": []}}) == []
