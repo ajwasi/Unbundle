@@ -252,11 +252,13 @@ def test_refresh_reports_no_diagnostic_when_tracks_are_found(db):
     )
 
     with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
-        "httpx.Client.post", side_effect=[real_page, last_page]
+        "httpx.Client.post", side_effect=[real_page, last_page, real_page, last_page]
     ), patch("time.sleep"):
         result = sync.refresh_purchased_tracks(db)
 
-    assert result["pages"] == 2
+    # Two pages per pass, two passes (RECENTLY_ADDED, then the confirmed
+    # alternate sort) — see refresh_purchased_tracks' own docstring for why.
+    assert result["pages"] == 4
     assert result["tracks_seen"] == 2
     assert "diagnostic" not in result
 
@@ -316,7 +318,7 @@ def test_refresh_reports_candidates_and_unmatched_shapes_for_a_low_yield_page(db
         result = sync.refresh_purchased_tracks(db)
 
     assert result["tracks_seen"] == 1
-    assert result["candidates_seen"] == 3
+    assert result["candidates_seen"] == 6  # the same page's 3 candidates, once per pass
     assert "diagnostic" not in result  # tracks were found — the total-failure path is a different case
     assert result["unmatched_item_shapes"] == [["onCheckboxSelected", "primaryText"]]
 
@@ -352,7 +354,7 @@ def test_refresh_reports_no_unmatched_shapes_when_every_row_matches(db):
     ):
         result = sync.refresh_purchased_tracks(db)
 
-    assert result["candidates_seen"] == 1
+    assert result["candidates_seen"] == 2  # the same page's 1 candidate, once per pass
     assert result["tracks_seen"] == 1
     assert "unmatched_item_shapes" not in result
 
@@ -397,10 +399,87 @@ def test_refresh_no_longer_collapses_rows_that_share_an_asin(db):
     ):
         result = sync.refresh_purchased_tracks(db)
 
-    assert result["candidates_seen"] == 3
+    assert result["candidates_seen"] == 6  # the same page's 3 candidates, once per pass
     assert result["tracks_seen"] == 3  # no longer collapsed to the shared ASIN
     assert result["new"] == 3
     assert "unmatched_item_shapes" not in result  # every row matched something
 
     stored_asins = {row.track_asin for row in db.query(AmazonMusicTrack).all()}
     assert stored_asins == {"B076HFF4Q3"}  # ASIN kept as metadata, just not identity
+
+
+# ------------------------------------------------------------- two-pass sync
+
+def _page_with(download_uuid: str) -> dict:
+    return {
+        "items": [
+            {
+                "primaryText": "T",
+                "button": {"observer": {"storageKey": "B076HFF4Q3", "storageGroup": "TRACK_RATINGS"}},
+                "onCheckboxSelected": {"states": {download_uuid: {}}},
+            }
+        ]
+    }
+
+
+def test_a_second_pass_with_a_different_sort_reaches_extra_tracks(db):
+    # The real motivation: a single sortBy's pagination has been observed to
+    # stop cleanly around 10,000 rows on a library confirmed larger than
+    # that. A second, differently-sorted pass over the same library can
+    # reach rows the first pass's own cutoff never did — this proves that
+    # merge actually happens and is counted, using the two sortBy values
+    # confirmed from real captures (RECENTLY_ADDED, then the alternate
+    # sort's confirmed value amc.SORT_NONE) rather than assuming either.
+    _connect_audible_for_sync(db)
+    tmpl.save_template(
+        db,
+        tmpl.SyncTemplate(
+            path=amc.PURCHASED_TRACKS_PATH,
+            headers_field=json.dumps({"x-amzn-authentication": json.dumps({"accessToken": "OLD"})}),
+            user_hash="{}",
+            captured_at="now",
+        ),
+    )
+
+    def _fake_post(self, url, content=None, **kwargs):
+        body = json.loads(content)
+        if body["sortBy"] == amc.SORT_RECENTLY_ADDED:
+            payload = _page_with("aaaaaaaa-0000-0000-0000-000000000000")
+        elif body["sortBy"] == amc.SORT_NONE:
+            payload = _page_with("bbbbbbbb-1111-1111-1111-111111111111")
+        else:
+            raise AssertionError(f"unexpected sortBy: {body['sortBy']!r}")
+        return httpx.Response(200, json=payload, request=httpx.Request("POST", url))
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", _fake_post
+    ):
+        result = sync.refresh_purchased_tracks(db)
+
+    assert result["tracks_seen"] == 2
+    assert result["second_pass_only_tracks"] == 1
+
+
+def test_a_second_pass_that_finds_nothing_new_reports_zero(db):
+    _connect_audible_for_sync(db)
+    tmpl.save_template(
+        db,
+        tmpl.SyncTemplate(
+            path=amc.PURCHASED_TRACKS_PATH,
+            headers_field=json.dumps({"x-amzn-authentication": json.dumps({"accessToken": "OLD"})}),
+            user_hash="{}",
+            captured_at="now",
+        ),
+    )
+
+    # Both passes see the exact same row — nothing for the second pass to add.
+    same_page = httpx.Response(200, json=_page_with("aaaaaaaa-0000-0000-0000-000000000000"),
+                                request=httpx.Request("POST", "https://x/api/showPurchasedTracks"))
+
+    with patch("audible.Authenticator", _Auth), patch("httpx.Client.get", return_value=_config_response()), patch(
+        "httpx.Client.post", return_value=same_page
+    ):
+        result = sync.refresh_purchased_tracks(db)
+
+    assert result["tracks_seen"] == 1
+    assert result["second_pass_only_tracks"] == 0
