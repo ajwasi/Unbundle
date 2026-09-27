@@ -1,118 +1,20 @@
 <div id="amazon-music-table">
-  {% if refresh_error %}<p class="text-error">{{ refresh_error }}</p>{% endif %}
-  {% if refresh_result %}
-  <p>
-    <span class="badge badge-ok">Synced</span>
-    {{ refresh_result.tracks_seen }} track(s) recognised
-    {%- if refresh_result.candidates_seen and refresh_result.candidates_seen != refresh_result.tracks_seen %}
-    out of {{ refresh_result.candidates_seen }} row(s) seen
-    {%- endif %}, over {{ refresh_result.pages }} page(s)
-    &mdash; {{ refresh_result.new }} new, {{ refresh_result.updated }} updated{% if refresh_result.missing %},
-    {{ refresh_result.missing }} no longer listed{% endif %}.
-  </p>
-  {% if refresh_result.candidates_seen and refresh_result.tracks_seen < refresh_result.candidates_seen %}
-  <p class="text-error" style="margin-bottom: 0.4rem;">
-    Most rows on the page were not recognised as tracks. That is more likely a parsing
-    gap than an empty library &mdash; details below are key names only, no title, price
-    or account data.
-  </p>
-  {# Same condition as the warning above, not refresh_result.unmatched_item_shapes on
-     its own — those used to be two independent checks, so the warning could promise
-     "details below" and then show nothing if no unmatched *shape* was captured even
-     though rows were clearly still missing. This block now always appears alongside
-     the warning, and says so plainly when the shape list itself came back empty,
-     since that is a distinct and equally worth-reporting finding: it means the
-     shortfall rows are not being silently skipped, they are all resolving to
-     *something*, just not becoming new or updated tracks. #}
-  <details class="disclosure">
-    <summary>
-      {%- if refresh_result.unmatched_item_shapes -%}
-      Show rows that didn't look like a track ({{ refresh_result.unmatched_item_shapes|length }})
-      {%- else -%}
-      Why no unmatched row shape was captured
-      {%- endif -%}
-    </summary>
-    <div class="scroll-box" style="margin-top: 0.6rem;">
-      {% if refresh_result.unmatched_item_shapes %}
-      {% for shape in refresh_result.unmatched_item_shapes %}
-      <p class="muted" style="font-family: monospace; margin: 0 0 0.5rem;">{{ shape|join(", ") }}</p>
-      {% endfor %}
-      {% else %}
-      <p class="muted">
-        Every row this sync examined produced <em>something</em> recognisable as a track —
-        none were skipped outright — but several of them resolved to the same
-        {{ refresh_result.tracks_seen }} track(s) rather than a distinct one each time. That
-        points at rows picking up a shared or cross-referenced value instead of their own
-        identity, which is a different problem from rows being silently dropped.
-      </p>
-      {% endif %}
-    </div>
-  </details>
-  {% endif %}
-  {% if refresh_result.diagnostic %}
-  {% set d = refresh_result.diagnostic %}
-  <p class="text-error" style="margin-bottom: 0.4rem;">
-    Amazon answered with valid JSON, but nothing in it looked like a track &mdash; the response
-    shape may not match what this app expects. Details below are key names, paths and counts
-    only; no title, price or account data is included.
-  </p>
-  <details class="disclosure">
-    <summary>Show what the response actually contained</summary>
-    <div class="scroll-box" style="margin-top: 0.6rem;">
-      <p><strong>Top-level keys ({{ d.top_level_keys|length }})</strong></p>
-      <p class="muted" style="font-family: monospace;">{{ d.top_level_keys|join(", ") or "(none — not a JSON object)" }}</p>
-
-      {% if d.record_shapes %}
-      <p><strong>Likely data records</strong></p>
-      {% for path, fields in d.record_shapes %}
-      <p style="margin: 0 0 0.6rem;"><code>{{ path }}</code><br><span class="muted">{{ fields|join(", ") }}</span></p>
-      {% endfor %}
-      {% endif %}
-
-      {% if d.collection_sizes %}
-      <p><strong>Collection sizes</strong></p>
-      <pre>{{ d.collection_sizes|join("\n") }}</pre>
-      {% endif %}
-
-      {% if d.endpoints %}
-      <p><strong>API endpoints referenced</strong></p>
-      <pre>{{ d.endpoints|join("\n") }}</pre>
-      {% endif %}
-    </div>
-  </details>
-  {% endif %}
-  {% endif %}
-
-  <div class="toolbar">
-    <form hx-post="/amazon-music/refresh" hx-target="#amazon-music-table" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
-      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-      <input type="hidden" name="q" value="{{ q }}">
-      <input type="hidden" name="sort" value="{{ sort }}">
-      <button type="submit">Sync Amazon Music</button>
-      <span class="muted htmx-indicator">Syncing&hellip; this pages through your whole library.</span>
-    </form>
-    <span class="muted">
-      {% if last_synced %}Last synced <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% else %}Never synced{% endif %}
-    </span>
-  </div>
-
   <div class="toolbar">
     <input type="search" id="music-q" name="q" value="{{ q }}" placeholder="Search title, artist, album"
-           hx-get="/amazon-music" hx-trigger="keyup changed delay:300ms, search"
+           hx-get="/amazon-music/albums/{{ album_key }}" hx-trigger="keyup changed delay:300ms, search"
            hx-target="#amazon-music-table" hx-swap="outerHTML"
            hx-include="#music-sort,#music-show-missing" style="flex: 1; max-width: 22rem;">
-    <select id="music-sort" name="sort" hx-get="/amazon-music" hx-trigger="change"
+    <select id="music-sort" name="sort" hx-get="/amazon-music/albums/{{ album_key }}" hx-trigger="change"
             hx-target="#amazon-music-table" hx-swap="outerHTML" hx-include="#music-q,#music-show-missing">
       <option value="added" {{ "selected" if sort == "added" else "" }}>Recently added</option>
       <option value="title" {{ "selected" if sort == "title" else "" }}>Title</option>
       <option value="artist" {{ "selected" if sort == "artist" else "" }}>Artist</option>
-      <option value="album" {{ "selected" if sort == "album" else "" }}>Album</option>
       <option value="duration" {{ "selected" if sort == "duration" else "" }}>Duration</option>
     </select>
     {% if missing_count %}
     <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
       <input type="checkbox" id="music-show-missing" name="show_missing" value="true" {{ "checked" if show_missing else "" }}
-             hx-get="/amazon-music" hx-trigger="change" hx-target="#amazon-music-table" hx-swap="outerHTML"
+             hx-get="/amazon-music/albums/{{ album_key }}" hx-trigger="change" hx-target="#amazon-music-table" hx-swap="outerHTML"
              hx-include="#music-q,#music-sort">
       Show {{ missing_count }} no longer listed
     </label>
@@ -125,6 +27,7 @@
     <input type="hidden" name="q" value="{{ q }}">
     <input type="hidden" name="sort" value="{{ sort }}">
     <input type="hidden" name="show_missing" value="{{ 'true' if show_missing else '' }}">
+    <input type="hidden" name="album_key" value="{{ album_key }}">
     {% if tracks %}
     <div class="toolbar" style="margin-bottom: 0.5rem;">
       <button type="submit" id="music-download-selected-btn" disabled>Download selected</button>
@@ -172,7 +75,7 @@
             {% else %}
             <button type="button" class="secondary" style="padding: 0.15rem 0.5rem; font-size: 0.85em;"
                     hx-post="/amazon-music/downloads/{{ t.download_id }}" hx-target="#amazon-music-table" hx-swap="outerHTML"
-                    hx-include="#music-download-form input[name=csrf_token], #music-download-form input[name=q], #music-download-form input[name=sort]">
+                    hx-include="#music-download-form input[name=csrf_token], #music-download-form input[name=q], #music-download-form input[name=sort], #music-download-form input[name=album_key]">
               Download
             </button>
             {% endif %}

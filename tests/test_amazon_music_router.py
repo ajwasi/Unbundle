@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -7,6 +8,7 @@ from app.connectors import amazon_music_connector as amc
 from app.connectors.amazon_music_connector import AmazonMusicAuthError
 from app.models.amazon_music_destination import AmazonMusicDestination
 from app.models.amazon_music_track import AmazonMusicTrack
+from app.routers import amazon_music as amazon_music_router
 from app.sync import amazon_music_sync as sync
 
 FIXTURE = Path(__file__).parent / "fixtures" / "amazon_music_purchased_tracks.json"
@@ -26,37 +28,79 @@ def test_empty_state_points_at_the_sync_button(authed_client):
     assert "Nothing synced yet" in resp.text
 
 
-def test_page_lists_synced_tracks(authed_client, db):
+def test_page_lists_synced_albums(authed_client, db):
     _seed(db)
     resp = authed_client.get("/amazon-music")
+    assert "Synchronicity" in resp.text
+    assert "The Police" in resp.text
+    assert "No Fences" in resp.text
+    assert "/amazon-music/albums/B074JM9JHY" in resp.text
+
+
+def test_album_detail_page_lists_its_own_tracks(authed_client, db):
+    _seed(db)
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+    assert resp.status_code == 200
     assert "Every Breath You Take" in resp.text
     assert "The Police" in resp.text
-    assert "Synchronicity" in resp.text
     assert "4:13" in resp.text
+    assert "The Dance" not in resp.text  # the other album's track stays out
 
 
-def test_search_matches_title_artist_and_album(authed_client, db):
+def test_album_detail_page_404s_for_an_unknown_key(authed_client, db):
     _seed(db)
-    assert "Every Breath" in authed_client.get("/amazon-music", params={"q": "police"}).text
-    assert "Every Breath" in authed_client.get("/amazon-music", params={"q": "synchron"}).text
-    assert "Every Breath" not in authed_client.get("/amazon-music", params={"q": "garth"}).text
+    resp = authed_client.get("/amazon-music/albums/NOTAREALASIN")
+    assert resp.status_code == 404
 
 
-def test_missing_tracks_are_hidden_until_asked_for(authed_client, db):
+def test_search_matches_album_or_artist(authed_client, db):
     _seed(db)
-    sync.flag_missing(db, {"c64eeeb1-e203-4c0a-9213-43ac6202c74a"})  # "Every Breath You Take"'s download_id
+    assert "Synchronicity" in authed_client.get("/amazon-music", params={"q": "police"}).text
+    assert "Synchronicity" in authed_client.get("/amazon-music", params={"q": "synchron"}).text
+    assert "Synchronicity" not in authed_client.get("/amazon-music", params={"q": "garth"}).text
+
+
+def test_album_detail_search_matches_title(authed_client, db):
+    _seed(db)
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY", params={"q": "every breath"})
+    assert "Every Breath You Take" in resp.text
+
+
+def test_missing_only_album_is_hidden_until_asked_for(authed_client, db):
+    _seed(db)
+    sync.flag_missing(db, {"c64eeeb1-e203-4c0a-9213-43ac6202c74a"})  # marks "The Dance" (No Fences) missing
 
     hidden = authed_client.get("/amazon-music")
-    assert "The Dance" not in hidden.text
+    assert "No Fences" not in hidden.text
+    assert "Synchronicity" in hidden.text
     assert "no longer listed" in hidden.text  # the toggle label
 
     shown = authed_client.get("/amazon-music", params={"show_missing": "true"})
+    assert "No Fences" in shown.text
+
+
+def test_missing_tracks_within_an_album_are_hidden_until_asked_for(authed_client, db):
+    _seed(db)
+    sync.flag_missing(db, {"c64eeeb1-e203-4c0a-9213-43ac6202c74a"})  # marks "The Dance" missing
+
+    hidden = authed_client.get("/amazon-music/albums/B076HBKJ6J")  # No Fences
+    assert "The Dance" not in hidden.text
+    assert "no longer listed" in hidden.text
+
+    shown = authed_client.get("/amazon-music/albums/B076HBKJ6J", params={"show_missing": "true"})
     assert "The Dance" in shown.text
 
 
 def test_htmx_request_returns_only_the_table(authed_client, db):
     _seed(db)
     resp = authed_client.get("/amazon-music", headers={"HX-Request": "true"})
+    assert "<html" not in resp.text
+    assert 'id="amazon-music-table"' in resp.text
+
+
+def test_album_detail_htmx_request_returns_only_the_table(authed_client, db):
+    _seed(db)
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY", headers={"HX-Request": "true"})
     assert "<html" not in resp.text
     assert 'id="amazon-music-table"' in resp.text
 
@@ -266,7 +310,27 @@ def test_active_downloads_endpoint_renders_the_polling_partial(authed_client, db
     assert "Downloading" in resp.text
 
 
-def test_table_shows_a_downloading_badge_instead_of_the_button_for_active_tracks(authed_client, db):
+def test_album_page_shows_a_downloading_badge_instead_of_the_button_for_active_tracks(authed_client, db):
+    _seed(db)
+    fake_active = [
+        {
+            "id": 1,
+            "download_id": "c64eeeb1-e203-4c0a-9213-43ac6202c74a",
+            "title": "Every Breath You Take",
+            "artist": "The Police",
+            "status": "queued",
+            "progress_bytes": 0,
+            "expected_size_bytes": None,
+        }
+    ]
+    with patch.object(downloader, "get_active_downloads", return_value=fake_active):
+        resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+
+    assert "/amazon-music/downloads/c64eeeb1-e203-4c0a-9213-43ac6202c74a" not in resp.text
+    assert "Downloading" in resp.text
+
+
+def test_main_page_shows_a_downloading_badge_for_an_album_with_an_active_track(authed_client, db):
     _seed(db)
     fake_active = [
         {
@@ -282,7 +346,130 @@ def test_table_shows_a_downloading_badge_instead_of_the_button_for_active_tracks
     with patch.object(downloader, "get_active_downloads", return_value=fake_active):
         resp = authed_client.get("/amazon-music")
 
-    # The active track's own per-row Download button is gone (replaced by a
-    # badge); the other, unrelated track's button is still there.
-    assert "/amazon-music/downloads/c64eeeb1-e203-4c0a-9213-43ac6202c74a" not in resp.text
-    assert "/amazon-music/downloads/a941e672-3d37-43df-9c99-3232473fdf27" in resp.text
+    # The active track's album has no per-album Download button anymore
+    # (replaced by a badge); the other, unrelated album's button is still there.
+    assert "/amazon-music/albums/B074JM9JHY/download" not in resp.text
+    assert "/amazon-music/albums/B076HBKJ6J/download" in resp.text
+
+
+# ---------------------------------------------------------- album downloads
+
+def test_download_album_queues_all_its_tracks(authed_client, db):
+    _seed(db)
+    with patch.object(downloader, "queue_many", new=AsyncMock()) as mock_queue:
+        resp = authed_client.post("/amazon-music/albums/B074JM9JHY/download")
+
+    assert resp.status_code == 200
+    mock_queue.assert_awaited_once()
+    assert mock_queue.call_args.args[1] == ["c64eeeb1-e203-4c0a-9213-43ac6202c74a"]
+
+
+def test_album_downloads_with_a_selection_queues_only_those_albums(authed_client, db):
+    _seed(db)
+    with patch.object(downloader, "queue_many", new=AsyncMock()) as mock_queue:
+        resp = authed_client.post("/amazon-music/albums/downloads", data={"album_key": ["B074JM9JHY"]})
+
+    assert resp.status_code == 200
+    mock_queue.assert_awaited_once()
+    assert mock_queue.call_args.args[1] == ["c64eeeb1-e203-4c0a-9213-43ac6202c74a"]
+
+
+def test_album_downloads_with_no_selection_queues_every_track(authed_client, db):
+    _seed(db)
+    with patch.object(downloader, "queue_many", new=AsyncMock()) as mock_queue:
+        resp = authed_client.post("/amazon-music/albums/downloads")
+
+    assert resp.status_code == 200
+    mock_queue.assert_awaited_once()
+    queued = set(mock_queue.call_args.args[1])
+    assert queued == {"c64eeeb1-e203-4c0a-9213-43ac6202c74a", "a941e672-3d37-43df-9c99-3232473fdf27"}
+
+
+def test_album_downloads_search_scopes_the_no_selection_case(authed_client, db):
+    _seed(db)
+    with patch.object(downloader, "queue_many", new=AsyncMock()) as mock_queue:
+        resp = authed_client.post("/amazon-music/albums/downloads", data={"q": "police"})
+
+    assert resp.status_code == 200
+    mock_queue.assert_awaited_once()
+    assert mock_queue.call_args.args[1] == ["c64eeeb1-e203-4c0a-9213-43ac6202c74a"]
+
+
+# ------------------------------------------------------------- album rows
+
+def _add_two_track_album(db, album_asin="ALBUM1", **overrides):
+    now = datetime.utcnow()
+    defaults = {"is_compilation": False, "cover_url": ""}
+    first = {"download_id": "d1", "track_asin": "A1", "album_asin": album_asin, "album": "Greatest Hits",
+             "artist": "Artist One", "title": "Song A", "first_seen_at": now, "last_seen_at": now}
+    second = {"download_id": "d2", "track_asin": "A2", "album_asin": album_asin, "album": "Greatest Hits",
+              "artist": "Artist One", "title": "Song B", "first_seen_at": now, "last_seen_at": now}
+    first.update(defaults)
+    second.update(defaults)
+    first.update(overrides.get("first", {}))
+    second.update(overrides.get("second", {}))
+    db.add(AmazonMusicTrack(**first))
+    db.add(AmazonMusicTrack(**second))
+    db.commit()
+
+
+def test_album_rows_groups_by_album_asin_and_counts_tracks(db):
+    _add_two_track_album(db, first={"cover_url": "https://example.invalid/a.jpg"})
+
+    rows = amazon_music_router._album_rows(db)
+
+    assert len(rows) == 1
+    album = rows[0]
+    assert album["album_key"] == "ALBUM1"
+    assert album["track_count"] == 2
+    assert album["cover_url"] == "https://example.invalid/a.jpg"
+    assert album["artist"] == "Artist One"
+
+
+def test_album_rows_buckets_tracks_with_no_album_asin_together(db):
+    _add_two_track_album(db, album_asin="")
+
+    rows = amazon_music_router._album_rows(db)
+
+    assert len(rows) == 1
+    assert rows[0]["album_key"] == amazon_music_router._NO_ALBUM_KEY
+    assert rows[0]["track_count"] == 2
+
+
+def test_album_rows_shows_various_artists_for_a_compilation(db):
+    _add_two_track_album(
+        db,
+        first={"artist": "Artist One", "is_compilation": True},
+        second={"artist": "Artist Two", "is_compilation": True},
+    )
+
+    rows = amazon_music_router._album_rows(db)
+
+    assert rows[0]["artist"] == "Various Artists"
+
+
+def test_album_rows_counts_missing_tracks_without_hiding_the_album(db):
+    _add_two_track_album(db)
+    db.get(AmazonMusicTrack, "d2").missing_since = datetime.utcnow()
+    db.commit()
+
+    rows = amazon_music_router._album_rows(db, show_missing=True)
+
+    assert rows[0]["track_count"] == 2
+    assert rows[0]["missing_count"] == 1
+
+
+def test_sort_albums_by_track_count_descending():
+    albums = [
+        {"album": "A", "artist": "X", "track_count": 1, "first_seen_at": datetime(2020, 1, 1)},
+        {"album": "B", "artist": "Y", "track_count": 5, "first_seen_at": datetime(2020, 1, 1)},
+    ]
+    assert [a["album"] for a in amazon_music_router._sort_albums(albums, "tracks")] == ["B", "A"]
+
+
+def test_sort_albums_by_name():
+    albums = [
+        {"album": "Zebra", "artist": "X", "track_count": 1, "first_seen_at": datetime(2020, 1, 1)},
+        {"album": "Apple", "artist": "Y", "track_count": 1, "first_seen_at": datetime(2020, 1, 1)},
+    ]
+    assert [a["album"] for a in amazon_music_router._sort_albums(albums, "album")] == ["Apple", "Zebra"]

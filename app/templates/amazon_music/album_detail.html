@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ album_summary.album }} — Amazon Music — Unbundle{% endblock %}
+{% block content %}
+<p><a href="/amazon-music">&larr; Back to Albums</a></p>
+<h1>{{ album_summary.album }}</h1>
+<p class="muted">{{ album_summary.artist }} &mdash; {{ total }} track{{ "s" if total != 1 else "" }}</p>
+
+<div style="margin-bottom: 1rem;">
+  <h3 style="margin-bottom: 0.4rem;">Active downloads</h3>
+  {% include "amazon_music/_active_downloads.html" %}
+</div>
+
+{% include "amazon_music/_table.html" %}
+{% endblock %}
