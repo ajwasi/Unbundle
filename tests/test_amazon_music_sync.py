@@ -20,6 +20,10 @@ def _tracks():
     return amc.parse_tracks(json.loads(FIXTURE.read_text(encoding="utf-8")))
 
 
+_TRACK_1_ID = "c64eeeb1-e203-4c0a-9213-43ac6202c74a"
+_TRACK_2_ID = "a941e672-3d37-43df-9c99-3232473fdf27"
+
+
 def test_upsert_inserts_then_updates(db):
     new, updated = sync.upsert_tracks(db, _tracks())
     assert (new, updated) == (2, 0)
@@ -31,57 +35,57 @@ def test_upsert_inserts_then_updates(db):
 
 def test_upsert_stores_the_mapped_fields(db):
     sync.upsert_tracks(db, _tracks())
-    row = db.get(AmazonMusicTrack, "B076HFF4Q3")
+    row = db.get(AmazonMusicTrack, _TRACK_1_ID)
 
     assert row.title == "Every Breath You Take"
     assert row.album_asin == "B074JM9JHY"
-    assert row.download_id == "c64eeeb1-e203-4c0a-9213-43ac6202c74a"
+    assert row.track_asin == "B076HFF4Q3"
     assert row.duration_seconds == 253
     assert row.cover_url_refreshed_at is not None
 
 
 def test_a_blank_cover_never_overwrites_a_good_one(db):
     sync.upsert_tracks(db, _tracks())
-    row = db.get(AmazonMusicTrack, "B07BFJR1HC")
+    row = db.get(AmazonMusicTrack, _TRACK_2_ID)
     assert row.cover_url == ""  # fixture row has no image
 
     row.cover_url = "https://example.invalid/art.jpg"
     db.commit()
     sync.upsert_tracks(db, _tracks())
-    assert db.get(AmazonMusicTrack, "B07BFJR1HC").cover_url == "https://example.invalid/art.jpg"
+    assert db.get(AmazonMusicTrack, _TRACK_2_ID).cover_url == "https://example.invalid/art.jpg"
 
 
 def test_missing_tracks_are_flagged_not_deleted(db):
     sync.upsert_tracks(db, _tracks())
-    flagged = sync.flag_missing(db, {"B076HFF4Q3"})
+    flagged = sync.flag_missing(db, {_TRACK_1_ID})
 
     assert flagged == 1
     assert db.query(AmazonMusicTrack).count() == 2  # nothing deleted
-    assert db.get(AmazonMusicTrack, "B07BFJR1HC").missing_since is not None
-    assert db.get(AmazonMusicTrack, "B076HFF4Q3").missing_since is None
+    assert db.get(AmazonMusicTrack, _TRACK_2_ID).missing_since is not None
+    assert db.get(AmazonMusicTrack, _TRACK_1_ID).missing_since is None
 
 
 def test_a_track_that_reappears_is_unflagged(db):
     sync.upsert_tracks(db, _tracks())
     sync.flag_missing(db, set())
-    assert db.get(AmazonMusicTrack, "B076HFF4Q3").missing_since is not None
+    assert db.get(AmazonMusicTrack, _TRACK_1_ID).missing_since is not None
 
     sync.upsert_tracks(db, _tracks())
-    assert db.get(AmazonMusicTrack, "B076HFF4Q3").missing_since is None
+    assert db.get(AmazonMusicTrack, _TRACK_1_ID).missing_since is None
 
 
 def test_an_album_with_one_artist_is_not_a_compilation(db):
     sync.upsert_tracks(db, _tracks())
     sync.mark_compilations(db)
-    assert db.get(AmazonMusicTrack, "B076HFF4Q3").is_compilation is False
+    assert db.get(AmazonMusicTrack, _TRACK_1_ID).is_compilation is False
 
 
 def test_an_album_whose_tracks_disagree_about_the_artist_is_a_compilation(db):
     now = datetime.utcnow()
-    for asin, artist in (("T1", "Artist One"), ("T2", "Artist Two")):
+    for uid, artist in (("T1", "Artist One"), ("T2", "Artist Two")):
         db.add(
             AmazonMusicTrack(
-                track_asin=asin, album_asin="COMPILATION", artist=artist, first_seen_at=now, last_seen_at=now
+                download_id=uid, track_asin=uid, album_asin="COMPILATION", artist=artist, first_seen_at=now, last_seen_at=now
             )
         )
     db.commit()
@@ -315,7 +319,9 @@ def test_refresh_reports_candidates_and_unmatched_shapes_for_a_low_yield_page(db
                                                 "storageGroup": "TRACK_RATINGS",
                                             }
                                         },
-                                        "onCheckboxSelected": {"states": {}},
+                                        "onCheckboxSelected": {
+                                            "states": {"c64eeeb1-e203-4c0a-9213-43ac6202c74a": {}}
+                                        },
                                     },
                                     {"primaryText": "No asin here", "onCheckboxSelected": {"states": {}}},
                                     {"primaryText": "Also no asin", "onCheckboxSelected": {"states": {}}},
@@ -359,7 +365,7 @@ def test_refresh_reports_no_unmatched_shapes_when_every_row_matches(db):
                 {
                     "primaryText": "T",
                     "button": {"observer": {"storageKey": "B076HFF4Q3", "storageGroup": "TRACK_RATINGS"}},
-                    "onCheckboxSelected": {"states": {}},
+                    "onCheckboxSelected": {"states": {"c64eeeb1-e203-4c0a-9213-43ac6202c74a": {}}},
                 }
             ]
         },
@@ -376,12 +382,11 @@ def test_refresh_reports_no_unmatched_shapes_when_every_row_matches(db):
     assert "unmatched_item_shapes" not in result
 
 
-def test_refresh_flags_a_shared_asin_via_the_download_id_mismatch(db):
-    # The exact live symptom that motivated this: thousands of rows, each
-    # with its own distinct download_id, all resolving to the same handful
-    # of ASINs — every row "matches" (no unmatched shapes), yet tracks_seen
-    # stays tiny. download_ids_seen is what makes that visible instead of
-    # looking identical to a genuinely small library.
+def test_refresh_no_longer_collapses_rows_that_share_an_asin(db):
+    # The exact live symptom that motivated the identity switch: thousands of
+    # rows, each with its own distinct download_id, all resolving to the same
+    # handful of storage-key ASINs. Deduping by download_id instead means
+    # these three stay three tracks — not one overwritten 234 times.
     _connect_audible_for_sync(db)
     tmpl.save_template(
         db,
@@ -418,6 +423,9 @@ def test_refresh_flags_a_shared_asin_via_the_download_id_mismatch(db):
         result = sync.refresh_purchased_tracks(db)
 
     assert result["candidates_seen"] == 3
-    assert result["tracks_seen"] == 1  # all three collapse to the one ASIN
+    assert result["tracks_seen"] == 3  # no longer collapsed to the shared ASIN
+    assert result["new"] == 3
     assert "unmatched_item_shapes" not in result  # every row matched something
-    assert result["download_ids_seen"] == 3  # but each row had its own identity
+
+    stored_asins = {row.track_asin for row in db.query(AmazonMusicTrack).all()}
+    assert stored_asins == {"B076HFF4Q3"}  # ASIN kept as metadata, just not identity

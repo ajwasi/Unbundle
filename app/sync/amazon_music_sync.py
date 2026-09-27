@@ -169,14 +169,14 @@ def upsert_tracks(db: Session, tracks: list[amc.PurchasedTrack], now: datetime |
     now = now or datetime.utcnow()
     new = updated = 0
     for parsed in tracks:
-        row = db.get(AmazonMusicTrack, parsed.track_asin)
+        row = db.get(AmazonMusicTrack, parsed.download_id)
         if row is None:
-            row = AmazonMusicTrack(track_asin=parsed.track_asin, first_seen_at=now)
+            row = AmazonMusicTrack(download_id=parsed.download_id, first_seen_at=now)
             db.add(row)
             new += 1
         else:
             updated += 1
-        row.download_id = parsed.download_id
+        row.track_asin = parsed.track_asin
         row.title = parsed.title
         row.artist = parsed.artist
         row.artist_asin = parsed.artist_asin
@@ -195,11 +195,11 @@ def upsert_tracks(db: Session, tracks: list[amc.PurchasedTrack], now: datetime |
     return new, updated
 
 
-def flag_missing(db: Session, seen_asins: set[str], now: datetime | None = None) -> int:
+def flag_missing(db: Session, seen_ids: set[str], now: datetime | None = None) -> int:
     now = now or datetime.utcnow()
     query = db.query(AmazonMusicTrack).filter(AmazonMusicTrack.missing_since.is_(None))
-    if seen_asins:
-        query = query.filter(~AmazonMusicTrack.track_asin.in_(seen_asins))
+    if seen_ids:
+        query = query.filter(~AmazonMusicTrack.download_id.in_(seen_ids))
     stale = query.all()
     for row in stale:
         row.missing_since = now
@@ -269,13 +269,11 @@ def refresh_purchased_tracks(db: Session) -> dict:
         diagnostic = None
         candidates_total = 0
         unmatched_shapes: list[list[str]] = []
-        download_ids_seen: set[str] = set()
         while pages < MAX_PAGES:
             payload = _fetch_page(client, amc.api_base(), headers_field, template.user_hash, cursor)
-            tracks, candidates, page_unmatched, page_download_ids = amc.parse_tracks_with_yield(payload)
+            tracks, candidates, page_unmatched = amc.parse_tracks_with_yield(payload)
             pages += 1
             candidates_total += candidates
-            download_ids_seen.update(page_download_ids)
             # Kept across pages up to the function's own limit, not reset per
             # page: a shape that recurs on every page is one sample, not
             # dozens of the same thing.
@@ -287,7 +285,7 @@ def refresh_purchased_tracks(db: Session) -> dict:
                 new, updated = upsert_tracks(db, tracks, started)
                 new_total += new
                 updated_total += updated
-                seen.update(t.track_asin for t in tracks)
+                seen.update(t.download_id for t in tracks)
             elif diagnostic is None:
                 # A 200/JSON page that yields no tracks is not the same
                 # failure as an auth error or a 4xx — the request worked, but
@@ -320,15 +318,6 @@ def refresh_purchased_tracks(db: Session) -> dict:
     }
     if unmatched_shapes:
         result["unmatched_item_shapes"] = unmatched_shapes
-    # Only meaningful alongside a shortfall, and only when it says something
-    # tracks_seen doesn't already: a distinct-download_id count level with
-    # tracks_seen is not news, but one far above it — the live sync that
-    # prompted this had ~27 tracks_seen against thousands of candidates —
-    # means the ASIN being used for identity is shared across rows that each
-    # carry their own distinct download_id, which points at the ASIN source
-    # rather than at rows being silently dropped.
-    if seen and len(seen) < candidates_total and len(download_ids_seen) > len(seen):
-        result["download_ids_seen"] = len(download_ids_seen)
     if not seen and diagnostic is not None:
         result["diagnostic"] = diagnostic
     return result

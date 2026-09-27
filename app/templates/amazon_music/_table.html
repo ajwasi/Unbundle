@@ -40,19 +40,10 @@
       {% else %}
       <p class="muted">
         Every row this sync examined produced <em>something</em> recognisable as a track —
-        none were skipped outright — but almost all of them resolved to the same
+        none were skipped outright — but several of them resolved to the same
         {{ refresh_result.tracks_seen }} track(s) rather than a distinct one each time. That
         points at rows picking up a shared or cross-referenced value instead of their own
         identity, which is a different problem from rows being silently dropped.
-      </p>
-      {% endif %}
-      {% if refresh_result.download_ids_seen %}
-      <p class="muted" style="margin-top: 0.6rem;">
-        A second, independently-checked identifier tells the same story: rows that matched
-        carried <strong>{{ refresh_result.download_ids_seen }}</strong> distinct per-row
-        identifier(s), versus only <strong>{{ refresh_result.tracks_seen }}</strong> distinct
-        track(s) above. Since a per-row identifier this different from the track count can't
-        both be right, the value currently used for a track's identity is the one to fix.
       </p>
       {% endif %}
     </div>
