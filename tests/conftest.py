@@ -38,6 +38,8 @@ from app.deps import get_db  # noqa: E402
 # would otherwise silently get no table at all.
 from app.models import (  # noqa: E402,F401
     account_settings,
+    amazon_music_destination,
+    amazon_music_download,
     amazon_music_track,
     api_token,
     audible_book,

@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+from app.amazon_music import downloader
 from app.connectors import amazon_music_connector as amc
 from app.connectors.amazon_music_connector import AmazonMusicAuthError
+from app.models.amazon_music_destination import AmazonMusicDestination
 from app.models.amazon_music_track import AmazonMusicTrack
 from app.sync import amazon_music_sync as sync
 
@@ -145,3 +147,142 @@ def test_refresh_is_rate_limited(authed_client):
 
 def test_sidebar_links_to_the_page(authed_client):
     assert 'href="/amazon-music"' in authed_client.get("/downloads").text
+
+
+# ------------------------------------------------------------ destinations
+
+def test_create_destination_adds_a_row_and_becomes_default_if_first(authed_client, db):
+    resp = authed_client.post("/amazon-music/destinations", data={"name": "NAS", "path": "/mnt/music"})
+    assert resp.status_code == 200
+    assert "NAS" in resp.text
+    assert "/mnt/music" in resp.text
+
+    row = db.query(AmazonMusicDestination).one()
+    assert row.is_default is True
+
+
+def test_a_second_destination_does_not_become_default_automatically(authed_client, db):
+    db.add(AmazonMusicDestination(name="First", path="/mnt/first", is_default=True))
+    db.commit()
+
+    authed_client.post("/amazon-music/destinations", data={"name": "Second", "path": "/mnt/second"})
+
+    second = db.query(AmazonMusicDestination).filter(AmazonMusicDestination.name == "Second").one()
+    assert second.is_default is False
+
+
+def test_blank_name_or_path_is_ignored(authed_client, db):
+    authed_client.post("/amazon-music/destinations", data={"name": "", "path": "/mnt/music"})
+    authed_client.post("/amazon-music/destinations", data={"name": "NAS", "path": ""})
+    assert db.query(AmazonMusicDestination).count() == 0
+
+
+def test_set_default_destination_switches_the_flag(authed_client, db):
+    a = AmazonMusicDestination(name="A", path="/mnt/a", is_default=True)
+    b = AmazonMusicDestination(name="B", path="/mnt/b", is_default=False)
+    db.add_all([a, b])
+    db.commit()
+
+    resp = authed_client.post(f"/amazon-music/destinations/{b.id}/set-default")
+    assert resp.status_code == 200
+
+    db.refresh(a)
+    db.refresh(b)
+    assert a.is_default is False
+    assert b.is_default is True
+
+
+def test_delete_destination_removes_it(authed_client, db):
+    dest = AmazonMusicDestination(name="A", path="/mnt/a")
+    db.add(dest)
+    db.commit()
+    dest_id = dest.id
+
+    resp = authed_client.post(f"/amazon-music/destinations/{dest_id}/delete")
+    assert resp.status_code == 200
+    assert db.get(AmazonMusicDestination, dest_id) is None
+
+
+# --------------------------------------------------------------- downloads
+
+def test_download_track_queues_via_the_downloader(authed_client, db):
+    _seed(db)
+    with patch.object(downloader, "start_download", new=AsyncMock()) as mock_start:
+        resp = authed_client.post("/amazon-music/downloads/c64eeeb1-e203-4c0a-9213-43ac6202c74a")
+
+    assert resp.status_code == 200
+    mock_start.assert_awaited_once()
+    assert mock_start.call_args.args[1] == "c64eeeb1-e203-4c0a-9213-43ac6202c74a"
+
+
+def test_download_track_ignores_an_unknown_id_instead_of_500ing(authed_client, db):
+    _seed(db)
+    with patch.object(downloader, "start_download", new=AsyncMock(side_effect=downloader.UnknownTrackError("x"))):
+        resp = authed_client.post("/amazon-music/downloads/not-a-real-id")
+    assert resp.status_code == 200
+
+
+def test_downloads_with_a_selection_queues_only_those(authed_client, db):
+    _seed(db)
+    with patch.object(downloader, "queue_many", new=AsyncMock()) as mock_queue:
+        resp = authed_client.post(
+            "/amazon-music/downloads", data={"download_id": ["c64eeeb1-e203-4c0a-9213-43ac6202c74a"]}
+        )
+
+    assert resp.status_code == 200
+    mock_queue.assert_awaited_once()
+    assert mock_queue.call_args.args[1] == ["c64eeeb1-e203-4c0a-9213-43ac6202c74a"]
+
+
+def test_downloads_with_no_selection_queues_everything_currently_filtered(authed_client, db):
+    _seed(db)
+    with patch.object(downloader, "queue_many", new=AsyncMock()) as mock_queue:
+        resp = authed_client.post("/amazon-music/downloads", data={"q": "police"})
+
+    assert resp.status_code == 200
+    mock_queue.assert_awaited_once()
+    # Only the row matching the search, not the whole library.
+    assert mock_queue.call_args.args[1] == ["c64eeeb1-e203-4c0a-9213-43ac6202c74a"]
+
+
+def test_active_downloads_endpoint_renders_the_polling_partial(authed_client, db):
+    _seed(db)
+    fake_active = [
+        {
+            "id": 1,
+            "download_id": "c64eeeb1-e203-4c0a-9213-43ac6202c74a",
+            "title": "Every Breath You Take",
+            "artist": "The Police",
+            "status": "running",
+            "progress_bytes": 100,
+            "expected_size_bytes": 200,
+        }
+    ]
+    with patch.object(downloader, "get_active_downloads", return_value=fake_active):
+        resp = authed_client.get("/amazon-music/downloads/active")
+
+    assert resp.status_code == 200
+    assert "Every Breath You Take" in resp.text
+    assert "Downloading" in resp.text
+
+
+def test_table_shows_a_downloading_badge_instead_of_the_button_for_active_tracks(authed_client, db):
+    _seed(db)
+    fake_active = [
+        {
+            "id": 1,
+            "download_id": "c64eeeb1-e203-4c0a-9213-43ac6202c74a",
+            "title": "Every Breath You Take",
+            "artist": "The Police",
+            "status": "queued",
+            "progress_bytes": 0,
+            "expected_size_bytes": None,
+        }
+    ]
+    with patch.object(downloader, "get_active_downloads", return_value=fake_active):
+        resp = authed_client.get("/amazon-music")
+
+    # The active track's own per-row Download button is gone (replaced by a
+    # badge); the other, unrelated track's button is still there.
+    assert "/amazon-music/downloads/c64eeeb1-e203-4c0a-9213-43ac6202c74a" not in resp.text
+    assert "/amazon-music/downloads/a941e672-3d37-43df-9c99-3232473fdf27" in resp.text

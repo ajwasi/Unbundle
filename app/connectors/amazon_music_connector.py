@@ -279,3 +279,35 @@ def parse_next_cursor(payload: dict) -> str:
         if token:
             return token
     return ""
+
+
+def find_signed_download_url(payload: Any) -> str:
+    """The presigned CloudFront delivery URL downloadTrack's response embeds.
+
+    Confirmed shape, from a real capture: a d*.cloudfront.net host, path
+    .../DigitalMusicDeliveryService/..., query params including cdoid (the
+    same download_id sent in the request) and isrc. downloadTrack is known
+    to return this "under a key like 'url'", but the exact wrapping key was
+    only ever eyeballed, never pinned down structurally — searched by the
+    URL's own unmistakable shape instead of a key name, so this does not
+    silently break if that key turns out to be named something else.
+
+    Checked by actually parsing each candidate and inspecting its real host
+    and query parameters, not by searching the raw string for "cloudfront.net"
+    and "cdoid=": a substring match there is spoofable by any string that
+    merely contains those characters somewhere (a query value, a path
+    segment, an unrelated host like "cloudfront.net.evil.example") without
+    being a real CloudFront URL at all — this result is used to open an
+    outbound connection, so it has to be the real host, not a lookalike.
+    """
+    for text in _strings(payload):
+        if not text.startswith("http"):
+            continue
+        try:
+            url = httpx.URL(text)
+        except Exception:
+            continue
+        host = url.host or ""
+        if (host == "cloudfront.net" or host.endswith(".cloudfront.net")) and "cdoid" in url.params:
+            return text
+    return ""

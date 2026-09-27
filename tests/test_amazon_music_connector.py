@@ -203,3 +203,48 @@ def test_a_row_with_no_download_id_is_dropped_even_with_an_asin():
     assert tracks == []
     assert candidates == 1
     assert unmatched == [["button", "onCheckboxSelected", "primaryText"]]
+
+
+# ------------------------------------------------------ signed download URL
+
+_SIGNED_URL = (
+    "https://d1l04yptno92u8.cloudfront.net/DigitalMusicDeliveryService/CloudDriveEmbed.mp3"
+    "?e=1789868665&cid=A2HOWQQO9HOTF7&cdoid=c64eeeb1-e203-4c0a-9213-43ac6202c74a"
+    "&isrc=GBAAM8300001&tid=111-1008484-5274644&pt=1566309461277&h=5aa57bcecd5576474b20a63a"
+)
+
+
+def test_find_signed_download_url_locates_it_regardless_of_wrapping_key():
+    # The wrapping key was only ever eyeballed as "something like 'url'", never
+    # pinned down structurally — this must find it under any key name.
+    assert amc.find_signed_download_url({"someUnexpectedKey": _SIGNED_URL}) == _SIGNED_URL
+
+
+def test_find_signed_download_url_ignores_unrelated_urls():
+    payload = {"coverUrl": "https://m.media-amazon.com/images/I/example.jpg", "nested": {"url": _SIGNED_URL}}
+    assert amc.find_signed_download_url(payload) == _SIGNED_URL
+
+
+def test_find_signed_download_url_returns_empty_when_absent():
+    assert amc.find_signed_download_url({"template": {"closeButton": {}}}) == ""
+
+
+def test_find_signed_download_url_rejects_a_spoofed_lookalike():
+    # A substring check ("cloudfront.net" in text) would wrongly accept any of
+    # these — none is a real CloudFront URL, they just contain the right
+    # characters somewhere. Since the result is used to open an outbound
+    # connection, the real host is what has to match, not a lookalike.
+    spoofed = [
+        "https://evil.example/?redirect=cloudfront.net&cdoid=fake",
+        "https://cloudfront.net.evil.example/track.mp3?cdoid=fake",
+        "https://evil.example/cdoid=fake/cloudfront.net",
+    ]
+    for url in spoofed:
+        assert amc.find_signed_download_url({"url": url}) == ""
+
+
+def test_find_signed_download_url_requires_cdoid_as_a_real_param():
+    # A genuine cloudfront.net host with "cdoid=" only appearing inside some
+    # other parameter's value (not its own key) is not the real delivery URL.
+    not_quite = "https://d1.cloudfront.net/track.mp3?note=cdoid=fake"
+    assert amc.find_signed_download_url({"url": not_quite}) == ""

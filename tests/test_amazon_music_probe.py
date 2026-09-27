@@ -187,6 +187,31 @@ def test_cookies_reuse_those_already_stored_without_calling_amazon(db):
         assert probe.cookies_from_audible_credential(db) == {"at-main": SECRET}
 
 
+def test_session_fields_are_read_off_the_confirmed_config_json_mapping():
+    fields = probe.session_fields_from_config(
+        {
+            "accessToken": "Atna|EXAMPLE",
+            "deviceId": "DEV123",
+            "deviceType": "TYPE123",
+            "sessionId": "SESS123",
+            "montanaCsrf": {"token": "abc", "ts": 1},
+        }
+    )
+
+    assert fields["x-amzn-device-id"] == "DEV123"
+    assert fields["x-amzn-device-type-id"] == "TYPE123"
+    assert fields["x-amzn-session-id"] == "SESS123"
+    # An object csrf is passed through as JSON, not str()-ed into a dict repr.
+    assert json.loads(fields["x-amzn-csrf"])["token"] == "abc"
+    # accessToken has its own dedicated path (with_fresh_session's envelope
+    # swap); it must not also leak in here as a bare header.
+    assert "accessToken" not in fields
+
+
+def test_session_fields_omit_what_config_json_did_not_supply():
+    assert probe.session_fields_from_config({"accessToken": "Atna|EXAMPLE"}) == {}
+
+
 # ------------------------------------------------------------------- routes
 
 def _connect_audible(db):

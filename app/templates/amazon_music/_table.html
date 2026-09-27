@@ -120,45 +120,79 @@
     <span class="muted">{{ tracks|length }} of {{ total }}</span>
   </div>
 
-  <div class="table-scroll">
-  <table>
-    <thead>
-      <tr>
-        <th></th>
-        <th>Title</th>
-        <th>Artist</th>
-        <th>Album</th>
-        <th>Duration</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for t in tracks %}
-      <tr class="{{ 'row-expired' if t.missing_since else '' }}">
-        <td>
-          {% if t.cover_url %}
-          <img src="{{ t.cover_url }}" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
-          {% endif %}
-        </td>
-        <td>
-          {{ t.title }}
-          {% if new_cutoff and t.first_seen_at >= new_cutoff %}<span class="badge badge-ok">New</span>{% endif %}
-        </td>
-        <td>{{ t.artist }}{% if t.is_compilation %} <span class="tip" title="Tracks on this album have different artists, so it is treated as a compilation.">(compilation)</span>{% endif %}</td>
-        <td>{{ t.album }}</td>
-        <td>{{ t.duration_display or "—" }}</td>
-        <td>
-          {% if t.missing_since %}
-          <span class="badge badge-pending tip" title="This track was in a previous sync but Amazon no longer lists it. The row is kept, never deleted.">No longer listed</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6" class="muted">
-        {% if q %}No tracks match.{% else %}Nothing synced yet — click "Sync Amazon Music" above.{% endif %}
-      </td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
+  <form id="music-download-form" hx-post="/amazon-music/downloads" hx-target="#amazon-music-table" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <input type="hidden" name="q" value="{{ q }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="show_missing" value="{{ 'true' if show_missing else '' }}">
+    {% if tracks %}
+    <div class="toolbar" style="margin-bottom: 0.5rem;">
+      <button type="submit" id="music-download-selected-btn" disabled>Download selected</button>
+      <button type="submit" id="music-download-all-btn"
+              onclick="document.querySelectorAll('#music-download-form .track-check').forEach(function (c) { c.checked = false; })">
+        Download all ({{ total }})
+      </button>
+    </div>
+    {% endif %}
+
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#music-download-form .track-check').forEach(c => c.checked = this.checked); updateMusicSelectedButton();"></th>
+          <th></th>
+          <th>Title</th>
+          <th>Artist</th>
+          <th>Album</th>
+          <th>Duration</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tracks %}
+        <tr class="{{ 'row-expired' if t.missing_since else '' }}">
+          <td class="table-lead-col"><input type="checkbox" class="track-check" name="download_id" value="{{ t.download_id }}" onchange="updateMusicSelectedButton();"></td>
+          <td>
+            {% if t.cover_url %}
+            <img src="{{ t.cover_url }}" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
+            {% endif %}
+          </td>
+          <td>
+            {{ t.title }}
+            {% if new_cutoff and t.first_seen_at >= new_cutoff %}<span class="badge badge-ok">New</span>{% endif %}
+          </td>
+          <td>{{ t.artist }}{% if t.is_compilation %} <span class="tip" title="Tracks on this album have different artists, so it is treated as a compilation.">(compilation)</span>{% endif %}</td>
+          <td>{{ t.album }}</td>
+          <td>{{ t.duration_display or "—" }}</td>
+          <td style="white-space: nowrap;">
+            {% if t.missing_since %}
+            <span class="badge badge-pending tip" title="This track was in a previous sync but Amazon no longer lists it. The row is kept, never deleted.">No longer listed</span>
+            {% elif t.download_id in active_download_ids %}
+            <span class="badge badge-pending">Downloading&hellip;</span>
+            {% else %}
+            <button type="button" class="secondary" style="padding: 0.15rem 0.5rem; font-size: 0.85em;"
+                    hx-post="/amazon-music/downloads/{{ t.download_id }}" hx-target="#amazon-music-table" hx-swap="outerHTML"
+                    hx-include="#music-download-form input[name=csrf_token], #music-download-form input[name=q], #music-download-form input[name=sort]">
+              Download
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="muted">
+          {% if q %}No tracks match.{% else %}Nothing synced yet — click "Sync Amazon Music" above.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </form>
 </div>
+<script>
+  function updateMusicSelectedButton() {
+    var btn = document.getElementById("music-download-selected-btn");
+    if (!btn) return;
+    var anyChecked = document.querySelector("#music-download-form .track-check:checked") !== null;
+    btn.disabled = !anyChecked;
+  }
+</script>

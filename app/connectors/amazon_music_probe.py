@@ -410,6 +410,47 @@ def cookies_from_audible_credential(db, country: str = "us", refresh: bool = Fal
     return minted
 
 
+# config.json key -> the x-amzn-* header the API expects. Every target name
+# below appears verbatim in the API's own CORS access-control-allow-headers
+# list, and every source key appears verbatim in a real config.json — so the
+# mapping is read off two confirmed lists rather than guessed. Shared by
+# amazon_music_sync (paging the library) and amazon_music/downloader.py
+# (resolving one track's delivery URL) — both replay a captured request
+# template and both need the same session-scoped fields refreshed the same
+# way, since both draw a 200-with-generic-error-dialog if a stale CSRF or
+# session id is replayed instead.
+_CONFIG_TO_HEADER = {
+    "deviceId": "x-amzn-device-id",
+    "deviceType": "x-amzn-device-type-id",
+    "sessionId": "x-amzn-session-id",
+    "montanaCsrf": "x-amzn-csrf",
+}
+
+
+def session_fields_from_config(config: dict) -> dict[str, str]:
+    """The session-scoped x-amzn-* headers config.json can supply right now,
+    as header name -> value, for splicing into a captured template.
+
+    montanaCsrf and sessionId are bound to the specific browser session that
+    produced them — a template that only refreshed the access token got a
+    200 back with zero tracks, because the response body was Amazon's own
+    generic error dialog rather than the real page. Pairing a captured CSRF
+    with this app's own freshly-minted cookies is exactly the mismatched pair
+    CSRF protection exists to catch, and Amazon does not surface that as an
+    HTTP error.
+    """
+    fields: dict[str, str] = {}
+    for config_key, header_name in _CONFIG_TO_HEADER.items():
+        value = config.get(config_key)
+        if isinstance(value, str) and value:
+            fields[header_name] = value
+        elif value:
+            # montanaCsrf is an object in some responses; pass it through as
+            # JSON rather than str()-ing a dict into something unparseable.
+            fields[header_name] = json.dumps(value)
+    return fields
+
+
 def _looks_like_challenge(resp: httpx.Response) -> bool:
     if "html" in resp.headers.get("content-type", "").lower():
         return True
