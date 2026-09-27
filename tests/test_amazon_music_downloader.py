@@ -104,7 +104,8 @@ def _handler_factory(download_response=None, delivery_content=b"FAKE MP3 BYTES",
             )
         if request.url.path == amc.DOWNLOAD_TRACK_PATH:
             return httpx.Response(200, json=download_response)
-        if "cloudfront.net" in str(request.url):
+        host = request.url.host or ""
+        if host == "cloudfront.net" or host.endswith(".cloudfront.net"):
             return httpx.Response(delivery_status, content=delivery_content)
         return httpx.Response(404)
 
