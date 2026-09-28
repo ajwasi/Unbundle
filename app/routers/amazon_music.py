@@ -8,12 +8,14 @@ sequential queue in downloader.py instead, which is its own throttle.
 """
 
 import logging
+import mimetypes
 import re
+import threading
 import time
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -122,6 +124,11 @@ def _safe_filename(name: str, suffix: str) -> str:
 # _album_rows already does for the grid itself, purely to re-derive a URL
 # that, on a warm cache, isn't even needed.
 _cover_cache: dict = {"key": None, "info": None}
+# Guards _cover_cache — album_cover() runs on FastAPI's sync threadpool, so
+# concurrent requests genuinely can race the check-then-write below (not
+# corruption, since both threads compute the same correct answer, but real
+# duplicated query work worth just not having).
+_cover_cache_lock = threading.Lock()
 
 
 def _cover_cache_key(db: Session):
@@ -139,8 +146,9 @@ def _resolve_cover_info(db: Session) -> dict[str, dict]:
     actually changes.
     """
     key = _cover_cache_key(db)
-    if _cover_cache["key"] == key:
-        return _cover_cache["info"]
+    with _cover_cache_lock:
+        if _cover_cache["key"] == key:
+            return _cover_cache["info"]
 
     info: dict[str, dict] = {}
     refreshed_at: dict[str, datetime] = {}
@@ -160,8 +168,9 @@ def _resolve_cover_info(db: Session) -> dict[str, dict]:
             info[album_key] = {"url": cover_url, "album": album or "(Unknown album)"}
             refreshed_at[album_key] = refreshed
 
-    _cover_cache["key"] = key
-    _cover_cache["info"] = info
+    with _cover_cache_lock:
+        _cover_cache["key"] = key
+        _cover_cache["info"] = info
     return info
 
 
@@ -445,9 +454,16 @@ def album_detail_page(
 _COVER_CACHE_HEADERS = {
     # The cache key is content-addressed (host+path of the remote URL, not
     # its query string — see asset_cache.py), so the file behind a given
-    # /cover URL never changes without the URL itself changing too (a
-    # refresh-cover request serves from a new path — see below). Safe to tell
-    # the browser to never re-request or re-validate it.
+    # /cover URL never changes without the URL itself changing too. Safe to
+    # tell the browser to never re-request or re-validate it — with one real
+    # tradeoff: nothing here ever automatically re-fetches an already-cached
+    # file (get_or_fetch only ever fills a gap, warm-up included), so if
+    # Amazon ever serves genuinely new art at the exact same URL path, both
+    # this server's cache and every browser that's already loaded it are
+    # stuck on the old image until someone notices and clicks "Refresh
+    # cover" (below) — there's no automatic staleness detection for that
+    # case, only for the presigned-URL-expiry problem this feature exists to
+    # solve.
     "Cache-Control": "public, max-age=31536000, immutable"
 }
 
@@ -467,11 +483,32 @@ def album_cover(album_key: str, db: Session = Depends(get_db)):
     path = asset_cache.get_or_fetch("amazon-music-album", remote_url)
     if path is None:
         return Response(status_code=404)
+    try:
+        # Read eagerly here rather than handing FileResponse a Path it
+        # streams lazily later in the ASGI response lifecycle — a concurrent
+        # "Refresh cover" call could evict this exact file in the narrow
+        # window between get_or_fetch resolving it and FileResponse actually
+        # opening it, which would otherwise surface as an unhandled
+        # FileNotFoundError instead of a clean 404. Cover images are small
+        # enough that reading fully into memory here costs nothing real.
+        data = path.read_bytes()
+    except OSError:
+        return Response(status_code=404)
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     filename = _safe_filename(info["album"], path.suffix) if info else path.name
-    return FileResponse(path, headers=_COVER_CACHE_HEADERS, filename=filename)
+    headers = dict(_COVER_CACHE_HEADERS)
+    headers["Content-Disposition"] = f'inline; filename="{filename}"'
+    return Response(content=data, media_type=media_type, headers=headers)
 
 
-@router.post("/albums/{album_key}/refresh-cover", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+_refresh_cover_limiter = RateLimiter(max_calls=10, period_seconds=60)
+
+
+@router.post(
+    "/albums/{album_key}/refresh-cover",
+    response_class=HTMLResponse,
+    dependencies=[Depends(rate_limit(_refresh_cover_limiter, "amazon-music-refresh-cover")), Depends(require_csrf)],
+)
 def refresh_album_cover(request: Request, album_key: str, db: Session = Depends(get_db)):
     """Evicts the cached file for this album's current cover URL and returns
     a fresh <img> tag pointing at the same /cover URL — for a cache entry
@@ -481,13 +518,47 @@ def refresh_album_cover(request: Request, album_key: str, db: Session = Depends(
     response itself now tells the browser to cache the old one forever (see
     _COVER_CACHE_HEADERS) — without it the browser would keep showing the
     stale image from its own cache even after the server-side one is gone.
+
+    Rate limited like /refresh — this triggers a real outbound fetch on its
+    next view, and eviction also clears the failure cooldown, so an
+    unthrottled version of this route would double as a way to force-bypass
+    that cooldown by spamming the button.
     """
     info = _resolve_cover_info(db).get(album_key)
     if info:
-        asset_cache.evict("amazon-music-album", info["url"])
+        asset_cache.evict("amazon-music-album", info["url"], reason="user requested a refresh")
     return templates.TemplateResponse(
         request, "amazon_music/_album_cover_img.html", {"album_key": album_key, "cache_bust": int(time.time())}
     )
+
+
+# Only paced when a warm-up iteration actually issues a real fetch (see
+# below) — a re-sync where covers are already warm runs this loop at full
+# speed, since every iteration is then just a fast disk check. The pacing
+# only matters for albums that need a genuinely new fetch, which is exactly
+# when it's needed: it keeps a large first-time warm-up from bursting
+# requests at Amazon's CDN all at once (risking Amazon's own rate limiting,
+# which would otherwise cascade into every remaining album in the same run
+# looking "recently failed" to the cooldown above even though nothing was
+# really wrong with them) and leaves room for anything else — a concurrent
+# user-triggered download, say — making outbound calls at the same time.
+_WARM_UP_PACING_SECONDS = 0.2
+
+# Guards against two overlapping warm-up passes — e.g. two syncs triggered
+# in quick succession — both walking the whole library's covers at once.
+# acquire(blocking=False) below means a second call simply skips rather than
+# queueing up behind the first.
+_warm_up_lock = threading.Lock()
+
+
+def _albums_with_visible_tracks(db: Session) -> set[str]:
+    """album_keys with at least one non-missing track — warming a cover for
+    an album that's entirely hidden by default (every one of its tracks has
+    missing_since set) spends a real fetch on art nobody will see unless
+    they flip on "show tracks no longer listed".
+    """
+    rows = db.query(AmazonMusicTrack.album_asin).filter(AmazonMusicTrack.missing_since.is_(None)).distinct().all()
+    return {_album_key(album_asin) for (album_asin,) in rows}
 
 
 def _warm_album_covers() -> None:
@@ -500,18 +571,35 @@ def _warm_album_covers() -> None:
 
     Runs after the request that scheduled it has already returned its
     response, so it opens its own DB session rather than reusing the
-    request-scoped one, which may already be closed by then.
+    request-scoped one, which may already be closed by then — and closes it
+    again immediately once it has the list of URLs to warm, rather than
+    holding it open for however long the (possibly slow, possibly paced)
+    network fetches that follow take.
     """
-    from app.db import SessionLocal
-
-    db = SessionLocal()
+    if not _warm_up_lock.acquire(blocking=False):
+        return
     try:
-        for info in _resolve_cover_info(db).values():
-            asset_cache.get_or_fetch("amazon-music-album", info["url"])
-    except Exception:
-        logger.exception("amazon-music: cover cache warm-up failed")
+        from app.db import SessionLocal
+
+        db = SessionLocal()
+        try:
+            visible = _albums_with_visible_tracks(db)
+            to_warm = [info for key, info in _resolve_cover_info(db).items() if key in visible]
+        finally:
+            db.close()
+
+        for info in to_warm:
+            already_cached = asset_cache.cached_path("amazon-music-album", info["url"]) is not None
+            try:
+                asset_cache.get_or_fetch("amazon-music-album", info["url"])
+            except Exception:
+                # One album's unexpected failure shouldn't abort warm-up for
+                # every album after it — logged and moved past, not reraised.
+                logger.exception("amazon-music: cover warm-up failed for one album")
+            if not already_cached:
+                time.sleep(_WARM_UP_PACING_SECONDS)
     finally:
-        db.close()
+        _warm_up_lock.release()
 
 
 @router.post(
@@ -652,6 +740,36 @@ async def trigger_album_downloads(
     if not show_missing:
         query = query.filter(AmazonMusicTrack.missing_since.is_(None))
     await downloader.queue_many(db, [row[0] for row in query.all()])
+    return templates.TemplateResponse(
+        request, "amazon_music/_albums_table.html", _albums_context(db, q.strip(), sort, show_missing)
+    )
+
+
+@router.post(
+    "/albums/refresh-covers",
+    response_class=HTMLResponse,
+    dependencies=[Depends(rate_limit(_refresh_cover_limiter, "amazon-music-refresh-cover")), Depends(require_csrf)],
+)
+def refresh_selected_covers(
+    request: Request,
+    album_key: list[str] = Form(default=[]),
+    q: str = Form(""),
+    sort: str = Form("added"),
+    show_missing: bool = Form(False),
+    db: Session = Depends(get_db),
+):
+    """Bulk version of refresh_album_cover, for after something like a
+    library-wide art issue rather than one album at a time — unlike the
+    download bulk actions above, an empty selection here is a deliberate
+    no-op rather than "refresh everything currently shown": forcing a
+    refetch of every visible cover is a much heavier, more surprising action
+    to make one accidental click away than queuing downloads is.
+    """
+    info_by_key = _resolve_cover_info(db)
+    for key in album_key:
+        info = info_by_key.get(key)
+        if info:
+            asset_cache.evict("amazon-music-album", info["url"], reason="bulk refresh requested")
     return templates.TemplateResponse(
         request, "amazon_music/_albums_table.html", _albums_context(db, q.strip(), sort, show_missing)
     )

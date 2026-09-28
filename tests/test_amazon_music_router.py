@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -20,6 +21,19 @@ def _seed(db):
     sync.upsert_tracks(db, amc.parse_tracks(json.loads(FIXTURE.read_text(encoding="utf-8"))))
 
 
+def _select_all_note_is_hidden(html: str) -> bool:
+    """Parses out just the select-all note's own opening tag and checks for
+    a standalone `hidden` attribute — deliberately not a literal substring
+    match against the whole tag, which would break on any harmless
+    attribute-order or whitespace change in the template even though the
+    actual behavior (hidden or not) didn't change.
+    """
+    match = re.search(r'<span id="amazon-music-select-all-note"[^>]*>', html)
+    assert match, "select-all note span not found in response"
+    tag = match.group(0)
+    return bool(re.search(r'(^|\s)hidden(\s|=|>|$)', tag))
+
+
 def test_page_requires_auth(client):
     assert client.get("/amazon-music", follow_redirects=False).status_code == 303
 
@@ -38,6 +52,10 @@ def test_album_cover_route_requires_auth(client):
 
 def test_refresh_cover_route_requires_auth(client):
     assert client.post("/amazon-music/albums/B074JM9JHY/refresh-cover", follow_redirects=False).status_code == 303
+
+
+def test_bulk_refresh_covers_route_requires_auth(client):
+    assert client.post("/amazon-music/albums/refresh-covers", follow_redirects=False).status_code == 303
 
 
 def test_empty_state_points_at_the_sync_button(authed_client):
@@ -146,6 +164,7 @@ def test_refresh_cover_route_evicts_the_cached_file_and_returns_an_img_tag(authe
     mock_evict.assert_called_once_with(
         "amazon-music-album",
         "https://m.media-amazon.com/images/I/example_256x256.jpg?X-Amz-Expires=3600&X-Amz-Signature=deadbeef",
+        reason="user requested a refresh",
     )
     assert "<img" in resp.text
     assert "/amazon-music/albums/B074JM9JHY/cover?v=" in resp.text  # cache-busted
@@ -155,6 +174,38 @@ def test_refresh_cover_route_is_a_no_op_for_an_album_with_no_cover(authed_client
     _add_two_track_album(db, album_asin="NOCOVER")
     with patch.object(asset_cache, "evict") as mock_evict:
         resp = authed_client.post("/amazon-music/albums/NOCOVER/refresh-cover")
+    assert resp.status_code == 200
+    mock_evict.assert_not_called()
+
+
+def test_refresh_selected_covers_evicts_only_the_selected_albums(authed_client, db):
+    _seed(db)
+    with patch.object(asset_cache, "evict") as mock_evict:
+        resp = authed_client.post("/amazon-music/albums/refresh-covers", data={"album_key": ["B074JM9JHY"]})
+
+    assert resp.status_code == 200
+    mock_evict.assert_called_once_with(
+        "amazon-music-album",
+        "https://m.media-amazon.com/images/I/example_256x256.jpg?X-Amz-Expires=3600&X-Amz-Signature=deadbeef",
+        reason="bulk refresh requested",
+    )
+
+
+def test_refresh_selected_covers_with_no_selection_is_a_no_op(authed_client, db):
+    # Deliberately not "refresh everything shown" like the download bulk
+    # actions — forcing every visible cover to refetch is much heavier and
+    # more surprising to make one accidental click away.
+    _seed(db)
+    with patch.object(asset_cache, "evict") as mock_evict:
+        resp = authed_client.post("/amazon-music/albums/refresh-covers")
+    assert resp.status_code == 200
+    mock_evict.assert_not_called()
+
+
+def test_refresh_selected_covers_skips_an_album_with_no_known_cover(authed_client, db):
+    _add_two_track_album(db, album_asin="NOCOVER")
+    with patch.object(asset_cache, "evict") as mock_evict:
+        resp = authed_client.post("/amazon-music/albums/refresh-covers", data={"album_key": ["NOCOVER"]})
     assert resp.status_code == 200
     mock_evict.assert_not_called()
 
@@ -790,6 +841,49 @@ def test_sort_albums_breaks_ties_deterministically_by_album_key():
     assert [a["album_key"] for a in result] == ["B1", "A1"]  # reverse=True sorts the tiebreaker too
 
 
+# ------------------------------------------------------------ _safe_filename
+
+def test_safe_filename_passes_through_a_plain_name():
+    assert amazon_music_router._safe_filename("Synchronicity", ".jpg") == "Synchronicity.jpg"
+
+
+def test_safe_filename_replaces_a_literal_slash():
+    # A real, common case — plenty of albums are legitimately named this way.
+    assert amazon_music_router._safe_filename("AC/DC", ".jpg") == "AC_DC.jpg"
+
+
+def test_safe_filename_replaces_every_unsafe_character():
+    result = amazon_music_router._safe_filename('a\\b/c:d*e?f"g<h>i|j', ".jpg")
+    assert result == "a_b_c_d_e_f_g_h_i_j.jpg"
+
+
+def test_safe_filename_of_all_unsafe_characters_replaces_rather_than_empties():
+    # Unsafe characters map to "_", which strip(" .") never removes — only a
+    # name that's already nothing but spaces/dots collapses to the "cover"
+    # fallback (see test_safe_filename_falls_back_to_cover_for_dots_only).
+    assert amazon_music_router._safe_filename("///", ".jpg") == "___.jpg"
+
+
+def test_safe_filename_falls_back_to_cover_for_a_blank_name():
+    assert amazon_music_router._safe_filename("", ".jpg") == "cover.jpg"
+
+
+def test_safe_filename_falls_back_to_cover_for_dots_only():
+    assert amazon_music_router._safe_filename("...", ".jpg") == "cover.jpg"
+
+
+def test_safe_filename_truncates_an_overlong_name():
+    result = amazon_music_router._safe_filename("x" * 200, ".jpg")
+    assert result == ("x" * 80) + ".jpg"
+
+
+def test_safe_filename_strips_cr_and_lf():
+    # Header-injection-shaped input — a newline in a filename could otherwise
+    # smuggle extra header lines into the Content-Disposition response.
+    result = amazon_music_router._safe_filename("evil\r\nX-Injected: yes", ".jpg")
+    assert "\r" not in result and "\n" not in result
+
+
 # --------------------------------------------------------- albums pagination
 
 def _add_n_albums(db, n):
@@ -896,9 +990,17 @@ def test_albums_rows_route_rejects_a_negative_offset(authed_client, db):
 
 
 def test_albums_context_clamps_a_negative_offset_defensively(db):
-    _add_two_track_album(db)
+    # Deliberately more than _ALBUMS_PAGE_SIZE (100) albums: with a small
+    # list, Python's own negative-index slicing "accidentally" self-corrects
+    # (e.g. a 1-item list sliced [-50:50] just gives back the 1 item anyway),
+    # so a test seeding too few albums would pass identically whether or not
+    # the offset = max(0, offset) clamp actually exists — this needs a list
+    # long enough for [-50:50] to produce a genuinely different, wrong,
+    # empty-or-truncated slice without the clamp.
+    _add_n_albums(db, amazon_music_router._ALBUMS_PAGE_SIZE * 2)
     context = amazon_music_router._albums_context(db, offset=-50)
-    assert context["albums"] != []  # a raw [-50:50] slice would come out empty
+    assert len(context["albums"]) == amazon_music_router._ALBUMS_PAGE_SIZE
+    assert context["shown_so_far"] == amazon_music_router._ALBUMS_PAGE_SIZE
 
 
 # ---------------------------------------------------- single-row re-rendering
@@ -962,6 +1064,76 @@ def test_warm_album_covers_does_not_raise_when_a_fetch_fails(db):
         amazon_music_router._warm_album_covers()  # must not propagate
 
 
+def test_warm_album_covers_continues_past_one_failing_album(db):
+    # Regression guard: the try/except must sit inside the per-album loop,
+    # not wrap the whole thing — otherwise one bad album aborts warm-up for
+    # every album after it in the same run.
+    _add_two_track_album(db, album_asin="ALBUM_FAILS", first={"cover_url": "https://example.invalid/a.jpg"})
+    _add_two_track_album(
+        db,
+        album_asin="ALBUM_OK",
+        first={"download_id": "ok1", "track_asin": "OK1", "cover_url": "https://example.invalid/b.jpg"},
+        second={"download_id": "ok2", "track_asin": "OK2"},
+    )
+    calls = []
+
+    def fetch(namespace, url):
+        calls.append(url)
+        if url.endswith("a.jpg"):
+            raise RuntimeError("boom")
+        return None
+
+    with patch.object(asset_cache, "get_or_fetch", side_effect=fetch):
+        with patch.object(amazon_music_router.time, "sleep"):
+            amazon_music_router._warm_album_covers()
+
+    assert "https://example.invalid/a.jpg" in calls
+    assert "https://example.invalid/b.jpg" in calls  # reached despite the first album raising
+
+
+def test_warm_album_covers_paces_only_real_fetches(db):
+    _add_two_track_album(db, first={"cover_url": "https://example.invalid/a.jpg"})
+    with patch.object(asset_cache, "get_or_fetch", return_value=None):
+        with patch.object(amazon_music_router.time, "sleep") as mock_sleep:
+            amazon_music_router._warm_album_covers()
+    mock_sleep.assert_called_once_with(amazon_music_router._WARM_UP_PACING_SECONDS)
+
+
+def test_warm_album_covers_skips_pacing_when_already_cached(db, tmp_path):
+    _add_two_track_album(db, first={"cover_url": "https://example.invalid/a.jpg"})
+    with patch.object(asset_cache, "cached_path", return_value=tmp_path / "already-there.jpg"):
+        with patch.object(asset_cache, "get_or_fetch", return_value=tmp_path / "already-there.jpg"):
+            with patch.object(amazon_music_router.time, "sleep") as mock_sleep:
+                amazon_music_router._warm_album_covers()
+    mock_sleep.assert_not_called()
+
+
+def test_warm_album_covers_skips_a_fully_missing_album(db):
+    now = datetime.utcnow()
+    _add_two_track_album(
+        db,
+        album_asin="ALBUM_GONE",
+        first={"cover_url": "https://example.invalid/gone.jpg", "missing_since": now},
+        second={"missing_since": now},
+    )
+    with patch.object(asset_cache, "get_or_fetch") as mock_fetch:
+        with patch.object(amazon_music_router.time, "sleep"):
+            amazon_music_router._warm_album_covers()
+    urls = {call.args[1] for call in mock_fetch.call_args_list}
+    assert "https://example.invalid/gone.jpg" not in urls
+
+
+def test_warm_album_covers_does_not_run_two_passes_concurrently(db):
+    _add_two_track_album(db, first={"cover_url": "https://example.invalid/a.jpg"})
+    assert amazon_music_router._warm_up_lock.acquire(blocking=False)
+    try:
+        with patch.object(asset_cache, "get_or_fetch") as mock_fetch:
+            amazon_music_router._warm_album_covers()  # lock already held — should no-op
+        mock_fetch.assert_not_called()
+    finally:
+        amazon_music_router._warm_up_lock.release()
+
+
 # --------------------------------------------------------- cover info cache
 
 def test_resolve_cover_info_invalidates_when_a_cover_is_refreshed(db):
@@ -985,11 +1157,17 @@ def test_resolve_cover_info_invalidates_when_a_cover_is_refreshed(db):
 def test_select_all_note_hidden_when_everything_is_loaded(authed_client, db):
     _add_two_track_album(db)
     resp = authed_client.get("/amazon-music")
-    assert 'id="amazon-music-select-all-note" class="muted" style="font-size: 0.85em;" hidden' in resp.text
+    assert _select_all_note_is_hidden(resp.text) is True
 
 
 def test_select_all_note_shown_when_more_albums_remain(authed_client, db):
     _add_n_albums(db, amazon_music_router._ALBUMS_PAGE_SIZE + 1)
     resp = authed_client.get("/amazon-music")
-    assert 'id="amazon-music-select-all-note" class="muted" style="font-size: 0.85em;" ' in resp.text
-    assert 'id="amazon-music-select-all-note" class="muted" style="font-size: 0.85em;" hidden' not in resp.text
+    assert _select_all_note_is_hidden(resp.text) is False
+
+
+def test_select_all_note_is_announced_to_assistive_tech(authed_client, db):
+    _add_two_track_album(db)
+    resp = authed_client.get("/amazon-music")
+    match = re.search(r'<span id="amazon-music-select-all-note"[^>]*>', resp.text)
+    assert match and 'aria-live="polite"' in match.group(0)
