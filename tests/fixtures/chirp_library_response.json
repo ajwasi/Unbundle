@@ -1,0 +1,64 @@
+{
+  "data": {
+    "currentUserAudiobooks": [
+      {
+        "id": "27991647",
+        "progressStatus": "IN_PROGRESS",
+        "positionPercent": 14,
+        "playable": true,
+        "audiobook": {
+          "id": "626000",
+          "url": "/audiobooks/wool-by-hugh-howey-4415b4a1b5",
+          "coverUrl": "https://img.chirpbooks.com/image/upload/f_auto,q_auto:good,w_700,h_700/v1726671537/cover_images/blackstone/9798212197557.jpg",
+          "displayTitle": "Wool",
+          "displayAuthors": "Hugh Howey",
+          "displayNarrators": "Edoardo Ballerini",
+          "allAuthors": [{"name": "Hugh Howey", "slug": "hugh-howey-audiobooks", "url": "/authors/hugh-howey-audiobooks"}],
+          "seriesAudiobook": {"displayNumber": "1", "series": {"name": "The Silo Saga"}},
+          "currentProduct": {"listingPrice": "$22.95", "discountPrice": "$14.99", "savingsPercent": "35", "timeLeft": null},
+          "supplements": []
+        },
+        "userReview": null
+      },
+      {
+        "id": "19142184",
+        "progressStatus": "IN_PROGRESS",
+        "positionPercent": 36,
+        "playable": true,
+        "audiobook": {
+          "id": "693242",
+          "url": "/audiobooks/space-holes-by-b-r-louis",
+          "coverUrl": "https://img.chirpbooks.com/image/upload/f_auto,q_auto:good,w_700,h_700/v1710692351/cover_images/spotify/1297749.jpg",
+          "displayTitle": "Space Holes",
+          "displayAuthors": "B.R. Louis",
+          "displayNarrators": "Scott Brick",
+          "allAuthors": [{"name": "B.R. Louis", "slug": "b-r-louis-audiobooks", "url": "/authors/b-r-louis-audiobooks"}],
+          "seriesAudiobook": {"displayNumber": "1", "series": {"name": "Space Holes"}},
+          "currentProduct": null,
+          "supplements": []
+        },
+        "userReview": null
+      },
+      {
+        "id": "21080468",
+        "progressStatus": "IN_PROGRESS",
+        "positionPercent": 0,
+        "playable": true,
+        "audiobook": {
+          "id": "237177",
+          "url": "/audiobooks/cruel-miracles-by-orson-scott-card",
+          "coverUrl": "https://img.chirpbooks.com/image/upload/f_auto,q_auto:good,w_700,h_700/v1673353795/cover_images/blackstone/9781481553759.jpg",
+          "displayTitle": "Cruel Miracles",
+          "displayAuthors": "Orson Scott Card",
+          "displayNarrators": "Collected Narrators",
+          "allAuthors": [{"name": "Orson Scott Card", "slug": "orson-scott-card-audiobooks", "url": "/authors/orson-scott-card-audiobooks"}],
+          "seriesAudiobook": {"displayNumber": "4", "series": {"name": "The Maps in a Mirror Series"}},
+          "currentProduct": {"listingPrice": "$13.95", "discountPrice": "$12.99", "savingsPercent": "7", "timeLeft": null},
+          "supplements": []
+        },
+        "userReview": null
+      }
+    ],
+    "currentUserAudiobooksCount": 78
+  }
+}

@@ -1,0 +1,332 @@
+"""Chirp Books (chirpbooks.com) — a one-time-purchase audiobook store
+("yours to keep forever", no subscription), the same purchased-library shape
+as Humble/Audible/Amazon Music. No official API and no OAuth: this is a
+plain Rails/Devise consumer web app, reverse-engineered the same way Amazon
+Music's private API was.
+
+Confirmed via a real capture against a live, purchased account (2026-09-29)
+unless a docstring below says otherwise:
+- Login is a plain form POST to /users/sign_in (authenticity_token +
+  user[email]/user[password]/user[remember_me]) — no official API, no OAuth.
+- The purchased-library listing and a book's own track list are both served
+  by one GraphQL endpoint, /api/graphql.
+- A chapter's actual media URL comes back AES-CBC encrypted
+  (webPlayerMediaUrl), not a plain signed URL the way Amazon Music's is —
+  decrypted client-side with a key scraped from the (authenticated-only)
+  player page's HTML and an IV derived deterministically from the account's
+  own numeric user id (not secret, just obfuscation: see derive_iv).
+- Chirp sits behind Cloudflare — cf_clearance/__cf_bm cookies were present
+  on every captured request.
+
+**Login viability is the single biggest open unknown, and there is a real,
+hard-won precedent in this exact codebase for why that matters**: see
+audible_connector.py's own module docstring — an earlier version of that
+connector submitted Amazon credentials directly and it worked right up
+until Amazon put a JS challenge in front of that login path, which a plain
+HTTP client structurally cannot solve. Cloudflare's cf_clearance cookie is
+that same category of gate. login() below is written to attempt the plain
+POST first since it may well just work (Cloudflare doesn't challenge every
+login endpoint), but this has NOT been run against the live site — the
+first real test can only happen from this app's own deployed server, not
+from a development sandbox (see the project notes on why). If it turns out
+Cloudflare does block it, the fallback is almost certainly the same shape
+Audible's own connector eventually landed on: have the user complete login
+in their own real browser (which solves any challenge the normal way) and
+feed the resulting session back to this app, rather than this app ever
+POSTing credentials itself.
+
+NOT yet confirmed at all — reconstructed by pattern-matching a real
+*response* whose matching *request* was never captured:
+- The exact GraphQL operation name and pagination arguments behind the
+  library listing (_LIBRARY_QUERY below). The field names are trustworthy
+  (a GraphQL response can only contain fields the query actually asked
+  for), but the operation name and the page/perPage argument names are an
+  educated guess, not a captured fact.
+- Where the decryption key (data-dk) appears for a book this account
+  hasn't already opened in the web player, and whether it's per-book or
+  reusable across the whole account.
+- Whether purchase date and price-paid exist anywhere in Chirp's API. Not
+  present in the confirmed library-listing shape; possibly on an order
+  history page never yet captured.
+"""
+
+import base64
+import re
+from dataclasses import dataclass
+
+import httpx
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+BASE_URL = "https://www.chirpbooks.com"
+SIGN_IN_URL = f"{BASE_URL}/users/sign_in"
+LIBRARY_URL = f"{BASE_URL}/library"
+GRAPHQL_URL = f"{BASE_URL}/api/graphql"
+
+
+class ChirpAuthError(Exception):
+    """Login failed, or a stored session is no longer valid."""
+
+
+class ChirpRequestError(Exception):
+    """Chirp's GraphQL API answered, but with an error payload or a shape
+    this connector doesn't recognise."""
+
+
+# ------------------------------------------------------------- page scraping
+
+_CSRF_META_RE = re.compile(r'<meta name="csrf-token" content="([^"]+)"')
+_CSRF_FORM_RE = re.compile(r'name="authenticity_token"\s+value="([^"]+)"')
+_USER_ID_RE = re.compile(r'"userId":(\d+)')
+_DECRYPTION_KEY_RE = re.compile(r'data-dk="([^"]+)"')
+_AUDIOBOOK_ID_RE = re.compile(r'data-audiobook-id="([^"]+)"')
+
+
+def parse_csrf_token(html: str) -> str | None:
+    """Rails embeds this two ways depending on the page — confirmed via a
+    real capture of /library's own <meta name="csrf-token"> tag (used by
+    the site's own JS for authenticated fetch()/GraphQL calls) and via a
+    real captured login POST's own body (a hidden authenticity_token form
+    field) — the GET page that POST's own token came from was never itself
+    captured, so the form-field regex below is Rails' well-known standard
+    convention, not independently confirmed against a captured GET page.
+    """
+    match = _CSRF_META_RE.search(html)
+    if match:
+        return match.group(1)
+    match = _CSRF_FORM_RE.search(html)
+    return match.group(1) if match else None
+
+
+def parse_user_id(html: str) -> int | None:
+    """Scraped from the user-store-data div's embedded JSON — confirmed
+    present on a real captured /library page from this account."""
+    match = _USER_ID_RE.search(html)
+    return int(match.group(1)) if match else None
+
+
+def parse_decryption_key(html: str) -> str | None:
+    """Scraped from a book's own player page (div.user-audiobook[data-dk])
+    — the field *name* is confirmed from a working, independently-published
+    implementation (jo1gi/audiobook-dl's chirp.py), not yet independently
+    verified against a real captured player page from this account."""
+    match = _DECRYPTION_KEY_RE.search(html)
+    return match.group(1) if match else None
+
+
+def parse_audiobook_id_from_player_page(html: str) -> str | None:
+    match = _AUDIOBOOK_ID_RE.search(html)
+    return match.group(1) if match else None
+
+
+# --------------------------------------------------------------------- auth
+
+
+async def login(client: httpx.AsyncClient, email: str, password: str) -> None:
+    """Logs into chirpbooks.com, leaving the session cookie on `client` for
+    subsequent calls. Request shape confirmed from a real captured login
+    POST against this account (see the module docstring for what's still
+    unverified about whether this succeeds against Cloudflare).
+    """
+    get_resp = await client.get(SIGN_IN_URL)
+    token = parse_csrf_token(get_resp.text)
+    if not token:
+        raise ChirpAuthError("Could not find a CSRF token on Chirp's sign-in page — it may have changed.")
+
+    resp = await client.post(
+        SIGN_IN_URL,
+        data={
+            "authenticity_token": token,
+            "user[email]": email,
+            "user[password]": password,
+            "user[remember_me]": "1",
+            "button": "",
+        },
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=True,
+    )
+    # Devise's own default flash copy for a rejected login — a reasonable,
+    # well-known default, not yet confirmed against a real failed attempt
+    # against this account (only a real successful login has been captured).
+    if "/users/sign_in" in str(resp.url) or "Invalid Email or password" in resp.text:
+        raise ChirpAuthError("Chirp rejected that email/password.")
+
+
+# ------------------------------------------------------------------ GraphQL
+
+
+async def _graphql(client: httpx.AsyncClient, operation_name: str, query: str, variables: dict) -> dict:
+    resp = await client.post(
+        GRAPHQL_URL,
+        json={"operationName": operation_name, "query": query, "variables": variables},
+        headers={"Content-Type": "application/json"},
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    if payload.get("errors"):
+        raise ChirpRequestError(str(payload["errors"]))
+    return payload.get("data") or {}
+
+
+@dataclass
+class ChirpAudiobook:
+    purchase_id: str
+    audiobook_id: str
+    title: str
+    authors: str
+    narrators: str
+    url_path: str
+    cover_url: str
+    progress_status: str
+    position_percent: int
+    playable: bool
+    series_name: str | None = None
+    series_number: str | None = None
+
+
+# NOT confirmed against a captured request — see the module docstring. The
+# field selection below is trustworthy (copied from a real captured
+# *response*'s own shape); operationName and the page/perPage arguments are
+# a best-effort reconstruction pending a real captured request.
+_LIBRARY_QUERY = """
+query fetchCurrentUserAudiobooks($page: Int, $perPage: Int) {
+  currentUserAudiobooks(page: $page, perPage: $perPage) {
+    id
+    progressStatus
+    positionPercent
+    playable
+    audiobook {
+      id
+      url
+      coverUrl
+      displayTitle
+      displayAuthors
+      displayNarrators
+      seriesAudiobook { displayNumber series { name } }
+    }
+  }
+  currentUserAudiobooksCount
+}
+"""
+
+
+def parse_library_page(payload: dict) -> tuple[list[ChirpAudiobook], int]:
+    """payload is the "data" object of a currentUserAudiobooks response.
+    Field shape confirmed from a real capture against this account (see
+    tests/fixtures/chirp_library_response.json) — the pagination this
+    function's own caller uses to walk multiple pages is not.
+    """
+    items = []
+    for entry in payload.get("currentUserAudiobooks") or []:
+        book = entry.get("audiobook") or {}
+        series_audiobook = book.get("seriesAudiobook") or {}
+        series = series_audiobook.get("series") or {}
+        items.append(
+            ChirpAudiobook(
+                purchase_id=str(entry.get("id", "")),
+                audiobook_id=str(book.get("id", "")),
+                title=book.get("displayTitle", ""),
+                authors=book.get("displayAuthors", ""),
+                narrators=book.get("displayNarrators", ""),
+                url_path=book.get("url", ""),
+                cover_url=book.get("coverUrl", ""),
+                progress_status=entry.get("progressStatus", ""),
+                position_percent=entry.get("positionPercent") or 0,
+                playable=bool(entry.get("playable")),
+                series_name=series.get("name"),
+                series_number=series_audiobook.get("displayNumber"),
+            )
+        )
+    total = payload.get("currentUserAudiobooksCount", len(items))
+    return items, total
+
+
+async def fetch_library_page(client: httpx.AsyncClient, page: int = 1, per_page: int = 20) -> tuple[list[ChirpAudiobook], int]:
+    data = await _graphql(client, "fetchCurrentUserAudiobooks", _LIBRARY_QUERY, {"page": page, "perPage": per_page})
+    return parse_library_page(data)
+
+
+@dataclass
+class ChirpTrack:
+    part_number: int
+    chapter_number: int
+    offset_from_book_start_ms: int
+    duration_ms: int
+    display_name: str
+
+
+# Confirmed working via a real, independently-published implementation
+# (jo1gi/audiobook-dl's chirp.py) — not yet independently re-verified
+# against a live response from this account.
+_TRACKS_QUERY = (
+    "query fetchAudiobookTracks($id:ID!){audiobook(id:$id){tracks{"
+    "partNumber chapterNumber offsetFromBookStartMs durationMs displayName}}}"
+)
+_TRACK_URL_QUERY = (
+    "query fetchAudiobookTrackUrl($id:ID!,$partNumber:Int!,$chapterNumber:Int!){"
+    "audiobook(id:$id){track(partNumber:$partNumber,chapterNumber:$chapterNumber){webPlayerMediaUrl}}}"
+)
+
+
+def parse_tracks(payload: dict) -> list[ChirpTrack]:
+    tracks = (payload.get("audiobook") or {}).get("tracks") or []
+    return [
+        ChirpTrack(
+            part_number=t["partNumber"],
+            chapter_number=t["chapterNumber"],
+            offset_from_book_start_ms=t["offsetFromBookStartMs"],
+            duration_ms=t["durationMs"],
+            display_name=t["displayName"],
+        )
+        for t in tracks
+    ]
+
+
+async def fetch_tracks(client: httpx.AsyncClient, audiobook_id: str) -> list[ChirpTrack]:
+    data = await _graphql(client, "fetchAudiobookTracks", _TRACKS_QUERY, {"id": audiobook_id})
+    return parse_tracks(data)
+
+
+async def fetch_encrypted_track_url(client: httpx.AsyncClient, audiobook_id: str, part_number: int, chapter_number: int) -> str:
+    """Returns the still-AES-encrypted webPlayerMediaUrl — pass it to
+    decrypt_track_url() with this account's own key/iv before it's a
+    usable download URL."""
+    data = await _graphql(
+        client,
+        "fetchAudiobookTrackUrl",
+        _TRACK_URL_QUERY,
+        {"id": audiobook_id, "partNumber": part_number, "chapterNumber": chapter_number},
+    )
+    track = (data.get("audiobook") or {}).get("track") or {}
+    return track.get("webPlayerMediaUrl", "")
+
+
+# --------------------------------------------------------------- decryption
+
+
+def derive_iv(user_id: int) -> bytes:
+    """The AES IV Chirp's own web player derives from the account's numeric
+    user id — not a secret, just an obfuscation layer: left-pad the id with
+    literal "x" characters to 12 characters, then base64-encode (which
+    happens to produce exactly 16 bytes — AES's block size — for any id up
+    to 12 digits; presumably why 12 was chosen). Confirmed algorithm from a
+    working, independently-published implementation; not yet independently
+    re-derived against a real decrypted track from this account.
+    """
+    padded = str(user_id).rjust(12, "x")
+    return base64.b64encode(padded.encode("utf-8"))
+
+
+def decrypt_track_url(ciphertext_b64: str, key: bytes, iv: bytes) -> str:
+    """Reverses the AES-CBC encryption Chirp's web player applies to each
+    chapter's media URL before it ever reaches the client as JSON.
+    Confirmed algorithm from a working, independently-published
+    implementation; not yet independently verified against a real
+    decrypted URL from this account.
+    """
+    ciphertext = base64.b64decode(ciphertext_b64)
+    decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()
+    plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+    # Strips exactly one trailing byte rather than doing full PKCS7
+    # unpadding — replicated as-is from the confirmed-working reference
+    # rather than "corrected" against an assumed padding scheme.
+    return plaintext.decode("utf-8")[:-1]
