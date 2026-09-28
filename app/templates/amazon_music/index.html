@@ -31,7 +31,14 @@
     const countEl = document.getElementById('amazon-music-albums-count');
     if (!countEl) return;
     const shown = document.querySelectorAll('#amazon-music-table .amazon-music-album-row').length;
-    countEl.textContent = `Showing ${shown} of ${countEl.dataset.total} album(s)`;
+    const total = parseInt(countEl.dataset.total, 10) || 0;
+    countEl.textContent = `Showing ${shown} of ${total} album(s)`;
+    // The header "select all" checkbox only ever touches rows already in the
+    // DOM — with infinite scroll, that's no longer necessarily every album,
+    // so this note (hidden server-side too, on the initial render, whenever
+    // everything already fit on one page) warns as soon as it's true.
+    const note = document.getElementById('amazon-music-select-all-note');
+    if (note) note.hidden = shown >= total;
   }
   document.body.addEventListener('htmx:afterSwap', updateAmazonMusicAlbumsCount);
 </script>

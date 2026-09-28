@@ -1,0 +1,8 @@
+<span id="amazon-music-album-cover-wrap" style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; flex-shrink: 0;">
+  <img src="/amazon-music/albums/{{ album_key }}/cover{% if cache_bust %}?v={{ cache_bust }}{% endif %}" alt=""
+       width="120" height="120" style="border-radius: 6px;" onerror="this.style.opacity='0.25';">
+  <form hx-post="/amazon-music/albums/{{ album_key }}/refresh-cover" hx-target="#amazon-music-album-cover-wrap" hx-swap="outerHTML" style="margin: 0;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="secondary" style="padding: 0.1rem 0.5rem; font-size: 0.75em;">Refresh cover</button>
+  </form>
+</span>

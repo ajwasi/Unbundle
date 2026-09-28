@@ -136,6 +136,9 @@
               onclick="document.querySelectorAll('#music-albums-download-form .album-check').forEach(function (c) { c.checked = false; })">
         Download all ({{ total_tracks }} track{{ "s" if total_tracks != 1 else "" }})
       </button>
+      <span id="amazon-music-select-all-note" class="muted" style="font-size: 0.85em;" {{ "hidden" if shown_so_far >= total_albums else "" }}>
+        The header checkbox only selects albums already loaded below — scroll to load the rest first, or use "Download all" for everything.
+      </span>
     </div>
     {% endif %}
 

@@ -118,6 +118,23 @@ def _fresh_catalog_cache():
 
 
 @pytest.fixture(autouse=True)
+def _fresh_amazon_music_cover_cache():
+    """Same reasoning as _fresh_catalog_cache above, for the amazon_music
+    router's own _cover_cache, plus asset_cache's module-level failure
+    cooldown — both are process-wide dicts that would otherwise let one
+    test's cached/failed state leak into another test reusing the same URL
+    or hitting a coincidentally-matching cache key.
+    """
+    from app import asset_cache
+    from app.routers import amazon_music
+
+    amazon_music._cover_cache["key"] = None
+    amazon_music._cover_cache["info"] = None
+    asset_cache._recent_failures.clear()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _fresh_backups_dir():
     """Same reasoning as _fresh_downloads_dir below — settings.data_dir is a
     single process-wide path for the whole test session, so backup files one
