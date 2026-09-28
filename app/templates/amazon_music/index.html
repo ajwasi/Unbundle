@@ -20,4 +20,19 @@
 </div>
 
 {% include "amazon_music/_albums_table.html" %}
+
+<script>
+  // Mirrors catalog/list.html's own updateCatalogCount — see
+  // _albums_rows_batch.html's comment for why this can't be an htmx OOB
+  // swap instead. Registered here, not in _albums_table.html, so a full
+  // outerHTML swap of #amazon-music-table (search/sort/refresh) doesn't
+  // re-register a duplicate listener on every swap.
+  function updateAmazonMusicAlbumsCount() {
+    const countEl = document.getElementById('amazon-music-albums-count');
+    if (!countEl) return;
+    const shown = document.querySelectorAll('#amazon-music-table .amazon-music-album-row').length;
+    countEl.textContent = `Showing ${shown} of ${countEl.dataset.total} album(s)`;
+  }
+  document.body.addEventListener('htmx:afterSwap', updateAmazonMusicAlbumsCount);
+</script>
 {% endblock %}

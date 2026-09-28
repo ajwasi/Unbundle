@@ -1,3 +1,4 @@
+{% import "amazon_music/_albums_row_macro.html" as rowmacro with context %}
 <div id="amazon-music-table">
   {% if refresh_error %}<p class="text-error">{{ refresh_error }}</p>{% endif %}
   {% if refresh_result %}
@@ -117,7 +118,10 @@
       Show tracks no longer listed
     </label>
     {% endif %}
-    <span class="muted">{{ albums|length }} album{{ "s" if albums|length != 1 else "" }}, {{ total_tracks }} track{{ "s" if total_tracks != 1 else "" }}</span>
+    <span class="muted">
+      <span id="amazon-music-albums-count" data-total="{{ total_albums }}">Showing {{ shown_so_far }} of {{ total_albums }} album{{ "s" if total_albums != 1 else "" }}</span>,
+      {{ total_tracks }} track{{ "s" if total_tracks != 1 else "" }}
+    </span>
   </div>
 
   <form id="music-albums-download-form" hx-post="/amazon-music/albums/downloads" hx-target="#amazon-music-table" hx-swap="outerHTML">
@@ -148,42 +152,12 @@
         </tr>
       </thead>
       <tbody>
-        {% for a in albums %}
-        <tr>
-          <td class="table-lead-col"><input type="checkbox" class="album-check" name="album_key" value="{{ a.album_key }}" onchange="updateMusicAlbumsSelectedButton();"></td>
-          <td>
-            {% if a.cover_url %}
-            <img src="/amazon-music/albums/{{ a.album_key }}/cover" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
-            {% endif %}
-          </td>
-          <td>
-            <a href="/amazon-music/albums/{{ a.album_key }}">{{ a.album }}</a>
-            {% if a.track_order_synced %}
-            <span class="badge badge-ok tip" title="This album's real track order has been fetched from Amazon." style="font-size: 0.7em;">Ordered</span>
-            {% endif %}
-          </td>
-          <td>{{ a.artist }}</td>
-          <td>
-            {{ a.track_count }}
-            {% if a.missing_count %}<span class="muted" style="font-size: 0.85em;">({{ a.missing_count }} no longer listed)</span>{% endif %}
-          </td>
-          <td style="white-space: nowrap;">
-            {% if a.downloading %}
-            <span class="badge badge-pending">Downloading&hellip;</span>
-            {% else %}
-            <button type="button" class="secondary" style="padding: 0.15rem 0.5rem; font-size: 0.85em;"
-                    hx-post="/amazon-music/albums/{{ a.album_key }}/download" hx-target="#amazon-music-table" hx-swap="outerHTML"
-                    hx-include="#music-albums-download-form input[name=csrf_token], #music-albums-download-form input[name=q], #music-albums-download-form input[name=sort], #music-albums-download-form input[name=show_missing]">
-              Download
-            </button>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
+        {% for a in albums %}{{ rowmacro.render_row(a) }}{% else %}
         <tr><td colspan="6" class="muted">
           {% if q %}No albums match.{% else %}Nothing synced yet — click "Sync Amazon Music" above.{% endif %}
         </td></tr>
         {% endfor %}
+        {% if has_more %}{{ rowmacro.sentinel(q, sort, show_missing, next_offset) }}{% endif %}
       </tbody>
     </table>
     </div>

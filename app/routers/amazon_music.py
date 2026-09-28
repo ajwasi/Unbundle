@@ -160,6 +160,13 @@ def _context(db: Session, q: str = "", sort: str = "added", show_missing: bool =
 
 ALBUM_SORTS = {"added", "album", "artist", "tracks"}
 
+# Mirrors catalog.py's own _PAGE_SIZE and the reasoning behind it: rendering
+# every album row unpaginated is the actual cost that scales badly, not the
+# Python-side grouping (benchmarked separately at ~450ms for 1,500 albums —
+# real, but not the dominant cost at that scale, the same shape catalog.py
+# already measured and fixed for its own unpaginated table).
+_ALBUMS_PAGE_SIZE = 100
+
 
 def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[dict]:
     """Groups tracks into albums in Python, not a SQL GROUP BY.
@@ -232,8 +239,11 @@ def _sort_albums(albums: list[dict], sort: str) -> list[dict]:
     return sorted(albums, key=lambda a: a["first_seen_at"], reverse=True)  # "added", the default
 
 
-def _albums_context(db: Session, q: str = "", sort: str = "added", show_missing: bool = False) -> dict:
-    albums = _sort_albums(_album_rows(db, q, show_missing), sort)
+def _albums_context(
+    db: Session, q: str = "", sort: str = "added", show_missing: bool = False, offset: int = 0
+) -> dict:
+    all_albums = _sort_albums(_album_rows(db, q, show_missing), sort)
+    albums = all_albums[offset : offset + _ALBUMS_PAGE_SIZE]
 
     last_sync = db.query(AmazonMusicTrack.last_seen_at).order_by(AmazonMusicTrack.last_seen_at.desc()).first()
     last_synced = last_sync[0] if last_sync else None
@@ -243,6 +253,10 @@ def _albums_context(db: Session, q: str = "", sort: str = "added", show_missing:
         "q": q,
         "sort": sort,
         "show_missing": show_missing,
+        "has_more": offset + _ALBUMS_PAGE_SIZE < len(all_albums),
+        "next_offset": offset + _ALBUMS_PAGE_SIZE,
+        "total_albums": len(all_albums),
+        "shown_so_far": offset + len(albums),
         "total_tracks": db.query(AmazonMusicTrack).count(),
         "missing_count": db.query(AmazonMusicTrack).filter(AmazonMusicTrack.missing_since.isnot(None)).count(),
         "last_synced": last_synced,
@@ -264,6 +278,25 @@ def amazon_music_page(
     context = _albums_context(db, q.strip(), sort, show_missing)
     template = "amazon_music/_albums_table.html" if request.headers.get("HX-Request") else "amazon_music/index.html"
     return templates.TemplateResponse(request, template, context)
+
+
+@router.get("/albums/rows", response_class=HTMLResponse)
+def amazon_music_album_rows(
+    request: Request,
+    q: str = "",
+    sort: str = "added",
+    show_missing: bool = False,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    """One infinite-scroll batch for the albums grid — mirrors catalog.py's
+    own GET /catalog/rows. Declared before /albums/{album_key} on purpose,
+    same reason /downloads/active precedes /downloads/{download_id} below:
+    Starlette matches routes in declaration order, and a dynamic segment
+    declared first would swallow this literal path instead.
+    """
+    context = _albums_context(db, q.strip(), sort, show_missing, offset)
+    return templates.TemplateResponse(request, "amazon_music/_albums_rows_batch.html", context)
 
 
 @router.get("/albums/{album_key}", response_class=HTMLResponse)

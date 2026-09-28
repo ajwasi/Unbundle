@@ -1,0 +1,40 @@
+{% macro render_row(a) %}
+<tr class="amazon-music-album-row">
+  <td class="table-lead-col"><input type="checkbox" class="album-check" name="album_key" value="{{ a.album_key }}" onchange="updateMusicAlbumsSelectedButton();"></td>
+  <td>
+    {% if a.cover_url %}
+    <img src="/amazon-music/albums/{{ a.album_key }}/cover" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
+    {% endif %}
+  </td>
+  <td>
+    <a href="/amazon-music/albums/{{ a.album_key }}">{{ a.album }}</a>
+    {% if a.track_order_synced %}
+    <span class="badge badge-ok tip" title="This album's real track order has been fetched from Amazon." style="font-size: 0.7em;">Ordered</span>
+    {% endif %}
+  </td>
+  <td>{{ a.artist }}</td>
+  <td>
+    {{ a.track_count }}
+    {% if a.missing_count %}<span class="muted" style="font-size: 0.85em;">({{ a.missing_count }} no longer listed)</span>{% endif %}
+  </td>
+  <td style="white-space: nowrap;">
+    {% if a.downloading %}
+    <span class="badge badge-pending">Downloading&hellip;</span>
+    {% else %}
+    <button type="button" class="secondary" style="padding: 0.15rem 0.5rem; font-size: 0.85em;"
+            hx-post="/amazon-music/albums/{{ a.album_key }}/download" hx-target="#amazon-music-table" hx-swap="outerHTML"
+            hx-include="#music-albums-download-form input[name=csrf_token], #music-albums-download-form input[name=q], #music-albums-download-form input[name=sort], #music-albums-download-form input[name=show_missing]">
+      Download
+    </button>
+    {% endif %}
+  </td>
+</tr>
+{% endmacro %}
+
+{% macro sentinel(q, sort, show_missing, next_offset) %}
+<tr id="amazon-music-albums-sentinel"
+    hx-get="/amazon-music/albums/rows?q={{ q | urlencode }}&sort={{ sort }}&show_missing={{ 'true' if show_missing else 'false' }}&offset={{ next_offset }}"
+    hx-trigger="revealed" hx-swap="outerHTML">
+  <td colspan="6" class="muted">Loading more&hellip;</td>
+</tr>
+{% endmacro %}
