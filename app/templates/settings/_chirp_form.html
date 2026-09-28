@@ -1,0 +1,31 @@
+{% from "_macros.html" import status_badge %}
+<p>
+  Status:
+  {{ status_badge(chirp_status) }}
+</p>
+{% if chirp_error %}<p class="text-error">{{ chirp_error }}</p>{% endif %}
+{% if chirp_connected_as %}<p class="text-success">{{ chirp_connected_as }}</p>{% endif %}
+
+<form hx-post="/settings/chirp" hx-target="#chirp-card-body" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+    <label>
+      Email
+      <input type="email" name="email" value="{{ chirp_email_display }}" placeholder="you@example.com" style="width: 100%;">
+    </label>
+    <label>
+      Password {% if chirp_has_password %}<span class="muted">(leave blank to keep the saved one)</span>{% endif %}
+      <input type="password" name="password" placeholder="{{ '••••••••' if chirp_has_password else '' }}" style="width: 100%;">
+    </label>
+    <button type="submit" style="align-self: flex-start;">{{ 'Reconnect' if chirp_status == 'error' else 'Save' }}</button>
+    <span class="muted htmx-indicator">Logging in and checking your library&hellip;</span>
+  </div>
+</form>
+
+{% if chirp_status != 'not_configured' %}
+<form hx-post="/settings/chirp/disconnect" hx-target="#chirp-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect Chirp? This removes the saved email and password." style="margin-top: 0.6rem;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <button type="submit" class="danger">Disconnect</button>
+</form>
+{% endif %}

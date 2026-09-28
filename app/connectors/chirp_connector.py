@@ -57,10 +57,16 @@ from dataclasses import dataclass
 import httpx
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+from app.connectors.types import CredentialStatus
+
 BASE_URL = "https://www.chirpbooks.com"
 SIGN_IN_URL = f"{BASE_URL}/users/sign_in"
 LIBRARY_URL = f"{BASE_URL}/library"
 GRAPHQL_URL = f"{BASE_URL}/api/graphql"
+
+# A real browser UA — Chirp's Cloudflare protection is exactly the kind of
+# thing more likely to look twice at an obviously-bare httpx default one.
+_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/156.0"
 
 
 class ChirpAuthError(Exception):
@@ -330,3 +336,40 @@ def decrypt_track_url(ciphertext_b64: str, key: bytes, iv: bytes) -> str:
     # unpadding — replicated as-is from the confirmed-working reference
     # rather than "corrected" against an assumed padding scheme.
     return plaintext.decode("utf-8")[:-1]
+
+
+# ---------------------------------------------------------- connectivity check
+
+
+async def fetch_library_preview(
+    email: str, password: str, page: int = 1, per_page: int = 20
+) -> tuple[list[ChirpAudiobook], int]:
+    """Logs in fresh and fetches one page of the library — the shared
+    plumbing behind both check_credentials() below (Settings' pass/fail
+    check) and the Chirp page's own "Check library" button (which wants the
+    actual book list, not just a status message). Raises ChirpAuthError/
+    ChirpRequestError/httpx.HTTPError un-caught; callers decide how to
+    present each to their own UI.
+    """
+    async with httpx.AsyncClient(headers={"User-Agent": _USER_AGENT}) as client:
+        await login(client, email, password)
+        return await fetch_library_page(client, page=page, per_page=per_page)
+
+
+async def check_credentials(email: str, password: str) -> CredentialStatus:
+    """Logs in and fetches page 1 of the library as a connectivity check —
+    same shape as steam_connector.check_credentials()/gog_connector's own
+    equivalents. Used by Settings' own "Save" action; this is the exact
+    same check scripts/verify_chirp_login.py performs standalone, just
+    reachable from inside the running app instead of a one-off manual
+    script.
+    """
+    try:
+        _books, total = await fetch_library_preview(email, password)
+    except ChirpAuthError as exc:
+        return CredentialStatus(ok=False, message=str(exc))
+    except ChirpRequestError as exc:
+        return CredentialStatus(ok=False, message=f"Logged in, but the library query failed: {exc}")
+    except httpx.HTTPError as exc:
+        return CredentialStatus(ok=False, message=f"Could not reach Chirp: {exc}")
+    return CredentialStatus(ok=True, message=f"Connected — {total} audiobook(s) found in your library.")

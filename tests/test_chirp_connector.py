@@ -1,6 +1,7 @@
 import base64
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -286,3 +287,63 @@ def test_decrypt_track_url_roundtrips_against_a_real_aes_cbc_encryption():
 
     decrypted = chirp.decrypt_track_url(ciphertext_b64, key, iv)
     assert decrypted.startswith("https://cdn.example.invalid/track.mp3")
+
+
+# ------------------------------------------------------ fetch_library_preview
+
+async def test_fetch_library_preview_logs_in_then_fetches_the_page():
+    calls = []
+
+    async def fake_login(client, email, password):
+        calls.append(("login", email, password))
+
+    async def fake_fetch(client, page, per_page):
+        calls.append(("fetch", page, per_page))
+        return [], 78
+
+    with patch.object(chirp, "login", new=fake_login):
+        with patch.object(chirp, "fetch_library_page", new=fake_fetch):
+            books, total = await chirp.fetch_library_preview("a@b.com", "hunter2", page=2, per_page=10)
+
+    assert calls == [("login", "a@b.com", "hunter2"), ("fetch", 2, 10)]
+    assert total == 78
+    assert books == []
+
+
+async def test_fetch_library_preview_lets_a_login_failure_propagate():
+    with patch.object(chirp, "login", new=AsyncMock(side_effect=chirp.ChirpAuthError("nope"))):
+        with pytest.raises(chirp.ChirpAuthError):
+            await chirp.fetch_library_preview("a@b.com", "wrong")
+
+
+# ---------------------------------------------------------- check_credentials
+
+async def test_check_credentials_reports_success_with_the_book_count():
+    with patch.object(chirp, "login", new=AsyncMock()):
+        with patch.object(chirp, "fetch_library_page", new=AsyncMock(return_value=([], 78))):
+            result = await chirp.check_credentials("a@b.com", "hunter2")
+    assert result.ok is True
+    assert "78" in result.message
+
+
+async def test_check_credentials_reports_a_login_failure():
+    with patch.object(chirp, "login", new=AsyncMock(side_effect=chirp.ChirpAuthError("bad password"))):
+        result = await chirp.check_credentials("a@b.com", "wrong")
+    assert result.ok is False
+    assert "bad password" in result.message
+
+
+async def test_check_credentials_reports_a_library_query_failure_separately_from_a_login_failure():
+    with patch.object(chirp, "login", new=AsyncMock()):
+        with patch.object(chirp, "fetch_library_page", new=AsyncMock(side_effect=chirp.ChirpRequestError("bad query"))):
+            result = await chirp.check_credentials("a@b.com", "hunter2")
+    assert result.ok is False
+    assert "Logged in" in result.message
+    assert "bad query" in result.message
+
+
+async def test_check_credentials_reports_a_network_failure():
+    with patch.object(chirp, "login", new=AsyncMock(side_effect=httpx.ConnectError("refused"))):
+        result = await chirp.check_credentials("a@b.com", "hunter2")
+    assert result.ok is False
+    assert "Could not reach Chirp" in result.message

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Chirp Books — Unbundle{% endblock %}
+{% block content %}
+<h1>Chirp Books <span class="badge badge-pending">Experimental</span></h1>
+<p class="muted">
+  Audiobooks you've purchased from Chirp. This is a connectivity preview only — it logs in and
+  lists what "Check library" finds, but nothing is saved yet and there's no download support
+  yet either. See <a href="/settings">Settings</a> to connect or disconnect.
+</p>
+
+{% include "chirp/_content.html" %}
+{% endblock %}

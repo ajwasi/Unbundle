@@ -1,0 +1,47 @@
+<div id="chirp-content">
+  {% if chirp_status == "not_configured" %}
+  <p class="muted">Chirp isn't connected yet. Connect it in <a href="/settings">Settings</a>.</p>
+  {% else %}
+  <div class="toolbar">
+    <form hx-post="/chirp/check" hx-target="#chirp-content" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+      <button type="submit">Check library</button>
+      <span class="muted htmx-indicator">Logging in and fetching your library&hellip;</span>
+    </form>
+  </div>
+
+  {% if check_error %}<p class="text-error">{{ check_error }}</p>{% endif %}
+
+  {% if books is not none %}
+  <p class="muted">Showing {{ books|length }} of {{ total }} audiobook{{ "s" if total != 1 else "" }}.</p>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Title</th>
+        <th>Author</th>
+        <th>Narrator</th>
+        <th>Series</th>
+        <th>Progress</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in books %}
+      <tr>
+        <td>{% if b.cover_url %}<img src="{{ b.cover_url }}" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">{% endif %}</td>
+        <td><a href="https://www.chirpbooks.com{{ b.url_path }}" target="_blank" rel="noopener">{{ b.title }}</a></td>
+        <td>{{ b.authors }}</td>
+        <td>{{ b.narrators }}</td>
+        <td>{% if b.series_name %}{{ b.series_name }}{% if b.series_number %} #{{ b.series_number }}{% endif %}{% endif %}</td>
+        <td>{{ b.position_percent }}%</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">No audiobooks found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
