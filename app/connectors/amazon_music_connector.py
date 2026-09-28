@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Iterator
 
 import httpx
@@ -328,6 +329,36 @@ def find_signed_download_url(payload: Any) -> str:
         if (host == "cloudfront.net" or host.endswith(".cloudfront.net")) and "cdoid" in url.params:
             return text
     return ""
+
+
+def parse_delivery_url_metadata(delivery_url: str) -> dict:
+    """ISRC and purchase timestamp, read off the signed delivery URL
+    downloadTrack returns — confirmed real query params (isrc, pt) from the
+    same capture find_signed_download_url's own docstring cites:
+    ?e=...&cid=...&cdoid=...&isrc=GBAAM8300001&tid=...&pt=1566309461277&h=...
+
+    Neither value is available anywhere else in this connector —
+    showPurchasedTracks carries neither — so this is the only source, and
+    only ever populated for a track once it has actually been downloaded at
+    least once. `pt` is 13 digits in the real example, consistent with epoch
+    milliseconds (dividing by 1000 lands on a plausible 2019 purchase date);
+    `e`, by contrast, is 10 digits in that same example — epoch seconds, and
+    the URL's own expiry, not a purchase date — the two are easy to mix up
+    from digit count alone if read too quickly.
+    """
+    try:
+        url = httpx.URL(delivery_url)
+    except Exception:
+        return {}
+    isrc = url.params.get("isrc") or ""
+    pt = url.params.get("pt") or ""
+    purchased_at = None
+    if pt.isdigit():
+        try:
+            purchased_at = datetime.utcfromtimestamp(int(pt) / 1000)
+        except (ValueError, OSError, OverflowError):
+            purchased_at = None
+    return {"isrc": isrc, "purchased_at": purchased_at}
 
 
 def parse_catalog_album_track_titles(payload: dict) -> list[str]:

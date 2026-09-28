@@ -64,6 +64,14 @@ class AmazonMusicTrack(Base):
     cover_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     cover_url_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Neither is available from the purchased-library sync — showPurchasedTracks
+    # carries neither field at all. Both ride along in the signed delivery URL
+    # /api/downloadTrack returns (see amazon_music_connector.parse_delivery_url_
+    # metadata), so both stay blank until a track has actually been downloaded
+    # at least once; downloading is the only thing that ever populates them.
+    isrc: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    purchased_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     # Set when a track stops appearing in a full sync. Rows are flagged, never

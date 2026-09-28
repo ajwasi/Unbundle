@@ -209,6 +209,35 @@ async def test_start_download_completes_and_saves_the_file(db, tmp_path, monkeyp
 
 
 @pytest.mark.asyncio
+async def test_start_download_backfills_isrc_and_purchase_date(db, tmp_path, monkeypatch):
+    # ISRC and purchase date are never available from the regular sync — this
+    # is the only place either one is ever populated, so it has to happen as
+    # a side effect of a real download succeeding.
+    from app.config import settings
+
+    _reset_module_state(monkeypatch)
+    monkeypatch.setattr(settings, "downloads_dir", tmp_path)
+    _connect_audible(db)
+    _save_template(db)
+    _add_track(db)
+
+    _patch_async_client(monkeypatch, httpx.MockTransport(_handler_factory()))
+
+    with patch("audible.Authenticator", _Auth):
+        await downloader.start_download(db, "c64eeeb1-e203-4c0a-9213-43ac6202c74a")
+        assert await _await_until(
+            db,
+            lambda: downloader.latest_status(db, "c64eeeb1-e203-4c0a-9213-43ac6202c74a").status
+            in (STATUS_COMPLETED, STATUS_FAILED),
+        )
+
+    db.expire_all()
+    track = db.get(AmazonMusicTrack, "c64eeeb1-e203-4c0a-9213-43ac6202c74a")
+    assert track.isrc == "GBAAM8300001"
+    assert track.purchased_at.year == 2019
+
+
+@pytest.mark.asyncio
 async def test_a_downloadtrack_error_response_fails_the_job_with_amazons_own_text(db, tmp_path, monkeypatch):
     from app.config import settings
 

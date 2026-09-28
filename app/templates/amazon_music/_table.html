@@ -82,6 +82,9 @@
           <td>
             {{ t.title }}
             {% if new_cutoff and t.first_seen_at >= new_cutoff %}<span class="badge badge-ok">New</span>{% endif %}
+            {% if t.isrc or t.purchased_at %}
+            <span class="tip" title="{% if t.isrc %}ISRC: {{ t.isrc }}{% endif %}{% if t.isrc and t.purchased_at %} &middot; {% endif %}{% if t.purchased_at %}Purchased {{ t.purchased_at.strftime('%Y-%m-%d') }}{% endif %}">&#9432;</span>
+            {% endif %}
           </td>
           <td>{{ t.artist }}{% if t.is_compilation %} <span class="tip" title="Tracks on this album have different artists, so it is treated as a compilation.">(compilation)</span>{% endif %}</td>
           <td>{{ t.album }}</td>
