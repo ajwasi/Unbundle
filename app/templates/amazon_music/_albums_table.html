@@ -153,7 +153,7 @@
           <td class="table-lead-col"><input type="checkbox" class="album-check" name="album_key" value="{{ a.album_key }}" onchange="updateMusicAlbumsSelectedButton();"></td>
           <td>
             {% if a.cover_url %}
-            <img src="{{ a.cover_url }}" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
+            <img src="/amazon-music/albums/{{ a.album_key }}/cover" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
             {% endif %}
           </td>
           <td>

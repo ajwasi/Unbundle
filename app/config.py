@@ -112,7 +112,7 @@ class Settings(BaseSettings):
         return [p for p in (self.ssl_certfile, self.ssl_keyfile) if p and not Path(p).exists()]
 
     def ensure_dirs(self) -> None:
-        for d in (self.data_dir, self.downloads_dir, self.data_dir / "backups"):
+        for d in (self.data_dir, self.downloads_dir, self.data_dir / "backups", self.data_dir / "asset_cache"):
             d.mkdir(parents=True, exist_ok=True)
 
     def scan_root_list(self) -> list[Path]:

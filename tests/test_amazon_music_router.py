@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from app import asset_cache
 from app.amazon_music import downloader
 from app.connectors import amazon_music_connector as amc
 from app.connectors.amazon_music_connector import AmazonMusicAuthError
@@ -42,6 +43,44 @@ def test_page_shows_album_cover_art(authed_client, db):
     _seed(db)  # "Every Breath You Take" carries a real cover_url in the fixture
     resp = authed_client.get("/amazon-music")
     assert "<img" in resp.text
+
+
+def test_album_covers_are_served_through_the_local_cache_route(authed_client, db):
+    # The point of the cache: templates never embed Amazon's own (presigned,
+    # expiring) cover_url directly — every <img> points at this app's own
+    # cover route instead.
+    _seed(db)
+    resp = authed_client.get("/amazon-music")
+    assert "/amazon-music/albums/B074JM9JHY/cover" in resp.text
+    assert "m.media-amazon.com" not in resp.text
+
+
+def test_album_cover_route_fetches_and_serves_the_cached_file(authed_client, db, tmp_path):
+    _seed(db)
+    cached_file = tmp_path / "art.jpg"
+    cached_file.write_bytes(b"CACHED IMAGE BYTES")
+
+    with patch.object(asset_cache, "get_or_fetch", return_value=cached_file) as mock_fetch:
+        resp = authed_client.get("/amazon-music/albums/B074JM9JHY/cover")
+
+    assert resp.status_code == 200
+    assert resp.content == b"CACHED IMAGE BYTES"
+    mock_fetch.assert_called_once()
+    assert mock_fetch.call_args.args[0] == "amazon-music-album"
+    assert "m.media-amazon.com" in mock_fetch.call_args.args[1]
+
+
+def test_album_cover_route_404s_when_nothing_is_cacheable(authed_client, db):
+    _seed(db)
+    with patch.object(asset_cache, "get_or_fetch", return_value=None):
+        resp = authed_client.get("/amazon-music/albums/B074JM9JHY/cover")
+    assert resp.status_code == 404
+
+
+def test_album_cover_route_404s_for_an_unknown_album(authed_client, db):
+    _seed(db)
+    resp = authed_client.get("/amazon-music/albums/NOTAREALASIN/cover")
+    assert resp.status_code == 404
 
 
 def test_album_detail_page_lists_its_own_tracks(authed_client, db):

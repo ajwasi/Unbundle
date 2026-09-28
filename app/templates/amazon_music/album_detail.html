@@ -4,7 +4,7 @@
 <p><a href="/amazon-music">&larr; Back to Albums</a></p>
 <div style="display: flex; gap: 1.25rem; align-items: flex-start; margin-bottom: 1rem;">
   {% if album_summary.cover_url %}
-  <img src="{{ album_summary.cover_url }}" alt="" width="120" height="120" style="border-radius: 6px; flex-shrink: 0;">
+  <img src="/amazon-music/albums/{{ album_key }}/cover" alt="" width="120" height="120" style="border-radius: 6px; flex-shrink: 0;">
   {% endif %}
   <div>
     <h1 style="margin-bottom: 0.2rem;">{{ album_summary.album }}</h1>
