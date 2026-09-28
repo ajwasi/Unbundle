@@ -54,6 +54,26 @@ def test_album_detail_page_lists_its_own_tracks(authed_client, db):
     assert "The Dance" not in resp.text  # the other album's track stays out
 
 
+def test_album_detail_page_shows_isrc_and_purchase_date_when_present(authed_client, db):
+    _seed(db)
+    from datetime import datetime as dt
+
+    row = db.get(AmazonMusicTrack, "c64eeeb1-e203-4c0a-9213-43ac6202c74a")
+    row.isrc = "GBAAM8300001"
+    row.purchased_at = dt(2019, 8, 20)
+    db.commit()
+
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+    assert "GBAAM8300001" in resp.text
+    assert "2019-08-20" in resp.text
+
+
+def test_album_detail_page_omits_the_indicator_when_absent(authed_client, db):
+    _seed(db)
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+    assert "ISRC" not in resp.text
+
+
 def test_album_detail_page_shows_one_cover_and_no_per_row_covers(authed_client, db):
     _seed(db)  # "Every Breath You Take" carries a real cover_url in the fixture
     resp = authed_client.get("/amazon-music/albums/B074JM9JHY")

@@ -348,6 +348,18 @@ async def _run_one(job_id: int, download_id: str, client: httpx.AsyncClient, hea
 
             url = await _fetch_download_url(client, headers_field, user_hash, download_id)
 
+            # ISRC and purchase date live nowhere else this app ever sees —
+            # showPurchasedTracks carries neither — so this is captured the
+            # moment the URL resolves, before the file stream even starts,
+            # rather than after a successful download: a stream failure
+            # further down shouldn't cost us metadata we already have in hand.
+            metadata = amc.parse_delivery_url_metadata(url)
+            if metadata.get("isrc"):
+                track.isrc = metadata["isrc"]
+            if metadata.get("purchased_at"):
+                track.purchased_at = metadata["purchased_at"]
+            db.commit()
+
             dest_dir = _track_dest_dir(resolve_destination_root(db), track)
             dest_dir.mkdir(parents=True, exist_ok=True)
             filename = sanitize_dir_name(track.title or download_id) + _guess_extension(url)

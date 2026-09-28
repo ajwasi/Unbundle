@@ -315,3 +315,24 @@ def test_parse_catalog_album_track_titles_ignores_unrelated_item_shapes():
 
 def test_parse_catalog_album_track_titles_returns_empty_when_absent():
     assert amc.parse_catalog_album_track_titles({"template": {"widgets": []}}) == []
+
+
+# ------------------------------------------------- delivery URL metadata
+
+def test_parse_delivery_url_metadata_reads_isrc_and_purchase_timestamp():
+    metadata = amc.parse_delivery_url_metadata(_SIGNED_URL)
+    assert metadata["isrc"] == "GBAAM8300001"
+    # pt=1566309461277 is epoch milliseconds, confirmed 13 digits in the real
+    # capture — not the same field as e= (10 digits, the URL's own expiry).
+    assert metadata["purchased_at"].year == 2019
+    assert metadata["purchased_at"].month == 8
+
+
+def test_parse_delivery_url_metadata_handles_a_url_with_neither_param():
+    metadata = amc.parse_delivery_url_metadata("https://example.invalid/track.mp3?e=123")
+    assert metadata == {"isrc": "", "purchased_at": None}
+
+
+def test_parse_delivery_url_metadata_handles_garbage_input():
+    assert amc.parse_delivery_url_metadata("not a url at all") == {"isrc": "", "purchased_at": None}
+    assert amc.parse_delivery_url_metadata("") == {"isrc": "", "purchased_at": None}
