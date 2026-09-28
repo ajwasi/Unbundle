@@ -3,7 +3,8 @@
   <td class="table-lead-col"><input type="checkbox" class="album-check" name="album_key" value="{{ a.album_key }}" onchange="updateMusicAlbumsSelectedButton();"></td>
   <td>
     {% if a.cover_url %}
-    <img src="/amazon-music/albums/{{ a.album_key }}/cover" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">
+    <img src="/amazon-music/albums/{{ a.album_key }}/cover" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;"
+         onerror="this.style.display='none';">
     {% endif %}
   </td>
   <td>
@@ -22,8 +23,8 @@
     <span class="badge badge-pending">Downloading&hellip;</span>
     {% else %}
     <button type="button" class="secondary" style="padding: 0.15rem 0.5rem; font-size: 0.85em;"
-            hx-post="/amazon-music/albums/{{ a.album_key }}/download" hx-target="#amazon-music-table" hx-swap="outerHTML"
-            hx-include="#music-albums-download-form input[name=csrf_token], #music-albums-download-form input[name=q], #music-albums-download-form input[name=sort], #music-albums-download-form input[name=show_missing]">
+            hx-post="/amazon-music/albums/{{ a.album_key }}/download" hx-target="closest tr" hx-swap="outerHTML"
+            hx-include="#music-albums-download-form input[name=csrf_token], #music-albums-download-form input[name=show_missing]">
       Download
     </button>
     {% endif %}

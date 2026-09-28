@@ -136,6 +136,17 @@
               onclick="document.querySelectorAll('#music-albums-download-form .album-check').forEach(function (c) { c.checked = false; })">
         Download all ({{ total_tracks }} track{{ "s" if total_tracks != 1 else "" }})
       </button>
+      <button type="button" id="music-albums-refresh-covers-btn" class="secondary" disabled
+              title="Forces the selected albums' cover art to be re-fetched from Amazon, replacing whatever's currently cached."
+              hx-post="/amazon-music/albums/refresh-covers" hx-target="#amazon-music-table" hx-swap="outerHTML"
+              hx-include="#music-albums-download-form input[name=csrf_token], #music-albums-download-form input[name=q],
+                          #music-albums-download-form input[name=sort], #music-albums-download-form input[name=show_missing],
+                          #music-albums-download-form .album-check:checked">
+        Refresh selected covers
+      </button>
+      <span id="amazon-music-select-all-note" class="muted" style="font-size: 0.85em;" role="status" aria-live="polite" {{ "hidden" if shown_so_far >= total_albums else "" }}>
+        The header checkbox only selects albums already loaded below — scroll to load the rest first, or use "Download all" for everything.
+      </span>
     </div>
     {% endif %}
 
@@ -165,9 +176,10 @@
 </div>
 <script>
   function updateMusicAlbumsSelectedButton() {
-    var btn = document.getElementById("music-albums-selected-btn");
-    if (!btn) return;
     var anyChecked = document.querySelector("#music-albums-download-form .album-check:checked") !== null;
-    btn.disabled = !anyChecked;
+    ["music-albums-selected-btn", "music-albums-refresh-covers-btn"].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.disabled = !anyChecked;
+    });
   }
 </script>
