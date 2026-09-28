@@ -18,6 +18,12 @@ SOURCE_AUDIBLE = "audible"  # audible package's Authenticator.to_dict() — see 
 # which is the only reliable way to satisfy an endpoint whose required fields
 # are undocumented.
 SOURCE_AMAZON_MUSIC = "amazon_music"
+# Plain email+password, encrypted at rest — unlike Audible/GOG there's no
+# OAuth to hand off to, and unlike Humble/Amazon Music there's no way to
+# reuse an existing connection's cookies either. See connectors/
+# chirp_connector.py's own docstring for why a plain credentials POST may
+# not even clear Chirp's Cloudflare protection in the first place.
+SOURCE_CHIRP = "chirp"
 
 STATUS_NOT_CONFIGURED = "not_configured"
 STATUS_OK = "ok"

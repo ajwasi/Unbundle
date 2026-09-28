@@ -128,6 +128,22 @@
   </div>
 </div>
 
+<div class="card" id="chirp-card">
+  <h3>Chirp Books <span class="badge badge-pending">Experimental</span></h3>
+  <p class="muted">
+    Lists your owned Chirp audiobooks. Chirp has no public API and no OAuth, so this logs in
+    directly with your email and password the plain way — which may or may not actually work:
+    Chirp sits behind Cloudflare, the same kind of protection that already blocks a plain
+    automated login for both Humble and Audible above. Saving below attempts the login and
+    reports back immediately whether it got through. Nothing is stored in plaintext: your
+    email and password are encrypted at rest the same way every other connected account here
+    is, and are only ever sent to chirpbooks.com itself.
+  </p>
+  <div id="chirp-card-body">
+    {% include "settings/_chirp_form.html" %}
+  </div>
+</div>
+
 <h2>System</h2>
 
 <div class="card" id="backup-card">

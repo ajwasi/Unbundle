@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app import accounts, api_tokens, applog, backup, humble_key
 from app.cli import _set_password
 from app.config import settings
-from app.connectors import amazon_music_probe, amazon_music_template, audible_connector, gog_connector, steam_connector
+from app.connectors import amazon_music_probe, amazon_music_template, audible_connector, chirp_connector, gog_connector, steam_connector
 from app.connectors.humble_connector import HumbleConnector
 from app.csrf import require_csrf
 from app.db import SessionLocal
@@ -20,6 +20,7 @@ from app.deps import get_db
 from app.models.api_token import ApiToken
 from app.models.credential import (
     SOURCE_AUDIBLE,
+    SOURCE_CHIRP,
     SOURCE_GOG,
     SOURCE_HUMBLE,
     SOURCE_OIDC,
@@ -43,6 +44,11 @@ _TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 # undocumented API on a personal account — same ceiling as every other
 # outbound refresh in this app.
 _music_probe_limiter = RateLimiter(max_calls=5, period_seconds=60)
+
+# Chirp sits behind Cloudflare (see chirp_connector.py's own docstring) —
+# capped the same way every other login-shaped outbound call in this app is,
+# rather than letting repeated clicks here hammer a bot-protected endpoint.
+_chirp_login_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 
 def _account_context(db: Session, account_error: str | None = None, saved: bool = False) -> dict:
@@ -79,6 +85,17 @@ def _steam_context(db: Session, steam_error: str | None = None) -> dict:
         "steam_error": steam_error if steam_error is not None else (cred.last_error if cred else None),
         "steam_has_key": bool(payload.get("api_key")),
         "steam_id_display": payload.get("steamid64", ""),
+    }
+
+
+def _chirp_context(db: Session, chirp_error: str | None = None) -> dict:
+    cred = Credential.get(db, SOURCE_CHIRP)
+    payload = decrypt_json(cred.encrypted_payload) if cred and cred.encrypted_payload else {}
+    return {
+        "chirp_status": cred.status if cred else STATUS_NOT_CONFIGURED,
+        "chirp_error": chirp_error if chirp_error is not None else (cred.last_error if cred else None),
+        "chirp_email_display": payload.get("email", ""),
+        "chirp_has_password": bool(payload.get("password")),
     }
 
 
@@ -261,6 +278,7 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     context.update(_steam_context(db))
     context.update(_gog_context(db))
     context.update(_audible_context(db))
+    context.update(_chirp_context(db))
     context.update(_backup_context(db))
     context.update(_amazon_music_context(db))
     context.update(_deployment_context(request))
@@ -439,6 +457,48 @@ def disconnect_steam(request: Request, db: Session = Depends(get_db)):
         db.delete(cred)
         db.commit()
     return templates.TemplateResponse(request, "settings/_steam_form.html", _steam_context(db))
+
+
+@router.post(
+    "/chirp",
+    response_class=HTMLResponse,
+    dependencies=[Depends(rate_limit(_chirp_login_limiter, "chirp-login")), Depends(require_csrf)],
+)
+async def save_chirp(request: Request, email: str = Form(""), password: str = Form(""), db: Session = Depends(get_db)):
+    email = email.strip()
+    cred = Credential.get_or_create(db, SOURCE_CHIRP)
+    existing = decrypt_json(cred.encrypted_payload) if cred.encrypted_payload else {}
+    effective_email = email or existing.get("email", "")
+    effective_password = password or existing.get("password", "")
+
+    error = None
+    connected_as = None
+    if not effective_email or not effective_password:
+        error = "Email and password are both required."
+    else:
+        result = await chirp_connector.check_credentials(effective_email, effective_password)
+        if result.ok:
+            connected_as = result.message
+        else:
+            error = result.message
+
+    cred.encrypted_payload = encrypt_json({"email": effective_email, "password": effective_password})
+    cred.status = STATUS_ERROR if error else STATUS_OK
+    cred.last_error = error
+    db.commit()
+
+    context = _chirp_context(db)
+    context["chirp_connected_as"] = connected_as
+    return templates.TemplateResponse(request, "settings/_chirp_form.html", context)
+
+
+@router.post("/chirp/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def disconnect_chirp(request: Request, db: Session = Depends(get_db)):
+    cred = Credential.get(db, SOURCE_CHIRP)
+    if cred:
+        db.delete(cred)
+        db.commit()
+    return templates.TemplateResponse(request, "settings/_chirp_form.html", _chirp_context(db))
 
 
 @router.post("/gog", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
