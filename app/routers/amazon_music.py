@@ -10,10 +10,11 @@ sequential queue in downloader.py instead, which is its own throttle.
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app import asset_cache
 from app.amazon_music import downloader
 from app.connectors.amazon_music_connector import AmazonMusicAuthError
 from app.csrf import require_csrf
@@ -285,6 +286,22 @@ def album_detail_page(
         )
     template = "amazon_music/_table.html" if request.headers.get("HX-Request") else "amazon_music/album_detail.html"
     return templates.TemplateResponse(request, template, context)
+
+
+@router.get("/albums/{album_key}/cover")
+def album_cover(album_key: str, db: Session = Depends(get_db)):
+    """Serves the album's cover art from this app's own local cache instead
+    of Amazon's presigned, expiring URL directly — the same freshness-picked
+    remote_url _album_summary already resolves, just fetched once and served
+    from disk on every request after that rather than re-embedding a URL
+    that stops working sometime after the sync that captured it.
+    """
+    summary = _album_summary(db, album_key)
+    remote_url = summary["cover_url"] if summary else ""
+    path = asset_cache.get_or_fetch("amazon-music-album", remote_url)
+    if path is None:
+        return Response(status_code=404)
+    return FileResponse(path)
 
 
 @router.post(
