@@ -67,7 +67,13 @@ def test_album_cover_route_fetches_and_serves_the_cached_file(authed_client, db,
     assert resp.content == b"CACHED IMAGE BYTES"
     mock_fetch.assert_called_once()
     assert mock_fetch.call_args.args[0] == "amazon-music-album"
-    assert "m.media-amazon.com" in mock_fetch.call_args.args[1]
+    # Exact match, not a substring check — CodeQL flags "host in url" as an
+    # incomplete/bypassable sanitization pattern even in a test assertion
+    # with no security decision behind it; asserting the fixture's full,
+    # known cover_url sidesteps that pattern and is a more precise test.
+    assert mock_fetch.call_args.args[1] == (
+        "https://m.media-amazon.com/images/I/example_256x256.jpg?X-Amz-Expires=3600&X-Amz-Signature=deadbeef"
+    )
 
 
 def test_album_cover_route_404s_when_nothing_is_cacheable(authed_client, db):
