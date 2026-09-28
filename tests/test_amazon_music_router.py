@@ -704,3 +704,103 @@ def test_sort_albums_by_name():
         {"album": "Apple", "artist": "Y", "track_count": 1, "first_seen_at": datetime(2020, 1, 1)},
     ]
     assert [a["album"] for a in amazon_music_router._sort_albums(albums, "album")] == ["Apple", "Zebra"]
+
+
+# --------------------------------------------------------- albums pagination
+
+def _add_n_albums(db, n):
+    now = datetime.utcnow()
+    for i in range(n):
+        db.add(
+            AmazonMusicTrack(
+                download_id=f"pg-d{i:05d}",
+                track_asin=f"PG{i:08d}",
+                album_asin=f"ALBUM{i:04d}",
+                album=f"Album {i:04d}",
+                artist="Artist One",
+                title=f"Song {i:04d}",
+                first_seen_at=now,
+                last_seen_at=now,
+            )
+        )
+    db.commit()
+
+
+def test_albums_context_slices_to_one_page(db):
+    _add_n_albums(db, amazon_music_router._ALBUMS_PAGE_SIZE + 20)
+
+    context = amazon_music_router._albums_context(db)
+
+    assert len(context["albums"]) == amazon_music_router._ALBUMS_PAGE_SIZE
+    assert context["has_more"] is True
+    assert context["next_offset"] == amazon_music_router._ALBUMS_PAGE_SIZE
+    assert context["total_albums"] == amazon_music_router._ALBUMS_PAGE_SIZE + 20
+    assert context["shown_so_far"] == amazon_music_router._ALBUMS_PAGE_SIZE
+
+
+def test_albums_context_last_page_has_no_more(db):
+    _add_n_albums(db, amazon_music_router._ALBUMS_PAGE_SIZE + 20)
+
+    context = amazon_music_router._albums_context(db, offset=amazon_music_router._ALBUMS_PAGE_SIZE)
+
+    assert len(context["albums"]) == 20
+    assert context["has_more"] is False
+    assert context["shown_so_far"] == amazon_music_router._ALBUMS_PAGE_SIZE + 20
+
+
+def test_albums_context_under_a_page_reports_no_more(db):
+    _add_two_track_album(db)
+
+    context = amazon_music_router._albums_context(db)
+
+    assert len(context["albums"]) == 1
+    assert context["has_more"] is False
+    assert context["total_albums"] == 1
+
+
+def test_albums_page_renders_a_sentinel_row_when_more_remain(authed_client, db):
+    _add_n_albums(db, amazon_music_router._ALBUMS_PAGE_SIZE + 1)
+
+    resp = authed_client.get("/amazon-music")
+
+    assert resp.status_code == 200
+    assert 'id="amazon-music-albums-sentinel"' in resp.text
+    assert resp.text.count('class="amazon-music-album-row"') == amazon_music_router._ALBUMS_PAGE_SIZE
+
+
+def test_albums_page_omits_the_sentinel_when_everything_fits(authed_client, db):
+    _add_two_track_album(db)
+
+    resp = authed_client.get("/amazon-music")
+
+    assert 'id="amazon-music-albums-sentinel"' not in resp.text
+
+
+def test_albums_rows_route_serves_the_next_batch(authed_client, db):
+    _add_n_albums(db, amazon_music_router._ALBUMS_PAGE_SIZE + 20)
+
+    resp = authed_client.get(
+        "/amazon-music/albums/rows", params={"offset": amazon_music_router._ALBUMS_PAGE_SIZE}
+    )
+
+    assert resp.status_code == 200
+    assert "<html" not in resp.text
+    assert resp.text.count('class="amazon-music-album-row"') == 20
+    assert 'id="amazon-music-albums-sentinel"' not in resp.text
+
+
+def test_albums_rows_route_respects_search_and_sort(authed_client, db):
+    _add_two_track_album(
+        db,
+        album_asin="ALBUM_A",
+        first={"download_id": "za1", "track_asin": "ZA1", "artist": "Zzz Band"},
+        second={"download_id": "za2", "track_asin": "ZA2", "artist": "Zzz Band"},
+    )
+    _add_two_track_album(
+        db, album_asin="ALBUM_B", first={"download_id": "zb1", "track_asin": "ZB1"}, second={"download_id": "zb2", "track_asin": "ZB2"}
+    )
+
+    resp = authed_client.get("/amazon-music/albums/rows", params={"q": "zzz"})
+
+    assert "Zzz Band" in resp.text
+    assert "Artist One" not in resp.text
