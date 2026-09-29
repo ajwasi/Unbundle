@@ -255,6 +255,27 @@ async def test_graphql_raises_on_an_error_payload():
         await chirp._graphql(client, "op", "query", {})
 
 
+async def test_graphql_raises_a_specific_error_when_cloudflare_intercepts_the_post():
+    # A stale/expired pasted cookie session is expected to fail exactly this
+    # way: Cloudflare answers instead of Chirp's real API ever seeing the
+    # request, so there's no JSON to parse at all.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html><body>Just a moment...</body></html>")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    with pytest.raises(chirp.ChirpRequestError, match="Cloudflare"):
+        await chirp._graphql(client, "op", "query", {})
+
+
+async def test_graphql_raises_a_generic_error_on_other_non_json_responses():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>Unexpected maintenance page</html>")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    with pytest.raises(chirp.ChirpRequestError, match="did not return JSON"):
+        await chirp._graphql(client, "op", "query", {})
+
+
 def test_parse_tracks():
     payload = {
         "audiobook": {
@@ -396,3 +417,67 @@ async def test_check_credentials_reports_a_network_failure():
         result = await chirp.check_credentials("a@b.com", "hunter2")
     assert result.ok is False
     assert "Could not reach Chirp" in result.message
+
+
+# ------------------------------------------------------ cookie-session fallback
+
+def test_client_from_cookie_header_carries_the_cookie_through():
+    client = chirp.client_from_cookie_header("cf_clearance=abc; _mockingjay_session=xyz")
+    assert client.headers["cookie"] == "cf_clearance=abc; _mockingjay_session=xyz"
+    assert client.follow_redirects is True
+
+
+def _cookie_client_stub(handler):
+    """Returns a fake client_from_cookie_header that ignores the real
+    network entirely, routing through the given MockTransport handler
+    instead — the handler itself asserts on request.headers["cookie"] when
+    the test cares what was actually carried through.
+    """
+
+    def build(cookie_header: str) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), headers={"Cookie": cookie_header}, follow_redirects=True
+        )
+
+    return build
+
+
+async def test_verify_cookie_session_reports_success():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["cookie"] == "cf_clearance=abc"
+        return httpx.Response(200, json={"data": _library_payload()})
+
+    with patch.object(chirp, "client_from_cookie_header", new=_cookie_client_stub(handler)):
+        result = await chirp.verify_cookie_session("cf_clearance=abc")
+
+    assert result.ok is True
+    assert "78 audiobook" in result.message
+
+
+async def test_verify_cookie_session_rejects_a_blank_cookie():
+    result = await chirp.verify_cookie_session("   ")
+    assert result.ok is False
+    assert "Paste" in result.message
+
+
+async def test_verify_cookie_session_reports_a_stale_session():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html><body>Just a moment...</body></html>")
+
+    with patch.object(chirp, "client_from_cookie_header", new=_cookie_client_stub(handler)):
+        result = await chirp.verify_cookie_session("cf_clearance=expired")
+
+    assert result.ok is False
+    assert "Cloudflare" in result.message
+
+
+async def test_fetch_library_preview_via_cookie_returns_the_library():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["cookie"] == "cf_clearance=abc"
+        return httpx.Response(200, json={"data": _library_payload()})
+
+    with patch.object(chirp, "client_from_cookie_header", new=_cookie_client_stub(handler)):
+        books, total = await chirp.fetch_library_preview_via_cookie("cf_clearance=abc")
+
+    assert total == 78
+    assert len(books) == 3

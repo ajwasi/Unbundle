@@ -18,22 +18,26 @@ unless a docstring below says otherwise:
 - Chirp sits behind Cloudflare — cf_clearance/__cf_bm cookies were present
   on every captured request.
 
-**Login viability is the single biggest open unknown, and there is a real,
-hard-won precedent in this exact codebase for why that matters**: see
-audible_connector.py's own module docstring — an earlier version of that
-connector submitted Amazon credentials directly and it worked right up
-until Amazon put a JS challenge in front of that login path, which a plain
-HTTP client structurally cannot solve. Cloudflare's cf_clearance cookie is
-that same category of gate. login() below is written to attempt the plain
-POST first since it may well just work (Cloudflare doesn't challenge every
-login endpoint), but this has NOT been run against the live site — the
-first real test can only happen from this app's own deployed server, not
-from a development sandbox (see the project notes on why). If it turns out
-Cloudflare does block it, the fallback is almost certainly the same shape
-Audible's own connector eventually landed on: have the user complete login
-in their own real browser (which solves any challenge the normal way) and
-feed the resulting session back to this app, rather than this app ever
-POSTing credentials itself.
+**Confirmed live against a real account (2026-09-29): Cloudflare blocks
+login() outright.** The same wall this codebase already hit for Humble and
+Audible's own plain-login attempts (see their connectors' docstrings) —
+predicted here before ever being tested, and the prediction held. login()/
+check_credentials()/fetch_library_preview() are kept as-is (tested, and not
+impossible some other Chirp endpoint or a future Cloudflare config change
+makes them viable again), but nothing in this app's UI calls them anymore.
+
+The actual working path, the same shape Humble's own cookie-paste fallback
+already uses in this app: the user completes login in their own real
+browser (which clears Cloudflare's challenge the normal way — its
+resulting cf_clearance cookie is the whole point), then pastes that
+browser's *entire* Cookie header back here. See client_from_cookie_header()
+/ verify_cookie_session() / fetch_library_preview_via_cookie(). The full
+header is asked for, not one named cookie the way Humble's single
+_simpleauth_sess is — Cloudflare's clearance cookie has to ride along with
+the Rails session cookie, and unlike Humble's own session cookie (this
+app's own settings copy notes it "doesn't expire on a fixed schedule"),
+Cloudflare's own cookies are short-lived (commonly on the order of 30
+minutes to a few hours), so this will need re-pasting far more often.
 
 NOT yet confirmed at all — reconstructed by pattern-matching a real
 *response* whose matching *request* was never captured:
@@ -151,8 +155,10 @@ def parse_audiobook_id_from_player_page(html: str) -> str | None:
 async def login(client: httpx.AsyncClient, email: str, password: str) -> None:
     """Logs into chirpbooks.com, leaving the session cookie on `client` for
     subsequent calls. Request shape confirmed from a real captured login
-    POST against this account (see the module docstring for what's still
-    unverified about whether this succeeds against Cloudflare).
+    POST against this account — confirmed live (see the module docstring)
+    to be blocked by Cloudflare in practice; kept working and tested rather
+    than deleted, but nothing in this app's own UI calls it anymore. Use
+    client_from_cookie_header()'s fallback instead for anything real.
     """
     # follow_redirects explicit here even if the client itself is already
     # configured with it — a real, independently-plausible cause of "no CSRF
@@ -220,7 +226,21 @@ async def _graphql(client: httpx.AsyncClient, operation_name: str, query: str, v
         headers={"Content-Type": "application/json"},
     )
     resp.raise_for_status()
-    payload = resp.json()
+    try:
+        payload = resp.json()
+    except ValueError as exc:
+        # A stale/expired cookie session (see client_from_cookie_header) is
+        # expected to fail exactly this way — Cloudflare intercepts the
+        # request and answers with its own HTML challenge page instead of
+        # ever reaching Chirp's real API, so resp.json() has nothing valid
+        # to parse. Distinguished from an unrecognised non-JSON response so
+        # the message actually points at what to do about it.
+        if _looks_like_cloudflare_challenge(resp.text):
+            raise ChirpRequestError(
+                "Cloudflare intercepted this request instead of Chirp's API answering it — "
+                "the pasted cookie session is likely stale; paste a fresh one."
+            ) from exc
+        raise ChirpRequestError(f"Chirp did not return JSON (got: {resp.text[:300]!r})") from exc
     if payload.get("errors"):
         raise ChirpRequestError(str(payload["errors"]))
     return payload.get("data") or {}
@@ -426,3 +446,51 @@ async def check_credentials(email: str, password: str) -> CredentialStatus:
     except httpx.HTTPError as exc:
         return CredentialStatus(ok=False, message=f"Could not reach Chirp: {exc}")
     return CredentialStatus(ok=True, message=f"Connected — {total} audiobook(s) found in your library.")
+
+
+# ------------------------------------------------------ cookie-session fallback
+
+
+def client_from_cookie_header(cookie_header: str) -> httpx.AsyncClient:
+    """Builds a client carrying a browser-obtained Cookie header directly —
+    the actual working path (see the module docstring): a plain server-side
+    login is confirmed blocked by Cloudflare, so this instead reuses a
+    session a real browser already cleared Cloudflare's own challenge with.
+
+    Takes the *entire* Cookie header value, not one named cookie the way
+    humble_connector.py's own session-key fallback does — Cloudflare's own
+    clearance cookie has to ride along with the Rails session cookie for
+    this to work, and which cookies Cloudflare actually checks isn't
+    something to hardcode a guess about; forwarding whatever the browser
+    itself sent is the faithful way to reuse that session.
+    """
+    return httpx.AsyncClient(headers={"User-Agent": _USER_AGENT, "Cookie": cookie_header}, follow_redirects=True)
+
+
+async def verify_cookie_session(cookie_header: str) -> CredentialStatus:
+    """Same shape as check_credentials() above, for the cookie-paste
+    fallback — fetches page 1 of the library directly with no login() call
+    at all, since the whole point of this path is that the pasted cookie
+    should already carry an authenticated, Cloudflare-cleared session.
+    """
+    if not cookie_header.strip():
+        return CredentialStatus(ok=False, message="Paste your browser's Cookie header value first.")
+    try:
+        async with client_from_cookie_header(cookie_header) as client:
+            _books, total = await fetch_library_page(client, page=1, per_page=20)
+    except ChirpRequestError as exc:
+        return CredentialStatus(ok=False, message=str(exc))
+    except httpx.HTTPError as exc:
+        return CredentialStatus(ok=False, message=f"Could not reach Chirp: {exc}")
+    return CredentialStatus(ok=True, message=f"Connected — {total} audiobook(s) found in your library.")
+
+
+async def fetch_library_preview_via_cookie(
+    cookie_header: str, page: int = 1, per_page: int = 20
+) -> tuple[list[ChirpAudiobook], int]:
+    """Cookie-session equivalent of fetch_library_preview() — used by the
+    Chirp page's own "Check library" button. Raises ChirpRequestError/
+    httpx.HTTPError un-caught, same contract as fetch_library_preview().
+    """
+    async with client_from_cookie_header(cookie_header) as client:
+        return await fetch_library_page(client, page=page, per_page=per_page)

@@ -90,12 +90,9 @@ def _steam_context(db: Session, steam_error: str | None = None) -> dict:
 
 def _chirp_context(db: Session, chirp_error: str | None = None) -> dict:
     cred = Credential.get(db, SOURCE_CHIRP)
-    payload = decrypt_json(cred.encrypted_payload) if cred and cred.encrypted_payload else {}
     return {
         "chirp_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "chirp_error": chirp_error if chirp_error is not None else (cred.last_error if cred else None),
-        "chirp_email_display": payload.get("email", ""),
-        "chirp_has_password": bool(payload.get("password")),
     }
 
 
@@ -464,31 +461,22 @@ def disconnect_steam(request: Request, db: Session = Depends(get_db)):
     response_class=HTMLResponse,
     dependencies=[Depends(rate_limit(_chirp_login_limiter, "chirp-login")), Depends(require_csrf)],
 )
-async def save_chirp(request: Request, email: str = Form(""), password: str = Form(""), db: Session = Depends(get_db)):
-    email = email.strip()
+async def save_chirp(request: Request, cookie: str = Form(...), db: Session = Depends(get_db)):
+    cookie = cookie.strip()
+    result = await chirp_connector.verify_cookie_session(cookie)
     cred = Credential.get_or_create(db, SOURCE_CHIRP)
-    existing = decrypt_json(cred.encrypted_payload) if cred.encrypted_payload else {}
-    effective_email = email or existing.get("email", "")
-    effective_password = password or existing.get("password", "")
 
-    error = None
-    connected_as = None
-    if not effective_email or not effective_password:
-        error = "Email and password are both required."
+    if result.ok:
+        cred.encrypted_payload = encrypt_json({"cookie": cookie})
+        cred.status = STATUS_OK
+        cred.last_error = None
     else:
-        result = await chirp_connector.check_credentials(effective_email, effective_password)
-        if result.ok:
-            connected_as = result.message
-        else:
-            error = result.message
-
-    cred.encrypted_payload = encrypt_json({"email": effective_email, "password": effective_password})
-    cred.status = STATUS_ERROR if error else STATUS_OK
-    cred.last_error = error
+        cred.status = STATUS_ERROR
+        cred.last_error = result.message
     db.commit()
 
     context = _chirp_context(db)
-    context["chirp_connected_as"] = connected_as
+    context["chirp_connected_as"] = result.message if result.ok else None
     return templates.TemplateResponse(request, "settings/_chirp_form.html", context)
 
 

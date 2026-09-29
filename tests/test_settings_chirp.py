@@ -8,39 +8,31 @@ from app.security import decrypt_json
 def test_settings_page_shows_chirp_card(authed_client):
     resp = authed_client.get("/settings")
     assert "Chirp" in resp.text
-    assert 'name="email"' in resp.text
+    assert 'name="cookie"' in resp.text
 
 
-def test_save_chirp_success_stores_credentials(authed_client, db):
+def test_save_chirp_success_stores_the_cookie(authed_client, db):
     with patch(
-        "app.routers.settings.chirp_connector.check_credentials",
+        "app.routers.settings.chirp_connector.verify_cookie_session",
         new=AsyncMock(return_value=CredentialStatus(ok=True, message="Connected — 78 audiobook(s) found in your library.")),
     ):
-        resp = authed_client.post("/settings/chirp", data={"email": "a@b.com", "password": "hunter2"})
+        resp = authed_client.post("/settings/chirp", data={"cookie": "cf_clearance=abc; _mockingjay_session=xyz"})
 
     assert resp.status_code == 200
     assert "78 audiobook" in resp.text
     cred = db.query(Credential).filter(Credential.source == SOURCE_CHIRP).one()
     assert cred.status == STATUS_OK
     payload = decrypt_json(cred.encrypted_payload)
-    assert payload["email"] == "a@b.com"
-    assert payload["password"] == "hunter2"
+    assert payload["cookie"] == "cf_clearance=abc; _mockingjay_session=xyz"
 
 
-def test_save_chirp_missing_fields_rejected(authed_client, db):
-    resp = authed_client.post("/settings/chirp", data={"email": "", "password": ""})
-    assert "required" in resp.text.lower()
-    cred = db.query(Credential).filter(Credential.source == SOURCE_CHIRP).one()
-    assert cred.status == STATUS_ERROR
-
-
-def test_save_chirp_rejected_login_shown(authed_client, db):
+def test_save_chirp_rejected_session_shown(authed_client, db):
     with patch(
-        "app.routers.settings.chirp_connector.check_credentials",
-        new=AsyncMock(return_value=CredentialStatus(ok=False, message="Chirp rejected that email/password.")),
+        "app.routers.settings.chirp_connector.verify_cookie_session",
+        new=AsyncMock(return_value=CredentialStatus(ok=False, message="Cloudflare intercepted this request — the pasted cookie session is likely stale.")),
     ):
-        resp = authed_client.post("/settings/chirp", data={"email": "a@b.com", "password": "wrong"})
-    assert "rejected" in resp.text.lower()
+        resp = authed_client.post("/settings/chirp", data={"cookie": "stale=1"})
+    assert "cloudflare" in resp.text.lower()
     cred = db.query(Credential).filter(Credential.source == SOURCE_CHIRP).one()
     assert cred.status == STATUS_ERROR
 
@@ -72,27 +64,21 @@ def test_disconnect_chirp_is_a_noop_when_nothing_configured(authed_client, db):
     assert resp.status_code == 200
 
 
-def test_save_chirp_blank_password_keeps_existing(authed_client, db):
+def test_save_chirp_blank_cookie_rejected(authed_client, db):
+    resp = authed_client.post("/settings/chirp", data={"cookie": "   "})
+    assert "paste" in resp.text.lower()
+    cred = db.query(Credential).filter(Credential.source == SOURCE_CHIRP).one()
+    assert cred.status == STATUS_ERROR
+
+
+def test_save_chirp_overwrites_the_previous_cookie(authed_client, db):
     with patch(
-        "app.routers.settings.chirp_connector.check_credentials",
+        "app.routers.settings.chirp_connector.verify_cookie_session",
         new=AsyncMock(return_value=CredentialStatus(ok=True, message="ok")),
     ):
-        authed_client.post("/settings/chirp", data={"email": "a@b.com", "password": "original-password"})
-        resp = authed_client.post("/settings/chirp", data={"email": "a@b.com", "password": ""})
+        authed_client.post("/settings/chirp", data={"cookie": "old=1"})
+        resp = authed_client.post("/settings/chirp", data={"cookie": "new=2"})
 
     assert resp.status_code == 200
     payload = decrypt_json(db.query(Credential).filter(Credential.source == SOURCE_CHIRP).one().encrypted_payload)
-    assert payload["password"] == "original-password"
-
-
-def test_save_chirp_blank_email_keeps_existing(authed_client, db):
-    with patch(
-        "app.routers.settings.chirp_connector.check_credentials",
-        new=AsyncMock(return_value=CredentialStatus(ok=True, message="ok")),
-    ):
-        authed_client.post("/settings/chirp", data={"email": "original@example.com", "password": "hunter2"})
-        resp = authed_client.post("/settings/chirp", data={"email": "", "password": "hunter2"})
-
-    assert resp.status_code == 200
-    payload = decrypt_json(db.query(Credential).filter(Credential.source == SOURCE_CHIRP).one().encrypted_payload)
-    assert payload["email"] == "original@example.com"
+    assert payload["cookie"] == "new=2"
