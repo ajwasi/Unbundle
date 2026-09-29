@@ -225,7 +225,22 @@ async def _graphql(client: httpx.AsyncClient, operation_name: str, query: str, v
         json={"operationName": operation_name, "query": query, "variables": variables},
         headers={"Content-Type": "application/json"},
     )
-    resp.raise_for_status()
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        # Logged (visible in Settings' own log viewer) with the actual body
+        # rather than just the status code — an unexpected 4xx/5xx here
+        # could be Chirp's own backend genuinely erroring, or a malformed
+        # Cookie paste (a stray "Cookie: " prefix left in, a truncated
+        # value) confusing it in a way that isn't the clean "unauthorized"
+        # GraphQL error a merely-wrong-domain cookie produces.
+        logger.warning(
+            "chirp(%s): GraphQL call returned %d. Body starts: %r",
+            operation_name,
+            resp.status_code,
+            resp.text[:500],
+        )
+        raise ChirpRequestError(f"Chirp answered with an unexpected error (status {resp.status_code}).") from exc
     try:
         payload = resp.json()
     except ValueError as exc:
