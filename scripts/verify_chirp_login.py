@@ -38,7 +38,8 @@ async def main() -> int:
     password = os.environ.get("CHIRP_PASSWORD") or getpass.getpass("Chirp password: ")
 
     async with httpx.AsyncClient(
-        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/156.0"}
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/156.0"},
+        follow_redirects=True,
     ) as client:
         print("Logging in...")
         try:

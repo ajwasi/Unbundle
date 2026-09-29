@@ -51,6 +51,7 @@ NOT yet confirmed at all — reconstructed by pattern-matching a real
 """
 
 import base64
+import logging
 import re
 from dataclasses import dataclass
 
@@ -58,6 +59,8 @@ import httpx
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.connectors.types import CredentialStatus
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.chirpbooks.com"
 SIGN_IN_URL = f"{BASE_URL}/users/sign_in"
@@ -67,6 +70,24 @@ GRAPHQL_URL = f"{BASE_URL}/api/graphql"
 # A real browser UA — Chirp's Cloudflare protection is exactly the kind of
 # thing more likely to look twice at an obviously-bare httpx default one.
 _USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/156.0"
+
+# Common markers across Cloudflare's various challenge/interstitial pages
+# (the JS "Just a moment..." challenge, the older "Checking your browser"
+# page, and the "Attention Required" block page) — not exhaustive, but
+# enough to tell "Cloudflare intercepted this before it reached Chirp at
+# all" apart from "Chirp's own page just doesn't have a token where expected
+# anymore", which need very different fixes.
+_CLOUDFLARE_CHALLENGE_MARKERS = (
+    "Just a moment...",
+    "cdn-cgi/challenge-platform",
+    "cf-browser-verification",
+    "Checking your browser before accessing",
+    "Attention Required! | Cloudflare",
+)
+
+
+def _looks_like_cloudflare_challenge(html: str) -> bool:
+    return any(marker in html for marker in _CLOUDFLARE_CHALLENGE_MARKERS)
 
 
 class ChirpAuthError(Exception):
@@ -133,9 +154,41 @@ async def login(client: httpx.AsyncClient, email: str, password: str) -> None:
     POST against this account (see the module docstring for what's still
     unverified about whether this succeeds against Cloudflare).
     """
-    get_resp = await client.get(SIGN_IN_URL)
+    # follow_redirects explicit here even if the client itself is already
+    # configured with it — a real, independently-plausible cause of "no CSRF
+    # token found" that has nothing to do with Cloudflare: without this, a
+    # GET that gets redirected (a canonical-URL redirect, a locale prefix,
+    # anything) comes back as the bare 3xx itself, with little or no body to
+    # find a token in at all.
+    get_resp = await client.get(SIGN_IN_URL, follow_redirects=True)
     token = parse_csrf_token(get_resp.text)
     if not token:
+        if _looks_like_cloudflare_challenge(get_resp.text):
+            logger.warning(
+                "chirp: GET %s (-> %s) returned a Cloudflare challenge page instead of Chirp's own sign-in "
+                "page (status %d)",
+                SIGN_IN_URL,
+                get_resp.url,
+                get_resp.status_code,
+            )
+            raise ChirpAuthError(
+                "Chirp's Cloudflare protection intercepted this before it ever reached the real sign-in "
+                "page — a plain server-side login cannot get past that. See chirp_connector.py's own "
+                "module docstring for the fallback this would need instead (reusing a browser-obtained "
+                "session rather than logging in here)."
+            )
+        # Not a recognised Cloudflare page either — logged so the actual
+        # response (page structure change? an entirely different block
+        # page? a maintenance page?) is visible in Settings' own log viewer
+        # instead of this being a dead end.
+        logger.warning(
+            "chirp: no CSRF token found on GET %s (-> %s, status %d, %d bytes). Body starts: %r",
+            SIGN_IN_URL,
+            get_resp.url,
+            get_resp.status_code,
+            len(get_resp.text),
+            get_resp.text[:500],
+        )
         raise ChirpAuthError("Could not find a CSRF token on Chirp's sign-in page — it may have changed.")
 
     resp = await client.post(
@@ -351,7 +404,7 @@ async def fetch_library_preview(
     ChirpRequestError/httpx.HTTPError un-caught; callers decide how to
     present each to their own UI.
     """
-    async with httpx.AsyncClient(headers={"User-Agent": _USER_AGENT}) as client:
+    async with httpx.AsyncClient(headers={"User-Agent": _USER_AGENT}, follow_redirects=True) as client:
         await login(client, email, password)
         return await fetch_library_page(client, page=page, per_page=per_page)
 

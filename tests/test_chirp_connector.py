@@ -96,6 +96,55 @@ async def test_login_raises_when_no_csrf_token_found():
         await chirp.login(client, "a@b.com", "hunter2")
 
 
+async def test_login_raises_a_specific_error_when_cloudflare_intercepts_the_get():
+    # The single biggest real-world failure mode this connector was always
+    # expected to hit (see the module's own docstring) — confirmed live
+    # against a real account: distinguished from a generic "page changed"
+    # failure so the error actually says what happened.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html><body>Just a moment...</body></html>")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    with pytest.raises(chirp.ChirpAuthError, match="Cloudflare"):
+        await chirp.login(client, "a@b.com", "hunter2")
+
+
+async def test_looks_like_cloudflare_challenge_true_and_false_cases():
+    assert chirp._looks_like_cloudflare_challenge("<html>Just a moment...</html>") is True
+    assert chirp._looks_like_cloudflare_challenge('<script src="/cdn-cgi/challenge-platform/x.js">') is True
+    assert chirp._looks_like_cloudflare_challenge('<meta name="csrf-token" content="abc">') is False
+
+
+async def test_login_follows_a_redirect_on_the_initial_get():
+    # A real, independently-plausible cause of "no CSRF token found" that
+    # has nothing to do with Cloudflare: without following redirects, a GET
+    # that gets redirected (canonical URL, locale prefix, anything) comes
+    # back as the bare 3xx itself with no page to find a token in at all.
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        if request.method == "GET" and str(request.url) == chirp.SIGN_IN_URL:
+            return httpx.Response(301, headers={"location": f"{chirp.BASE_URL}/users/sign_in/"})
+        if request.method == "GET":
+            return httpx.Response(200, text='<meta name="csrf-token" content="freshtoken" />')
+        posted_body = request.content.decode("utf-8")
+        assert "authenticity_token=freshtoken" in posted_body
+        return httpx.Response(303, headers={"location": "/home"})
+
+    def home_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>My Library</html>")
+
+    def combined(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == f"{chirp.BASE_URL}/home":
+            return home_handler(request)
+        return handler(request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(combined))
+    await chirp.login(client, "a@b.com", "hunter2")
+    assert f"{chirp.BASE_URL}/users/sign_in/" in calls  # the redirect target was actually fetched
+
+
 async def test_login_raises_on_devises_own_rejected_login_message():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET":
