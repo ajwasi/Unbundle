@@ -1,10 +1,12 @@
 """One-off manual check for whether app/connectors/chirp_connector.py's plain
-httpx login actually works against the real chirpbooks.com — the single
-biggest open unknown in that connector (see its own module docstring):
-Chirp sits behind Cloudflare, and this app already has a real precedent
-(audible_connector.py's own history) for a headless HTTP client being
-structurally unable to pass a JS challenge that a real browser sails through
-without noticing.
+httpx login actually works against the real chirpbooks.com.
+
+Already answered, confirmed live (2026-09-29): no, Cloudflare blocks it
+outright — see chirp_connector.py's own module docstring, and use its
+cookie-session fallback (client_from_cookie_header() etc., or just Settings'
+own Chirp card in the running app) for anything real. Kept here as a record
+of that confirmation and in case Cloudflare's config or this login path
+ever changes.
 
 Run this from wherever the answer actually needs to hold — ideally the same
 network/environment this app would really be deployed on, not a one-off dev
@@ -59,7 +61,7 @@ async def main() -> int:
 
         print("Fetching page 1 of the library...")
         try:
-            books, total = await chirp.fetch_library_page(client, page=1, per_page=20)
+            books, total = await chirp.fetch_library_page(client, page=1)
         except chirp.ChirpRequestError as exc:
             print(f"LOGIN worked, but the library query failed: {exc}")
             print(

@@ -67,7 +67,7 @@ async def check_library(request: Request, db: Session = Depends(get_db)):
         return templates.TemplateResponse(request, "chirp/_content.html", context)
 
     try:
-        books, total = await chirp.fetch_library_preview_via_cookie(cookie, page=1, per_page=20)
+        books, total = await chirp.fetch_library_preview_via_cookie(cookie, page=1)
     except chirp.ChirpRequestError as exc:
         context["check_error"] = str(exc)
     except Exception as exc:  # an undocumented, reverse-engineered API — a shape change is plausible
