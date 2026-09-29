@@ -1,12 +1,14 @@
 """Chirp Books — a read-only preview of the purchased library, built
 entirely on top of app/connectors/chirp_connector.py (see its own docstring
-for what's confirmed vs. reconstructed vs. still unknown about that API).
+for what's confirmed vs. reconstructed vs. still unknown about that API,
+including why this uses a pasted browser cookie rather than a stored
+email/password — a plain server-side login is confirmed blocked by
+Cloudflare).
 
 No sync, no persisted model, no download yet: "Check library" below
-performs the same live login + first-page fetch as
-scripts/verify_chirp_login.py and Settings' own "Save" button, just
-reachable from this app's own UI, and showing the actual book list rather
-than only a pass/fail message.
+performs the same live cookie-session fetch as Settings' own "Save" button,
+just reachable from this app's own UI, and showing the actual book list
+rather than only a pass/fail message.
 """
 
 from fastapi import APIRouter, Depends, Request
@@ -28,15 +30,12 @@ router = APIRouter(prefix="/chirp")
 _check_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 
-def _stored_credentials(db: Session) -> tuple[str, str] | None:
+def _stored_cookie(db: Session) -> str | None:
     cred = Credential.get(db, SOURCE_CHIRP)
     if cred is None or not cred.encrypted_payload:
         return None
-    payload = decrypt_json(cred.encrypted_payload)
-    email, password = payload.get("email", ""), payload.get("password", "")
-    if not email or not password:
-        return None
-    return email, password
+    cookie = decrypt_json(cred.encrypted_payload).get("cookie", "")
+    return cookie or None
 
 
 def _context(db: Session) -> dict:
@@ -62,18 +61,15 @@ def chirp_page(request: Request, db: Session = Depends(get_db)):
 )
 async def check_library(request: Request, db: Session = Depends(get_db)):
     context = _context(db)
-    creds = _stored_credentials(db)
-    if creds is None:
-        context["check_error"] = "Chirp isn't connected yet — add your email and password in Settings first."
+    cookie = _stored_cookie(db)
+    if cookie is None:
+        context["check_error"] = "Chirp isn't connected yet — paste your Cookie header value in Settings first."
         return templates.TemplateResponse(request, "chirp/_content.html", context)
 
-    email, password = creds
     try:
-        books, total = await chirp.fetch_library_preview(email, password, page=1, per_page=20)
-    except chirp.ChirpAuthError as exc:
-        context["check_error"] = str(exc)
+        books, total = await chirp.fetch_library_preview_via_cookie(cookie, page=1, per_page=20)
     except chirp.ChirpRequestError as exc:
-        context["check_error"] = f"Logged in, but the library query failed: {exc}"
+        context["check_error"] = str(exc)
     except Exception as exc:  # an undocumented, reverse-engineered API — a shape change is plausible
         context["check_error"] = f"The check failed ({type(exc).__name__}). Chirp may have changed something."
     else:

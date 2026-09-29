@@ -1,13 +1,13 @@
 from unittest.mock import AsyncMock, patch
 
 from app.connectors import chirp_connector as chirp
-from app.connectors.chirp_connector import ChirpAudiobook, ChirpAuthError, ChirpRequestError
+from app.connectors.chirp_connector import ChirpAudiobook, ChirpRequestError
 from app.models.credential import SOURCE_CHIRP, STATUS_OK, Credential
 from app.security import encrypt_json
 
 
-def _connect(db, email="a@b.com", password="hunter2"):
-    db.add(Credential(source=SOURCE_CHIRP, status=STATUS_OK, encrypted_payload=encrypt_json({"email": email, "password": password})))
+def _connect(db, cookie="cf_clearance=abc; _mockingjay_session=xyz"):
+    db.add(Credential(source=SOURCE_CHIRP, status=STATUS_OK, encrypted_payload=encrypt_json({"cookie": cookie})))
     db.commit()
 
 
@@ -40,7 +40,7 @@ def test_check_route_requires_auth(client):
 
 def test_page_points_at_settings_when_not_connected(authed_client):
     resp = authed_client.get("/chirp")
-    assert "Chirp isn&#39;t connected yet" in resp.text or "isn't connected yet" in resp.text
+    assert "isn't connected yet" in resp.text or "isn&#39;t connected yet" in resp.text
     assert '<a href="/settings">' in resp.text
 
 
@@ -52,7 +52,7 @@ def test_page_shows_check_button_when_connected(authed_client, db):
 
 def test_check_library_shows_books_on_success(authed_client, db):
     _connect(db)
-    with patch.object(chirp, "fetch_library_preview", new=AsyncMock(return_value=([_book()], 78))):
+    with patch.object(chirp, "fetch_library_preview_via_cookie", new=AsyncMock(return_value=([_book()], 78))):
         resp = authed_client.post("/chirp/check")
 
     assert resp.status_code == 200
@@ -68,24 +68,16 @@ def test_check_library_without_a_connection_shows_a_settings_prompt(authed_clien
     assert "isn" in resp.text.lower()  # "isn't connected"
 
 
-def test_check_library_surfaces_an_auth_error(authed_client, db):
-    _connect(db)
-    with patch.object(chirp, "fetch_library_preview", new=AsyncMock(side_effect=ChirpAuthError("Chirp rejected that email/password."))):
-        resp = authed_client.post("/chirp/check")
-    assert "rejected" in resp.text.lower()
-
-
 def test_check_library_surfaces_a_request_error(authed_client, db):
     _connect(db)
-    with patch.object(chirp, "fetch_library_preview", new=AsyncMock(side_effect=ChirpRequestError("bad query"))):
+    with patch.object(chirp, "fetch_library_preview_via_cookie", new=AsyncMock(side_effect=ChirpRequestError("bad query"))):
         resp = authed_client.post("/chirp/check")
-    assert "Logged in" in resp.text
     assert "bad query" in resp.text
 
 
 def test_check_library_surfaces_an_unexpected_error_without_500ing(authed_client, db):
     _connect(db)
-    with patch.object(chirp, "fetch_library_preview", new=AsyncMock(side_effect=RuntimeError("boom"))):
+    with patch.object(chirp, "fetch_library_preview_via_cookie", new=AsyncMock(side_effect=RuntimeError("boom"))):
         resp = authed_client.post("/chirp/check")
     assert resp.status_code == 200
     assert "RuntimeError" in resp.text
@@ -93,7 +85,7 @@ def test_check_library_surfaces_an_unexpected_error_without_500ing(authed_client
 
 def test_check_library_handles_an_empty_library(authed_client, db):
     _connect(db)
-    with patch.object(chirp, "fetch_library_preview", new=AsyncMock(return_value=([], 0))):
+    with patch.object(chirp, "fetch_library_preview_via_cookie", new=AsyncMock(return_value=([], 0))):
         resp = authed_client.post("/chirp/check")
     assert "No audiobooks found" in resp.text
 

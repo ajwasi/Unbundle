@@ -131,13 +131,24 @@
 <div class="card" id="chirp-card">
   <h3>Chirp Books <span class="badge badge-pending">Experimental</span></h3>
   <p class="muted">
-    Lists your owned Chirp audiobooks. Chirp has no public API and no OAuth, so this logs in
-    directly with your email and password the plain way — which may or may not actually work:
-    Chirp sits behind Cloudflare, the same kind of protection that already blocks a plain
-    automated login for both Humble and Audible above. Saving below attempts the login and
-    reports back immediately whether it got through. Nothing is stored in plaintext: your
-    email and password are encrypted at rest the same way every other connected account here
-    is, and are only ever sent to chirpbooks.com itself.
+    Lists your owned Chirp audiobooks. Confirmed: Chirp's own Cloudflare protection blocks a
+    plain automated login outright, the same wall Humble and Audible above already hit — so
+    like Humble, this is a manual cookie handoff instead of a username/password login.
+  </p>
+  <ol class="muted" style="padding-left: 1.2rem;">
+    <li>Log in at <a href="https://www.chirpbooks.com" target="_blank" rel="noopener">chirpbooks.com</a> in this browser, if you aren't already.</li>
+    <li>Open developer tools (press <code>F12</code>, or right-click the page &rarr; Inspect), go to the
+        <strong>Network</strong> tab, and reload the page.</li>
+    <li>Click any request to <code>chirpbooks.com</code>, find the <strong>Cookie</strong> request header
+        (under Headers / Request Headers), and copy its <strong>entire value</strong> — not a single cookie
+        from the Application/Storage tab, the whole header as one string.</li>
+    <li>Paste it below and click Save.</li>
+  </ol>
+  <p class="muted">
+    Unlike Humble's own session cookie, Cloudflare's own clearance cookies are short-lived
+    (commonly on the order of 30 minutes to a few hours) — this will need re-pasting far more
+    often than Humble does, likely every time you actually want to use this. Encrypted at rest
+    the same way every other connected account here is.
   </p>
   <div id="chirp-card-body">
     {% include "settings/_chirp_form.html" %}
