@@ -1190,3 +1190,27 @@ dialog {
 dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 dialog ul { padding-left: 1.2rem; }
 dialog li { margin-bottom: 0.3rem; }
+
+/* Shown briefly whenever an htmx request fails outside the 2xx range (a
+   tripped rate limit, an expired CSRF token, a network error) — htmx's own
+   default behavior for a non-2xx response is to swap nothing and show
+   nothing, which otherwise makes a button that hit one of these look like
+   it simply did nothing. See static/js/request-error-toast.js. Fixed and
+   centered rather than inline, since the failure can happen on any form
+   anywhere in the app. */
+.request-error-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--error);
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  font-weight: 600;
+  z-index: 1000;
+  max-width: min(90vw, 480px);
+  text-align: center;
+  cursor: pointer;
+}
