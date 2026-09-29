@@ -231,13 +231,15 @@ def test_parse_library_page_handles_an_empty_list():
     assert total == 0
 
 
-async def test_fetch_library_page_sends_the_reconstructed_query_and_parses_the_response():
+async def test_fetch_library_page_sends_the_confirmed_query_and_parses_the_response():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
         assert str(request.url) == chirp.GRAPHQL_URL
         body = json.loads(request.content)
         assert body["operationName"] == "fetchCurrentUserAudiobooks"
-        assert body["variables"] == {"page": 1, "perPage": 20}
+        # No perPage — confirmed live (2026-09-29) that Chirp's own schema
+        # rejects it outright ("doesn't accept argument 'perPage'").
+        assert body["variables"] == {"page": 1}
         return httpx.Response(200, json={"data": _library_payload()})
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -367,15 +369,15 @@ async def test_fetch_library_preview_logs_in_then_fetches_the_page():
     async def fake_login(client, email, password):
         calls.append(("login", email, password))
 
-    async def fake_fetch(client, page, per_page):
-        calls.append(("fetch", page, per_page))
+    async def fake_fetch(client, page):
+        calls.append(("fetch", page))
         return [], 78
 
     with patch.object(chirp, "login", new=fake_login):
         with patch.object(chirp, "fetch_library_page", new=fake_fetch):
-            books, total = await chirp.fetch_library_preview("a@b.com", "hunter2", page=2, per_page=10)
+            books, total = await chirp.fetch_library_preview("a@b.com", "hunter2", page=2)
 
-    assert calls == [("login", "a@b.com", "hunter2"), ("fetch", 2, 10)]
+    assert calls == [("login", "a@b.com", "hunter2"), ("fetch", 2)]
     assert total == 78
     assert books == []
 

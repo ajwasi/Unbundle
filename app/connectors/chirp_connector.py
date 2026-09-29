@@ -262,13 +262,19 @@ class ChirpAudiobook:
     series_number: str | None = None
 
 
-# NOT confirmed against a captured request — see the module docstring. The
-# field selection below is trustworthy (copied from a real captured
-# *response*'s own shape); operationName and the page/perPage arguments are
-# a best-effort reconstruction pending a real captured request.
+# operationName and the field selection are confirmed against a real
+# captured response (see tests/fixtures/chirp_library_response.json). The
+# pagination argument was NOT captured and had to be reconstructed — and
+# the first live attempt (2026-09-29) confirmed half of that reconstruction
+# wrong: Chirp's own schema rejected perPage outright ("Field
+# 'currentUserAudiobooks' doesn't accept argument 'perPage'"), meaning the
+# page size isn't caller-configurable — it's whatever Chirp's server picks
+# (20, in every capture so far). page on its own has NOT yet been confirmed
+# to actually page through results rather than being silently ignored too;
+# that still needs a real second-page capture to know for sure.
 _LIBRARY_QUERY = """
-query fetchCurrentUserAudiobooks($page: Int, $perPage: Int) {
-  currentUserAudiobooks(page: $page, perPage: $perPage) {
+query fetchCurrentUserAudiobooks($page: Int) {
+  currentUserAudiobooks(page: $page) {
     id
     progressStatus
     positionPercent
@@ -319,8 +325,8 @@ def parse_library_page(payload: dict) -> tuple[list[ChirpAudiobook], int]:
     return items, total
 
 
-async def fetch_library_page(client: httpx.AsyncClient, page: int = 1, per_page: int = 20) -> tuple[list[ChirpAudiobook], int]:
-    data = await _graphql(client, "fetchCurrentUserAudiobooks", _LIBRARY_QUERY, {"page": page, "perPage": per_page})
+async def fetch_library_page(client: httpx.AsyncClient, page: int = 1) -> tuple[list[ChirpAudiobook], int]:
+    data = await _graphql(client, "fetchCurrentUserAudiobooks", _LIBRARY_QUERY, {"page": page})
     return parse_library_page(data)
 
 
@@ -414,9 +420,7 @@ def decrypt_track_url(ciphertext_b64: str, key: bytes, iv: bytes) -> str:
 # ---------------------------------------------------------- connectivity check
 
 
-async def fetch_library_preview(
-    email: str, password: str, page: int = 1, per_page: int = 20
-) -> tuple[list[ChirpAudiobook], int]:
+async def fetch_library_preview(email: str, password: str, page: int = 1) -> tuple[list[ChirpAudiobook], int]:
     """Logs in fresh and fetches one page of the library — the shared
     plumbing behind both check_credentials() below (Settings' pass/fail
     check) and the Chirp page's own "Check library" button (which wants the
@@ -426,7 +430,7 @@ async def fetch_library_preview(
     """
     async with httpx.AsyncClient(headers={"User-Agent": _USER_AGENT}, follow_redirects=True) as client:
         await login(client, email, password)
-        return await fetch_library_page(client, page=page, per_page=per_page)
+        return await fetch_library_page(client, page=page)
 
 
 async def check_credentials(email: str, password: str) -> CredentialStatus:
@@ -477,7 +481,7 @@ async def verify_cookie_session(cookie_header: str) -> CredentialStatus:
         return CredentialStatus(ok=False, message="Paste your browser's Cookie header value first.")
     try:
         async with client_from_cookie_header(cookie_header) as client:
-            _books, total = await fetch_library_page(client, page=1, per_page=20)
+            _books, total = await fetch_library_page(client, page=1)
     except ChirpRequestError as exc:
         return CredentialStatus(ok=False, message=str(exc))
     except httpx.HTTPError as exc:
@@ -485,12 +489,10 @@ async def verify_cookie_session(cookie_header: str) -> CredentialStatus:
     return CredentialStatus(ok=True, message=f"Connected — {total} audiobook(s) found in your library.")
 
 
-async def fetch_library_preview_via_cookie(
-    cookie_header: str, page: int = 1, per_page: int = 20
-) -> tuple[list[ChirpAudiobook], int]:
+async def fetch_library_preview_via_cookie(cookie_header: str, page: int = 1) -> tuple[list[ChirpAudiobook], int]:
     """Cookie-session equivalent of fetch_library_preview() — used by the
     Chirp page's own "Check library" button. Raises ChirpRequestError/
     httpx.HTTPError un-caught, same contract as fetch_library_preview().
     """
     async with client_from_cookie_header(cookie_header) as client:
-        return await fetch_library_page(client, page=page, per_page=per_page)
+        return await fetch_library_page(client, page=page)
