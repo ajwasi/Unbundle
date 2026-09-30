@@ -136,12 +136,17 @@
     like Humble, this is a manual cookie handoff instead of a username/password login.
   </p>
   <ol class="muted" style="padding-left: 1.2rem;">
-    <li>Log in at <a href="https://www.chirpbooks.com" target="_blank" rel="noopener">chirpbooks.com</a> in this browser, if you aren't already.</li>
+    <li>Log in at <a href="https://www.chirpbooks.com/library" target="_blank" rel="noopener">chirpbooks.com/library</a> in this browser, if you aren't already.</li>
     <li>Open developer tools (press <code>F12</code>, or right-click the page &rarr; Inspect), go to the
         <strong>Network</strong> tab, and reload the page.</li>
-    <li>Click any request to <code>chirpbooks.com</code>, find the <strong>Cookie</strong> request header
-        (under Headers / Request Headers), and copy its <strong>entire value</strong> — not a single cookie
-        from the Application/Storage tab, the whole header as one string.</li>
+    <li>In the request list, click the <strong>very first one</strong> — named <code>library</code>, with type
+        <strong>Doc</strong>/<strong>document</strong>. This matters: the list will also be full of requests to
+        <code>img.chirpbooks.com</code>, <code>a0.chirpbooks.com</code>/<code>a1</code>/<code>a2</code>/<code>a3</code>
+        (cover art and site assets) — those are <strong>different subdomains with different cookies</strong> and
+        won't work here. If unsure, check the request's <strong>Domain</strong> column: it must say exactly
+        <code>www.chirpbooks.com</code>.</li>
+    <li>In that request's <strong>Headers</strong> panel, find <strong>Cookie</strong> under Request Headers, and copy
+        everything after the colon — the value only, not the word "Cookie" itself.</li>
     <li>Paste it below and click Save.</li>
   </ol>
   <p class="muted">

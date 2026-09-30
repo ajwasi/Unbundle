@@ -278,6 +278,20 @@ async def test_graphql_raises_a_generic_error_on_other_non_json_responses():
         await chirp._graphql(client, "op", "query", {})
 
 
+async def test_graphql_raises_a_clear_error_on_a_5xx_response():
+    # Confirmed live: a mismatched/malformed cookie can produce a genuine
+    # 500 from Chirp's own backend, distinct from the clean "unauthorized"
+    # GraphQL error a merely-wrong-domain cookie produces (see
+    # test_verify_cookie_session_reports_a_stale_session's own sibling
+    # scenario for that one).
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="Internal Server Error")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    with pytest.raises(chirp.ChirpRequestError, match="status 500"):
+        await chirp._graphql(client, "op", "query", {})
+
+
 def test_parse_tracks():
     payload = {
         "audiobook": {
