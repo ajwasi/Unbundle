@@ -71,6 +71,20 @@ def test_save_chirp_blank_cookie_rejected(authed_client, db):
     assert cred.status == STATUS_ERROR
 
 
+def test_save_chirp_shows_a_clean_error_instead_of_a_500_on_unexpected_exception(authed_client, db):
+    with patch(
+        "app.routers.settings.chirp_connector.verify_cookie_session",
+        new=AsyncMock(side_effect=ValueError("boom")),
+    ):
+        resp = authed_client.post("/settings/chirp", data={"cookie": "cf_clearance=abc"})
+
+    assert resp.status_code == 200
+    assert "ValueError" in resp.text
+    cred = db.query(Credential).filter(Credential.source == SOURCE_CHIRP).one()
+    assert cred.status == STATUS_ERROR
+    assert "ValueError" in cred.last_error
+
+
 def test_save_chirp_overwrites_the_previous_cookie(authed_client, db):
     with patch(
         "app.routers.settings.chirp_connector.verify_cookie_session",

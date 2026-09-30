@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from datetime import datetime
@@ -35,6 +36,8 @@ from app.ratelimit import RateLimiter, rate_limit
 from app.security import check_app_password, decrypt_json, encrypt_json
 from app.sync import audible_sync, gog_sync
 from app.templates_env import templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settings")
 
@@ -463,7 +466,13 @@ def disconnect_steam(request: Request, db: Session = Depends(get_db)):
 )
 async def save_chirp(request: Request, cookie: str = Form(...), db: Session = Depends(get_db)):
     cookie = cookie.strip()
-    result = await chirp_connector.verify_cookie_session(cookie)
+    try:
+        result = await chirp_connector.verify_cookie_session(cookie)
+    except Exception as exc:  # an undocumented, reverse-engineered API — a shape change is plausible
+        logger.exception("chirp: verify_cookie_session raised an unexpected exception")
+        result = chirp_connector.CredentialStatus(
+            ok=False, message=f"Saving failed ({type(exc).__name__}). Chirp may have changed something."
+        )
     cred = Credential.get_or_create(db, SOURCE_CHIRP)
 
     if result.ok:
