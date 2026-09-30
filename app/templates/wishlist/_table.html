@@ -45,6 +45,8 @@
       <option value="{{ s }}" {{ "selected" if sort == s else "" }}>
         {%- if s == "added" %}{{ "Wishlist order" if source == "steam" else "Recently added" }}
         {%- elif s == "rating" %}Highest rated
+        {%- elif s == "author" %}{{ "Author" if source == "audible" else "Developer" }}
+        {%- elif s == "lowest" %}Lowest seen
         {%- else %}{{ s|capitalize }}{% endif -%}
       </option>
       {% endfor %}
