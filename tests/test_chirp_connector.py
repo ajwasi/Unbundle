@@ -192,6 +192,30 @@ def test_parse_library_page_against_a_real_captured_response():
     assert wool.playable is True
     assert wool.series_name == "The Silo Saga"
     assert wool.series_number == "1"
+    assert wool.listing_price == 22.95
+    assert wool.discount_price == 14.99
+
+    space_holes = next(i for i in items if i.title == "Space Holes")
+    assert space_holes.listing_price is None  # currentProduct is null in the real capture
+    assert space_holes.discount_price is None
+
+
+def test_parse_price_strips_the_dollar_sign():
+    assert chirp.parse_library_page(
+        {
+            "currentUserAudiobooks": [
+                {
+                    "id": "1", "progressStatus": "", "positionPercent": 0, "playable": True,
+                    "audiobook": {
+                        "id": "2", "url": "", "coverUrl": "", "displayTitle": "T", "displayAuthors": "",
+                        "displayNarrators": "", "seriesAudiobook": None,
+                        "currentProduct": {"listingPrice": "$1,234.50", "discountPrice": None},
+                    },
+                }
+            ],
+            "currentUserAudiobooksCount": 1,
+        }
+    )[0][0].listing_price == 1234.50
 
 
 def test_parse_library_page_handles_a_book_with_no_series():
