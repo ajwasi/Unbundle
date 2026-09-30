@@ -50,8 +50,19 @@ NOT yet confirmed at all — reconstructed by pattern-matching a real
   hasn't already opened in the web player, and whether it's per-book or
   reusable across the whole account.
 - Whether purchase date and price-paid exist anywhere in Chirp's API. Not
-  present in the confirmed library-listing shape; possibly on an order
-  history page never yet captured.
+  present in the confirmed library-listing shape; a real capture of
+  /purchases (2026-09-30) confirmed that page exists and is itself
+  paginated, but its response shape hasn't been captured yet, so this is
+  still open. currentProduct.listingPrice/discountPrice *is* now
+  confirmed and requested (see _LIBRARY_QUERY) — today's storefront price,
+  not what this account paid, which is exactly the distinction the missing
+  purchase-price field above is about.
+- Whether the page argument above actually pages through results or is
+  silently ignored by Chirp's server (a real second-page capture would
+  settle it either way; still doesn't exist). chirp_sync.py's own
+  page-walking loop is written defensively because of this: it stops as
+  soon as a page stops introducing new purchase ids, rather than assuming
+  pagination works and spinning or returning duplicates if it doesn't.
 """
 
 import base64
@@ -275,6 +286,12 @@ class ChirpAudiobook:
     playable: bool
     series_name: str | None = None
     series_number: str | None = None
+    # Today's storefront price, confirmed via currentProduct — not what this
+    # account paid (Chirp's API has no purchase-price field anywhere; see
+    # this module's own docstring). None when currentProduct is null, which
+    # the real capture shows happens for at least some owned books.
+    listing_price: float | None = None
+    discount_price: float | None = None
 
 
 # operationName and the field selection are confirmed against a real
@@ -302,11 +319,25 @@ query fetchCurrentUserAudiobooks($page: Int) {
       displayAuthors
       displayNarrators
       seriesAudiobook { displayNumber series { name } }
+      currentProduct { listingPrice discountPrice }
     }
   }
   currentUserAudiobooksCount
 }
 """
+
+
+def _parse_price(value) -> float | None:
+    """Chirp's own currentProduct prices are strings like "$22.95", confirmed
+    from a real capture (tests/fixtures/chirp_library_response.json) — never
+    seen as a bare number, so the "$" strip is load-bearing, not defensive
+    padding."""
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return float(value.replace("$", "").replace(",", "").strip())
+    except ValueError:
+        return None
 
 
 def parse_library_page(payload: dict) -> tuple[list[ChirpAudiobook], int]:
@@ -320,6 +351,7 @@ def parse_library_page(payload: dict) -> tuple[list[ChirpAudiobook], int]:
         book = entry.get("audiobook") or {}
         series_audiobook = book.get("seriesAudiobook") or {}
         series = series_audiobook.get("series") or {}
+        current_product = book.get("currentProduct") or {}
         items.append(
             ChirpAudiobook(
                 purchase_id=str(entry.get("id", "")),
@@ -334,6 +366,8 @@ def parse_library_page(payload: dict) -> tuple[list[ChirpAudiobook], int]:
                 playable=bool(entry.get("playable")),
                 series_name=series.get("name"),
                 series_number=series_audiobook.get("displayNumber"),
+                listing_price=_parse_price(current_product.get("listingPrice")),
+                discount_price=_parse_price(current_product.get("discountPrice")),
             )
         )
     total = payload.get("currentUserAudiobooksCount", len(items))

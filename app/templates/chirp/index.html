@@ -1,12 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Chirp Books — Unbundle{% endblock %}
 {% block content %}
-<h1>Chirp Books <span class="badge badge-pending">Experimental</span></h1>
-<p class="muted">
-  Audiobooks you've purchased from Chirp. This is a connectivity preview only — it logs in and
-  lists what "Check library" finds, but nothing is saved yet and there's no download support
-  yet either. See <a href="/settings">Settings</a> to connect or disconnect.
-</p>
+<h1>Chirp Books</h1>
+
+{% if chirp_status == "not_configured" %}
+<p class="muted">Chirp isn't connected yet. Connect it in <a href="/settings">Settings</a>.</p>
+{% else %}
+<div class="toolbar">
+  {% if q %}
+  <a href="/chirp" hx-get="/chirp" hx-target="#chirp-books-table" hx-swap="outerHTML">Clear filters</a>
+  {% endif %}
+  <form hx-post="/chirp/refresh" hx-target="#chirp-content" hx-swap="outerHTML" style="margin: 0;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="secondary">Refresh</button>
+    <span class="muted htmx-indicator">Fetching your library&hellip;</span>
+  </form>
+  <span class="muted" id="chirp-last-synced">
+    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% else %}Never refreshed{% endif %}
+  </span>
+</div>
+{% endif %}
 
 {% include "chirp/_content.html" %}
 {% endblock %}

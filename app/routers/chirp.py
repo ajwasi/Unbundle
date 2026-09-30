@@ -1,81 +1,84 @@
-"""Chirp Books — a read-only preview of the purchased library, built
-entirely on top of app/connectors/chirp_connector.py (see its own docstring
-for what's confirmed vs. reconstructed vs. still unknown about that API,
-including why this uses a pasted browser cookie rather than a stored
-email/password — a plain server-side login is confirmed blocked by
-Cloudflare).
+"""Chirp Books — a synced, searchable/sortable view of the purchased
+library, built on top of app/connectors/chirp_connector.py (see its own
+docstring for what's confirmed vs. reconstructed vs. still unknown about
+that API) and app/sync/chirp_sync.py (which walks every page of the
+library and caches it locally, same "cached snapshot" shape as Steam/GOG/
+Audible's own synced libraries — see chirp_sync.py's own docstring for why
+that page-walk is written defensively).
 
-No sync, no persisted model, no download yet: "Check library" below
-performs the same live cookie-session fetch as Settings' own "Save" button,
-just reachable from this app's own UI, and showing the actual book list
-rather than only a pass/fail message.
+No download support yet. "Price" is Chirp's current storefront price for
+the book, not what this account paid — see ChirpAudiobook's own docstring
+for why those are different things and only one of them is confirmed to
+exist in Chirp's API at all.
 """
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.connectors import chirp_connector as chirp
 from app.csrf import require_csrf
 from app.deps import get_db
-from app.models.credential import SOURCE_CHIRP, STATUS_NOT_CONFIGURED, Credential
+from app.list_views import render_list_or_partial, sorted_query
+from app.models.chirp_audiobook import ChirpAudiobook
+from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_CHIRP
 from app.ratelimit import RateLimiter, rate_limit
-from app.security import decrypt_json
+from app.sync import chirp_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/chirp")
 
-# Same ceiling as Settings' own chirp-login limiter — this button performs
-# the identical live login against a Cloudflare-protected endpoint.
-_check_limiter = RateLimiter(max_calls=5, period_seconds=60)
+# Same ceiling as Settings' own chirp-login limiter — a refresh performs the
+# identical live, Cloudflare-fronted fetch against the same rate-limited path.
+_refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
+
+_SORT_COLUMNS = {
+    "title": ChirpAudiobook.title,
+    "author": ChirpAudiobook.authors,
+    "narrator": ChirpAudiobook.narrators,
+    "progress": ChirpAudiobook.position_percent,
+    "price": func.coalesce(ChirpAudiobook.discount_price, ChirpAudiobook.listing_price),
+}
 
 
-def _stored_cookie(db: Session) -> str | None:
+def _context(db: Session, q: str = "", sort: str = "title", dir: str = "asc") -> dict:
     cred = Credential.get(db, SOURCE_CHIRP)
-    if cred is None or not cred.encrypted_payload:
-        return None
-    cookie = decrypt_json(cred.encrypted_payload).get("cookie", "")
-    return cookie or None
+    query = db.query(ChirpAudiobook)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            or_(ChirpAudiobook.title.ilike(like), ChirpAudiobook.authors.ilike(like), ChirpAudiobook.narrators.ilike(like))
+        )
+    books = sorted_query(query, _SORT_COLUMNS, sort, dir, ChirpAudiobook.title).all()
 
-
-def _context(db: Session) -> dict:
-    cred = Credential.get(db, SOURCE_CHIRP)
     return {
         "chirp_status": cred.status if cred else STATUS_NOT_CONFIGURED,
-        "books": None,
-        "total": None,
-        "check_error": None,
+        "chirp_error": cred.last_error if cred else None,
+        "books": books,
+        "book_count": db.query(func.count(ChirpAudiobook.purchase_id)).scalar() or 0,
+        "q": q,
+        "sort": sort,
+        "dir": dir,
+        "last_synced": db.query(func.max(ChirpAudiobook.fetched_at)).scalar(),
     }
 
 
 @router.get("", response_class=HTMLResponse)
-def chirp_page(request: Request, db: Session = Depends(get_db)):
-    template = "chirp/_content.html" if request.headers.get("HX-Request") else "chirp/index.html"
-    return templates.TemplateResponse(request, template, _context(db))
+def chirp_page(request: Request, q: str = "", sort: str = "title", dir: str = "asc", db: Session = Depends(get_db)):
+    context = _context(db, q, sort, dir)
+    return render_list_or_partial(request, templates, "chirp/index.html", "chirp/_content.html", context)
 
 
 @router.post(
-    "/check",
+    "/refresh",
     response_class=HTMLResponse,
-    dependencies=[Depends(rate_limit(_check_limiter, "chirp-check")), Depends(require_csrf)],
+    dependencies=[Depends(rate_limit(_refresh_limiter, "chirp-refresh")), Depends(require_csrf)],
 )
-async def check_library(request: Request, db: Session = Depends(get_db)):
-    context = _context(db)
-    cookie = _stored_cookie(db)
-    if cookie is None:
-        context["check_error"] = "Chirp isn't connected yet — paste your Cookie header value in Settings first."
-        return templates.TemplateResponse(request, "chirp/_content.html", context)
-
+async def refresh_chirp(request: Request, db: Session = Depends(get_db)):
     try:
-        books, total = await chirp.fetch_library_preview_via_cookie(cookie, page=1)
-    except UnicodeEncodeError as exc:
-        context["check_error"] = chirp.describe_cookie_unicode_error(cookie, exc)
-    except chirp.ChirpRequestError as exc:
-        context["check_error"] = str(exc)
-    except Exception as exc:  # an undocumented, reverse-engineered API — a shape change is plausible
-        context["check_error"] = f"The check failed ({type(exc).__name__}). Chirp may have changed something."
-    else:
-        context["books"] = books
-        context["total"] = total
-
-    return templates.TemplateResponse(request, "chirp/_content.html", context)
+        await chirp_sync.refresh_chirp_library(db)
+    except chirp_sync.NotConnectedError:
+        pass  # nothing to fetch — the page already shows a "not configured" state
+    except Exception:
+        pass  # error already recorded on the credential row by refresh_chirp_library
+    return templates.TemplateResponse(request, "chirp/_content.html", _context(db))

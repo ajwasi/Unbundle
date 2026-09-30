@@ -1,0 +1,56 @@
+{% macro sort_link(col, label) %}
+{% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
+<a href="#"
+   hx-get="/chirp?q={{ q | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-target="#chirp-books-table" hx-swap="outerHTML">
+  {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
+</a>
+{% endmacro %}
+
+<div id="chirp-books-table">
+  <div class="toolbar">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search title, author, narrator..." class="chirp-filter"
+           hx-get="/chirp" hx-target="#chirp-books-table" hx-swap="outerHTML"
+           hx-trigger="keyup changed delay:300ms" hx-include=".chirp-filter" style="flex: 1; max-width: 20rem;">
+    <input type="hidden" name="sort" value="{{ sort }}" class="chirp-filter">
+    <input type="hidden" name="dir" value="{{ dir }}" class="chirp-filter">
+    <span class="muted">Showing {{ books|length }} of {{ book_count }}</span>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th scope="col">{{ sort_link('title', 'Title') }}</th>
+          <th scope="col">{{ sort_link('author', 'Author') }}</th>
+          <th scope="col">{{ sort_link('narrator', 'Narrator') }}</th>
+          <th scope="col">Series</th>
+          <th scope="col">{{ sort_link('progress', 'Progress') }}</th>
+          <th scope="col">{{ sort_link('price', 'Price') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in books %}
+        <tr>
+          <td>{% if b.cover_url %}<img src="{{ b.cover_url }}" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">{% endif %}</td>
+          <td><a href="https://www.chirpbooks.com{{ b.url_path }}" target="_blank" rel="noopener">{{ b.title }}</a></td>
+          <td>{{ b.authors }}</td>
+          <td>{{ b.narrators }}</td>
+          <td>{% if b.series_name %}{{ b.series_name }}{% if b.series_number %} #{{ b.series_number }}{% endif %}{% endif %}</td>
+          <td>{{ b.position_percent }}%</td>
+          <td>
+            {% if b.display_price is not none %}
+            {{ "%.2f"|format(b.display_price) }}
+            {% if b.discount_price is not none and b.listing_price is not none and b.discount_price < b.listing_price %}
+            <br><span class="muted" style="text-decoration: line-through;">{{ "%.2f"|format(b.listing_price) }}</span>
+            {% endif %}
+            {% else %}<span class="muted">&mdash;</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="muted">{{ "No audiobooks match." if q else "No audiobooks loaded yet — click Refresh." }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
