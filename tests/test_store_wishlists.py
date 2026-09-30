@@ -375,6 +375,34 @@ def test_lowest_yet_badge_reflects_price_history(authed_client, db):
     assert "Lowest yet" in authed_client.get("/wishlist/gog").text
 
 
+def test_sorting_by_author_orders_steam_wishlist_by_developer(authed_client, db):
+    now = datetime.utcnow()
+    db.add(SteamWishlistItem(appid=1, name="Z Game", developers="Zeta Studio", first_seen_at=now, last_seen_at=now))
+    db.add(SteamWishlistItem(appid=2, name="A Game", developers="Alpha Studio", first_seen_at=now, last_seen_at=now))
+    db.commit()
+
+    resp = authed_client.get("/wishlist/steam?sort=author")
+    assert resp.text.index("Alpha Studio") < resp.text.index("Zeta Studio")
+
+
+def test_gog_sort_options_omit_author(authed_client, db):
+    _seed_gog(db)
+    resp = authed_client.get("/wishlist/gog")
+    assert 'value="author"' not in resp.text
+
+
+def test_sorting_by_lowest_orders_items_by_historical_low_price(authed_client, db):
+    now = datetime.utcnow()
+    db.add(SteamWishlistItem(appid=1, name="Pricier Low", developers="Studio A", current_price=9.99, first_seen_at=now, last_seen_at=now))
+    db.add(SteamWishlistPrice(appid=1, price=9.99, currency="USD", captured_at=now))
+    db.add(SteamWishlistItem(appid=2, name="Cheaper Low", developers="Studio B", current_price=5.0, first_seen_at=now, last_seen_at=now))
+    db.add(SteamWishlistPrice(appid=2, price=1.0, currency="USD", captured_at=now))
+    db.commit()
+
+    resp = authed_client.get("/wishlist/steam?sort=lowest")
+    assert resp.text.index("Cheaper Low") < resp.text.index("Pricier Low")
+
+
 def test_an_unknown_source_is_a_404(authed_client):
     assert authed_client.post("/wishlist/nintendo/refresh").status_code == 404
 

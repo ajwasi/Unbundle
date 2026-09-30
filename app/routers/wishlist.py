@@ -55,19 +55,31 @@ SORTS = {
         "title": AudibleWishlistItem.title.asc(),
         "price": AudibleWishlistItem.current_price.asc(),
         "rating": AudibleWishlistItem.rating.desc(),
+        "author": AudibleWishlistItem.authors.asc(),
     },
     "steam": {
         "added": SteamWishlistItem.priority.asc(),
         "title": SteamWishlistItem.name.asc(),
         "price": SteamWishlistItem.current_price.asc(),
         "rating": SteamWishlistItem.metacritic.desc(),
+        "author": SteamWishlistItem.developers.asc(),
     },
     "gog": {
         "added": GogWishlistItem.first_seen_at.desc(),
         "title": GogWishlistItem.title.asc(),
         "price": GogWishlistItem.current_price.asc(),
+        # No "author"/"rating" here — GOG's wishlist model carries neither
+        # field (see GogWishlistItem's own docstring on the rating gap).
     },
 }
+
+# "lowest" sorts by _lowest()'s per-item historical-low price, which isn't a
+# mapped column (it's aggregated separately from the price-history table), so
+# it can't join SORTS' order_by expressions — _context() below special-cases
+# it as a Python-side sort instead. Listed here anyway so every source offers
+# it in the sort dropdown, same as the "Lowest seen" column already shown
+# for every source regardless of what else that source supports.
+_LOWEST_SORT_KEY = "lowest"
 
 
 def _counts(db: Session) -> dict[str, int]:
@@ -127,7 +139,12 @@ def _context(
         query = _search(query, source, q)
 
     sorts = SORTS[source]
-    items = query.order_by(sorts.get(sort, sorts["added"])).all()
+    lowest_prices = _lowest(db, source)
+    if sort == _LOWEST_SORT_KEY:
+        items = query.all()
+        items.sort(key=lambda i: lowest_prices.get(getattr(i, key_field), float("inf")))
+    else:
+        items = query.order_by(sorts.get(sort, sorts["added"])).all()
     if deals_only:
         items = [i for i in items if i.discount_pct]
 
@@ -136,7 +153,7 @@ def _context(
         "items": items,
         "key_field": key_field,
         "owned_keys": _owned_keys(db, source),
-        "lowest_prices": _lowest(db, source),
+        "lowest_prices": lowest_prices,
         "source": source,
         "sources": SOURCES,
         "source_labels": SOURCE_LABELS,
@@ -147,7 +164,7 @@ def _context(
         ),
         "q": q,
         "sort": sort,
-        "sorts": list(sorts.keys()),
+        "sorts": list(sorts.keys()) + [_LOWEST_SORT_KEY],
         "deals_only": deals_only,
         "last_synced": db.query(func.max(model.last_seen_at)).scalar(),
         "result": result,
