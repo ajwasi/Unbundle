@@ -486,6 +486,27 @@ def client_from_cookie_header(cookie_header: str) -> httpx.AsyncClient:
     return httpx.AsyncClient(headers={"User-Agent": _USER_AGENT, "Cookie": cookie_header}, follow_redirects=True)
 
 
+def describe_cookie_unicode_error(cookie_header: str, exc: UnicodeEncodeError) -> str:
+    """httpx encodes a plain-dict header value as strict ASCII at client
+    construction time (httpx._models._normalize_header_value) — confirmed
+    by reading httpx 0.28.1's own source, not guessed. A pasted cookie with
+    any non-ASCII character (a smart quote/dash, a non-breaking space, or
+    another invisible character some clipboard tool substituted in) raises
+    UnicodeEncodeError right here, before any network call is made. Pointing
+    at the exact offending character is more actionable than a generic
+    "Chirp may have changed something" message, since this has nothing to
+    do with Chirp itself.
+    """
+    bad_chars = cookie_header[exc.start : exc.end]
+    return (
+        f"Your pasted Cookie value contains a character HTTP headers can't carry: "
+        f"{bad_chars!r} at position {exc.start}. This usually happens when copying goes "
+        f"through something that substitutes smart quotes/dashes or leaves an invisible "
+        f"character behind — copy the raw header value again directly from DevTools' "
+        f"Network tab and paste it fresh."
+    )
+
+
 async def verify_cookie_session(cookie_header: str) -> CredentialStatus:
     """Same shape as check_credentials() above, for the cookie-paste
     fallback — fetches page 1 of the library directly with no login() call
@@ -497,6 +518,8 @@ async def verify_cookie_session(cookie_header: str) -> CredentialStatus:
     try:
         async with client_from_cookie_header(cookie_header) as client:
             _books, total = await fetch_library_page(client, page=1)
+    except UnicodeEncodeError as exc:
+        return CredentialStatus(ok=False, message=describe_cookie_unicode_error(cookie_header, exc))
     except ChirpRequestError as exc:
         return CredentialStatus(ok=False, message=str(exc))
     except httpx.HTTPError as exc:

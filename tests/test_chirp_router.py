@@ -83,6 +83,23 @@ def test_check_library_surfaces_an_unexpected_error_without_500ing(authed_client
     assert "RuntimeError" in resp.text
 
 
+def test_check_library_surfaces_a_clear_error_on_non_ascii_cookie(authed_client, db):
+    cookie = "cf_clearance=abc; smart=“quoted”"
+    _connect(db, cookie=cookie)
+    try:
+        cookie.encode("ascii")
+        raise AssertionError("expected UnicodeEncodeError")
+    except UnicodeEncodeError as exc:
+        unicode_error = exc
+
+    with patch.object(chirp, "fetch_library_preview_via_cookie", new=AsyncMock(side_effect=unicode_error)):
+        resp = authed_client.post("/chirp/check")
+
+    assert resp.status_code == 200
+    assert "position" in resp.text
+    assert "DevTools" in resp.text
+
+
 def test_check_library_handles_an_empty_library(authed_client, db):
     _connect(db)
     with patch.object(chirp, "fetch_library_preview_via_cookie", new=AsyncMock(return_value=([], 0))):
