@@ -132,13 +132,32 @@ def test_page_requires_auth(client):
     assert client.get("/deals", follow_redirects=False).status_code == 303
 
 
+def test_bare_deals_redirects_to_the_gog_tab(authed_client):
+    resp = authed_client.get("/deals", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/deals/gog"
+
+
 def test_page_lists_deals(authed_client):
     with _patch_fetch([_deal(1, "Dead Age")]):
-        resp = authed_client.get("/deals")
+        resp = authed_client.get("/deals/gog")
 
     assert "Dead Age" in resp.text
     assert "-90%" in resp.text
     assert "1.99" in resp.text
+
+
+def test_search_sort_and_refresh_controls_target_the_gog_tab_not_bare_deals(authed_client):
+    # Regression check: these used to hardcode "/deals" — since bare /deals now
+    # redirects (dropping query params), a control still pointed at it would
+    # silently lose whatever filter/sort/refresh it was supposed to apply.
+    with _patch_fetch([_deal(1)]):
+        resp = authed_client.get("/deals/gog")
+
+    assert 'hx-post="/deals/gog/refresh"' in resp.text
+    assert 'hx-get="/deals/gog"' in resp.text
+    assert 'hx-get="/deals"' not in resp.text
+    assert 'hx-post="/deals/refresh"' not in resp.text
 
 
 def test_owned_titles_are_matched_by_product_id(authed_client, db):
@@ -146,7 +165,7 @@ def test_owned_titles_are_matched_by_product_id(authed_client, db):
     db.commit()
 
     with _patch_fetch([_deal(1, "Owned Game"), _deal(2, "Unowned Game")]):
-        resp = authed_client.get("/deals")
+        resp = authed_client.get("/deals/gog")
 
     assert ">Owned<" in resp.text
     assert "New to you" in resp.text
@@ -158,7 +177,7 @@ def test_hide_owned_filter(authed_client, db):
     db.commit()
 
     with _patch_fetch([_deal(1, "Owned Game"), _deal(2, "Unowned Game")]):
-        resp = authed_client.get("/deals", params={"hide_owned": "true"})
+        resp = authed_client.get("/deals/gog", params={"hide_owned": "true"})
 
     assert "Owned Game" not in resp.text
     assert "Unowned Game" in resp.text
@@ -166,7 +185,7 @@ def test_hide_owned_filter(authed_client, db):
 
 def test_minimum_discount_filter(authed_client):
     with _patch_fetch([_deal(1, "Deep Cut", discount=95), _deal(2, "Shallow Cut", discount=20)]):
-        resp = authed_client.get("/deals", params={"min_discount": 75})
+        resp = authed_client.get("/deals/gog", params={"min_discount": 75})
 
     assert "Deep Cut" in resp.text
     assert "Shallow Cut" not in resp.text
@@ -174,21 +193,21 @@ def test_minimum_discount_filter(authed_client):
 
 def test_search_matches_title_and_developer(authed_client):
     with _patch_fetch([_deal(1, "Findable")]):
-        assert "Findable" in authed_client.get("/deals", params={"q": "find"}).text
-        assert "Findable" in authed_client.get("/deals", params={"q": "a dev"}).text
-        assert "Findable" not in authed_client.get("/deals", params={"q": "nothing"}).text
+        assert "Findable" in authed_client.get("/deals/gog", params={"q": "find"}).text
+        assert "Findable" in authed_client.get("/deals/gog", params={"q": "a dev"}).text
+        assert "Findable" not in authed_client.get("/deals/gog", params={"q": "nothing"}).text
 
 
 def test_sorting_by_price_puts_the_cheapest_first(authed_client):
     with _patch_fetch([_deal(1, "Pricey", price=20.0), _deal(2, "Cheap", price=1.0)]):
-        resp = authed_client.get("/deals", params={"sort": "price"})
+        resp = authed_client.get("/deals/gog", params={"sort": "price"})
 
     assert resp.text.index("Cheap") < resp.text.index("Pricey")
 
 
 def test_without_gog_connected_the_page_still_works(authed_client):
     with _patch_fetch([_deal(1, "A Game")]):
-        resp = authed_client.get("/deals")
+        resp = authed_client.get("/deals/gog")
 
     assert "A Game" in resp.text
     assert "Connect <strong>GOG</strong>" in resp.text
@@ -196,7 +215,7 @@ def test_without_gog_connected_the_page_still_works(authed_client):
 
 def test_a_gog_outage_reads_as_a_source_problem_not_a_broken_page(authed_client):
     with patch.object(gog_deals, "fetch_deals", new=AsyncMock(side_effect=httpx.ConnectError("refused"))):
-        resp = authed_client.get("/deals")
+        resp = authed_client.get("/deals/gog")
 
     assert resp.status_code == 200
     assert "Could not reach GOG" in resp.text
@@ -204,7 +223,7 @@ def test_a_gog_outage_reads_as_a_source_problem_not_a_broken_page(authed_client)
 
 def test_htmx_request_returns_only_the_table(authed_client):
     with _patch_fetch([_deal(1)]):
-        resp = authed_client.get("/deals", headers={"HX-Request": "true"})
+        resp = authed_client.get("/deals/gog", headers={"HX-Request": "true"})
 
     assert "<html" not in resp.text
     assert 'id="deals-table"' in resp.text
@@ -212,3 +231,39 @@ def test_htmx_request_returns_only_the_table(authed_client):
 
 def test_sidebar_links_to_the_page(authed_client):
     assert 'href="/deals"' in authed_client.get("/downloads").text
+
+
+def test_tabs_link_to_both_sources(authed_client):
+    with _patch_fetch([_deal(1)]):
+        resp = authed_client.get("/deals/gog")
+    assert 'href="/deals/gog"' in resp.text
+    assert 'href="/deals/humble"' in resp.text
+    assert 'class="store-tab active"' in resp.text
+
+
+def test_humble_tab_lists_current_bundles(authed_client):
+    from app.connectors import storefront
+
+    bundle = storefront.StorefrontBundle(
+        category="games", machine_name="mh1", name="Mystery Heroes",
+        blurb="A bundle.", product_url="https://www.humblebundle.com/games/mh1",
+        image_url="https://example.com/x.png",
+    )
+    with (
+        patch.object(storefront, "fetch_current_bundles", new=AsyncMock(return_value=[bundle])),
+        patch.object(storefront, "fetch_bundle_detail", new=AsyncMock(side_effect=Exception("no detail in this test"))),
+    ):
+        resp = authed_client.get("/deals/humble")
+
+    assert "Mystery Heroes" in resp.text
+    assert 'class="store-tab active"' in resp.text
+
+
+def test_humble_tab_htmx_request_returns_only_its_content(authed_client):
+    from app.connectors import storefront
+
+    with patch.object(storefront, "fetch_current_bundles", new=AsyncMock(return_value=[])):
+        resp = authed_client.get("/deals/humble", headers={"HX-Request": "true"})
+
+    assert "<html" not in resp.text
+    assert 'id="deals-humble"' in resp.text

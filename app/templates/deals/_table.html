@@ -2,7 +2,7 @@
   {% if error %}<p class="text-error">{{ error }}</p>{% endif %}
 
   <div class="toolbar">
-    <form hx-post="/deals/refresh" hx-target="#deals-table" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+    <form hx-post="/deals/gog/refresh" hx-target="#deals-table" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="q" value="{{ q }}">
       <input type="hidden" name="sort" value="{{ sort }}">
@@ -26,17 +26,17 @@
 
   <div class="toolbar">
     <input type="search" id="deals-q" name="q" value="{{ q }}" placeholder="Search title or developer"
-           hx-get="/deals" hx-trigger="keyup changed delay:300ms, search"
+           hx-get="/deals/gog" hx-trigger="keyup changed delay:300ms, search"
            hx-target="#deals-table" hx-swap="outerHTML"
            hx-include="#deals-sort,#deals-hide-owned,#deals-min" style="flex: 1; max-width: 20rem;">
-    <select id="deals-sort" name="sort" hx-get="/deals" hx-trigger="change"
+    <select id="deals-sort" name="sort" hx-get="/deals/gog" hx-trigger="change"
             hx-target="#deals-table" hx-swap="outerHTML" hx-include="#deals-q,#deals-hide-owned,#deals-min">
       <option value="discount" {{ "selected" if sort == "discount" else "" }}>Biggest discount</option>
       <option value="price" {{ "selected" if sort == "price" else "" }}>Lowest price</option>
       <option value="rating" {{ "selected" if sort == "rating" else "" }}>Highest rated</option>
       <option value="title" {{ "selected" if sort == "title" else "" }}>Title</option>
     </select>
-    <select id="deals-min" name="min_discount" hx-get="/deals" hx-trigger="change"
+    <select id="deals-min" name="min_discount" hx-get="/deals/gog" hx-trigger="change"
             hx-target="#deals-table" hx-swap="outerHTML" hx-include="#deals-q,#deals-sort,#deals-hide-owned">
       <option value="0" {{ "selected" if min_discount == 0 else "" }}>Any discount</option>
       <option value="50" {{ "selected" if min_discount == 50 else "" }}>50%+</option>
@@ -46,7 +46,7 @@
     {% if gog_connected %}
     <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
       <input type="checkbox" id="deals-hide-owned" name="hide_owned" value="true" {{ "checked" if hide_owned else "" }}
-             hx-get="/deals" hx-trigger="change" hx-target="#deals-table" hx-swap="outerHTML"
+             hx-get="/deals/gog" hx-trigger="change" hx-target="#deals-table" hx-swap="outerHTML"
              hx-include="#deals-q,#deals-sort,#deals-min">
       Hide what I own
     </label>
