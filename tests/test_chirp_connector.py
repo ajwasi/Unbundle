@@ -476,6 +476,29 @@ async def test_verify_cookie_session_rejects_a_blank_cookie():
     assert "Paste" in result.message
 
 
+def test_describe_cookie_unicode_error_points_at_the_bad_character():
+    cookie = "foo=bar; smart=“quoted”"
+    try:
+        cookie.encode("ascii")
+        raise AssertionError("expected UnicodeEncodeError")
+    except UnicodeEncodeError as exc:
+        message = chirp.describe_cookie_unicode_error(cookie, exc)
+
+    assert "position 15" in message
+    assert "DevTools" in message
+
+
+async def test_verify_cookie_session_reports_a_clear_error_on_non_ascii_cookie():
+    # No transport mocking needed — httpx raises this at client construction,
+    # before any request would be made (confirmed against httpx 0.28.1's own
+    # _normalize_header_value, which encodes a plain-dict header as strict ASCII).
+    result = await chirp.verify_cookie_session("cf_clearance=abc; smart=“quoted”")
+
+    assert result.ok is False
+    assert "position" in result.message
+    assert "DevTools" in result.message
+
+
 async def test_verify_cookie_session_reports_a_stale_session():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, text="<html><body>Just a moment...</body></html>")
