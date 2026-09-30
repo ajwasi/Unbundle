@@ -145,8 +145,14 @@
         (cover art and site assets) — those are <strong>different subdomains with different cookies</strong> and
         won't work here. If unsure, check the request's <strong>Domain</strong> column: it must say exactly
         <code>www.chirpbooks.com</code>.</li>
-    <li>In that request's <strong>Headers</strong> panel, find <strong>Cookie</strong> under Request Headers, and copy
-        everything after the colon — the value only, not the word "Cookie" itself.</li>
+    <li>In that request's <strong>Headers</strong> panel, switch it to <strong>raw</strong>
+        (Chrome/Edge: a "view parsed"/"view source" toggle next to Request Headers; Firefox: a
+        "Raw headers" checkbox). This matters: the default parsed/table view truncates a long
+        <strong>Cookie</strong> value and shows "&hellip;" in the middle of it — copying from
+        there silently pastes a broken, cut-off cookie. The raw view shows the whole header as
+        plain text with nothing cut off.</li>
+    <li>Find <strong>Cookie:</strong> in that raw text and copy everything after the colon — the
+        value only, not the word "Cookie" itself.</li>
     <li>Paste it below and click Save.</li>
   </ol>
   <p class="muted">

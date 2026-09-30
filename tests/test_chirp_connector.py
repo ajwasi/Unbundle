@@ -488,6 +488,20 @@ def test_describe_cookie_unicode_error_points_at_the_bad_character():
     assert "DevTools" in message
 
 
+def test_describe_cookie_unicode_error_names_truncation_for_a_lone_ellipsis():
+    cookie = "cf_clearance=" + ("a" * 500) + "…"
+    try:
+        cookie.encode("ascii")
+        raise AssertionError("expected UnicodeEncodeError")
+    except UnicodeEncodeError as exc:
+        message = chirp.describe_cookie_unicode_error(cookie, exc)
+        start = exc.start
+
+    assert "truncat" in message.lower()
+    assert "raw" in message.lower()
+    assert f"position {start}" in message
+
+
 async def test_verify_cookie_session_reports_a_clear_error_on_non_ascii_cookie():
     # No transport mocking needed — httpx raises this at client construction,
     # before any request would be made (confirmed against httpx 0.28.1's own

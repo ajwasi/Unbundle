@@ -496,8 +496,24 @@ def describe_cookie_unicode_error(cookie_header: str, exc: UnicodeEncodeError) -
     at the exact offending character is more actionable than a generic
     "Chirp may have changed something" message, since this has nothing to
     do with Chirp itself.
+
+    The single-ellipsis case gets its own message: confirmed live (2026-09-30)
+    that a browser's *parsed* Headers view truncates a long Cookie value and
+    renders a literal "…" where it cut it off, and copying from that view
+    pastes the truncated text — not a stray character from a clipboard tool,
+    but a whole chunk of the cookie missing. Settings' own instructions now
+    lead with switching to "raw" headers to avoid this, but this message
+    still needs to name it for anyone who hits it anyway.
     """
     bad_chars = cookie_header[exc.start : exc.end]
+    if bad_chars == "…":
+        return (
+            "Your pasted Cookie value has an ellipsis ('…') at position "
+            f"{exc.start} instead of the rest of the cookie — this is what a browser's "
+            "*parsed* Headers view shows when it truncates a long value for display. "
+            "Switch that panel to \"raw\" (or \"view source\") first, then copy the whole "
+            "line from there — see the updated steps above."
+        )
     return (
         f"Your pasted Cookie value contains a character HTTP headers can't carry: "
         f"{bad_chars!r} at position {exc.start}. This usually happens when copying goes "
