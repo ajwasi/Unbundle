@@ -1,31 +1,40 @@
-"""Deals page.
+"""Deals page: GOG's public catalogue and Humble's currently-for-sale
+bundles, one tab each — mirroring the Wishlist page's per-store-tab shape
+and for the same reason (see wishlist.py's own docstring): a GOG deal is a
+flat %-off single price, a Humble bundle is a pay-what-you-want tiered
+listing, and there's nothing meaningful to share in one row/column set.
 
-GOG only for now, and named Deals rather than Deal of the Day because a
-single flagged daily deal is not something the public catalogue exposes —
-what it publishes is discounted products, which is both honest and more
-useful.
+Unlike Wishlist's stores, GOG and Humble don't share enough filter/sort
+shape to unify behind one dynamic /deals/{source} route either (GOG has
+q/sort/hide_owned/min_discount; Humble's storefront listing has none of
+that) — so each gets its own literal route instead of a shared handler.
 
-Shaped around a list of sources so another can be added as a module. No
-credential is involved: the GOG catalogue is public, and the only thing read
-from the database is which products are already owned.
+No credential is involved for either: GOG's catalogue and Humble's
+storefront listing are both public. "Connect" only ever means "match
+against what you already own," never "read access" — same as GOG's
+original single-source docstring already explained.
 """
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.connectors import gog_deals
+from app.connectors import gog_deals, storefront
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.gog_game import GogGame
 from app.ratelimit import RateLimiter, rate_limit
+from app.routers.home import CATEGORY_LABELS, _build_tiles, _grouped
 from app.templates_env import templates
 
 router = APIRouter(prefix="/deals")
 
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
-SORTS = {
+SOURCES = ("gog", "humble")
+SOURCE_LABELS = {"gog": "GOG", "humble": "Humble Bundle"}
+
+GOG_SORTS = {
     "discount": lambda d: -(d.discount_pct or 0),
     "price": lambda d: (d.price_final if d.price_final is not None else float("inf")),
     "title": lambda d: d.title.lower(),
@@ -33,7 +42,7 @@ SORTS = {
 }
 
 
-async def _context(
+async def _gog_context(
     db: Session,
     q: str = "",
     sort: str = "discount",
@@ -66,9 +75,12 @@ async def _context(
             for d in shown
             if needle in d.title.lower() or any(needle in dev.lower() for dev in d.developers)
         ]
-    shown = sorted(shown, key=SORTS.get(sort, SORTS["discount"]))
+    shown = sorted(shown, key=GOG_SORTS.get(sort, GOG_SORTS["discount"]))
 
     return {
+        "source": "gog",
+        "sources": SOURCES,
+        "source_labels": SOURCE_LABELS,
         "deals": shown,
         "owned_ids": owned,
         "owned_count": owned_count,
@@ -84,8 +96,26 @@ async def _context(
     }
 
 
+async def _humble_context(db: Session, force: bool = False) -> dict:
+    bundles = await storefront.fetch_current_bundles(force=force)
+    tiles = await _build_tiles(bundles, db)
+    return {
+        "source": "humble",
+        "sources": SOURCES,
+        "source_labels": SOURCE_LABELS,
+        "by_category": _grouped(tiles),
+        "category_labels": CATEGORY_LABELS,
+        "last_synced": storefront.last_fetched_at(),
+    }
+
+
 @router.get("", response_class=HTMLResponse)
-async def deals_page(
+async def deals_index():
+    return RedirectResponse("/deals/gog", status_code=303)
+
+
+@router.get("/gog", response_class=HTMLResponse)
+async def gog_deals_page(
     request: Request,
     q: str = "",
     sort: str = "discount",
@@ -93,17 +123,17 @@ async def deals_page(
     min_discount: int = 0,
     db: Session = Depends(get_db),
 ):
-    context = await _context(db, q.strip(), sort, hide_owned, min_discount)
+    context = await _gog_context(db, q.strip(), sort, hide_owned, min_discount)
     template = "deals/_table.html" if request.headers.get("HX-Request") else "deals/index.html"
     return templates.TemplateResponse(request, template, context)
 
 
 @router.post(
-    "/refresh",
+    "/gog/refresh",
     response_class=HTMLResponse,
     dependencies=[Depends(rate_limit(_refresh_limiter, "deals-refresh")), Depends(require_csrf)],
 )
-async def refresh_deals(
+async def refresh_gog_deals(
     request: Request,
     q: str = Form(""),
     sort: str = Form("discount"),
@@ -111,5 +141,22 @@ async def refresh_deals(
     min_discount: int = Form(0),
     db: Session = Depends(get_db),
 ):
-    context = await _context(db, q.strip(), sort, hide_owned, min_discount, force=True)
+    context = await _gog_context(db, q.strip(), sort, hide_owned, min_discount, force=True)
     return templates.TemplateResponse(request, "deals/_table.html", context)
+
+
+@router.get("/humble", response_class=HTMLResponse)
+async def humble_deals_page(request: Request, db: Session = Depends(get_db)):
+    context = await _humble_context(db)
+    template = "deals/_humble.html" if request.headers.get("HX-Request") else "deals/index.html"
+    return templates.TemplateResponse(request, template, context)
+
+
+@router.post(
+    "/humble/refresh",
+    response_class=HTMLResponse,
+    dependencies=[Depends(rate_limit(_refresh_limiter, "deals-refresh")), Depends(require_csrf)],
+)
+async def refresh_humble_deals(request: Request, db: Session = Depends(get_db)):
+    context = await _humble_context(db, force=True)
+    return templates.TemplateResponse(request, "deals/_humble.html", context)

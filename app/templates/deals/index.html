@@ -2,6 +2,14 @@
 {% block title %}Deals — Unbundle{% endblock %}
 {% block content %}
 <h1>Deals</h1>
+
+<div class="store-tabs">
+  {% for src in sources %}
+  <a class="store-tab {{ 'active' if src == source else '' }}" href="/deals/{{ src }}">{{ source_labels[src] }}</a>
+  {% endfor %}
+</div>
+
+{% if source == "gog" %}
 <p class="muted">
   Discounted games from GOG's public catalogue, matched against your synced GOG
   library so you can see at a glance what you already own. Not a curated
@@ -9,4 +17,13 @@
   steepest current discounts.
 </p>
 {% include "deals/_table.html" %}
+{% else %}
+<p class="muted">
+  Humble Bundle's currently for-sale bundles &mdash; the same listing shown on
+  <a href="/">Home</a>, also reachable from here. No credential needed to see
+  what's for sale; connecting Humble in Settings only adds the "already
+  purchased"/owned-item matching.
+</p>
+{% include "deals/_humble.html" %}
+{% endif %}
 {% endblock %}
