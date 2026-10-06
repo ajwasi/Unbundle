@@ -27,6 +27,8 @@
           <th scope="col">Series</th>
           <th scope="col">{{ sort_link('progress', 'Progress') }}</th>
           <th scope="col">{{ sort_link('price', 'Price') }}</th>
+          <th scope="col">{{ sort_link('purchased', 'Purchased') }}</th>
+          <th scope="col">{{ sort_link('paid', 'Paid') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -46,9 +48,17 @@
             {% endif %}
             {% else %}<span class="muted">&mdash;</span>{% endif %}
           </td>
+          <td>
+            {% if b.purchased_at %}{{ b.purchased_at.strftime('%Y-%m-%d') }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+          </td>
+          <td>
+            {% if b.paid_price is none %}<span class="muted">&mdash;</span>
+            {% elif b.paid_price == 0 %}Free
+            {% else %}{{ "%.2f"|format(b.paid_price) }}{% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="muted">{{ "No audiobooks match." if q else "No audiobooks loaded yet — click Refresh." }}</td></tr>
+        <tr><td colspan="9" class="muted">{{ "No audiobooks match." if q else "No audiobooks loaded yet — click Refresh." }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

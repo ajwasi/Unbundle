@@ -38,6 +38,8 @@ _SORT_COLUMNS = {
     "narrator": ChirpAudiobook.narrators,
     "progress": ChirpAudiobook.position_percent,
     "price": func.coalesce(ChirpAudiobook.discount_price, ChirpAudiobook.listing_price),
+    "purchased": ChirpAudiobook.purchased_at,
+    "paid": ChirpAudiobook.paid_price,
 }
 
 

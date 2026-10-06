@@ -1,4 +1,5 @@
-from datetime import datetime
+import re
+from datetime import date, datetime
 from unittest.mock import AsyncMock, patch
 
 from app.connectors import chirp_connector
@@ -160,6 +161,40 @@ def test_repeated_sorts_never_duplicate_the_count_line(authed_client, db):
         swapped = authed_client.get("/chirp", params=params, headers={"HX-Request": "true"}).text
         assert swapped.count('id="chirp-books-table"') == 1
         assert swapped.count("audiobook(s) owned") == 0
+
+
+def test_purchase_date_and_paid_price_render_per_book(authed_client, db):
+    _connect(db)
+    db.add(_book(purchase_id="1", title="Paid Book", purchased_at=date(2025, 12, 1), paid_price=7.99))
+    db.add(_book(purchase_id="2", title="Free Book", purchased_at=date(2025, 10, 18), paid_price=0.0))
+    db.add(_book(purchase_id="3", title="Unbought", purchased_at=None, paid_price=None))
+    db.commit()
+
+    resp = authed_client.get("/chirp")
+    assert "2025-12-01" in resp.text
+    assert "2025-10-18" in resp.text
+    assert "7.99" in resp.text
+    assert re.search(r"<td>\s*Free\s*</td>", resp.text)
+
+
+def test_sorting_by_purchase_date_puts_the_oldest_first(authed_client, db):
+    _connect(db)
+    db.add(_book(purchase_id="1", title="Newer", purchased_at=date(2025, 12, 1)))
+    db.add(_book(purchase_id="2", title="Older", purchased_at=date(2024, 3, 2)))
+    db.commit()
+
+    resp = authed_client.get("/chirp", params={"sort": "purchased", "dir": "asc"})
+    assert resp.text.index("Older") < resp.text.index("Newer")
+
+
+def test_sorting_by_paid_price_puts_the_cheapest_first(authed_client, db):
+    _connect(db)
+    db.add(_book(purchase_id="1", title="Pricier", paid_price=9.0))
+    db.add(_book(purchase_id="2", title="Cheaper", paid_price=1.5))
+    db.commit()
+
+    resp = authed_client.get("/chirp", params={"sort": "paid", "dir": "asc"})
+    assert resp.text.index("Cheaper") < resp.text.index("Pricier")
 
 
 def test_sidebar_links_to_the_page(authed_client):
