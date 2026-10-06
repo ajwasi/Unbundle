@@ -71,7 +71,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -765,3 +765,61 @@ async def fetch_library_preview_via_cookie(cookie_header: str, page: int = 1) ->
     """
     async with client_from_cookie_header(cookie_header) as client:
         return await fetch_library_page(client, page=page)
+
+
+async def probe_first_track(client: httpx.AsyncClient, purchase_id: str, audiobook_id: str) -> dict:
+    """Read-only: walks the playback chain for one book's first chapter and
+    reports each step, without saving any media. The key, the signed media
+    URL's query string and the audio bytes themselves are never returned —
+    only the host, extension, status, content type and the first bytes.
+    """
+    resp = await client.get(f"{BASE_URL}/player/{purchase_id}")
+    resp.raise_for_status()
+    html = resp.text
+    key = parse_decryption_key(html)
+    user_id = parse_user_id(html)
+    report: dict = {
+        "player_page_bytes": len(html),
+        "key_found": key is not None,
+        "key_length": len(key) if key else 0,
+        "user_id_found": user_id is not None,
+    }
+    if key is None or user_id is None:
+        report["stopped_at"] = "player page did not contain a key and user id"
+        return report
+
+    tracks = await fetch_tracks(client, audiobook_id)
+    report["track_count"] = len(tracks)
+    if not tracks:
+        report["stopped_at"] = "no tracks returned"
+        return report
+    first = tracks[0]
+    report["first_track"] = {"part": first.part_number, "chapter": first.chapter_number, "duration_ms": first.duration_ms}
+
+    ciphertext = await fetch_encrypted_track_url(client, audiobook_id, first.part_number, first.chapter_number)
+    report["ciphertext_length"] = len(ciphertext)
+    if not ciphertext:
+        report["stopped_at"] = "no encrypted media URL returned"
+        return report
+
+    try:
+        media_url = decrypt_track_url(ciphertext, key.encode("utf-8"), derive_iv(user_id))
+    except ValueError as exc:
+        report["stopped_at"] = f"decryption failed: {type(exc).__name__}"
+        return report
+
+    parsed = urlparse(media_url)
+    report["media_host"] = parsed.netloc
+    report["media_extension"] = parsed.path.rsplit(".", 1)[-1] if "." in parsed.path else ""
+    head = b""
+    async with client.stream("GET", media_url) as resp:
+        report["media_status"] = resp.status_code
+        report["content_type"] = resp.headers.get("content-type", "")
+        report["content_length"] = resp.headers.get("content-length")
+        async for chunk in resp.aiter_bytes():
+            head += chunk
+            if len(head) >= 32:
+                break
+    report["first_bytes_hex"] = head[:16].hex()
+    report["mp4_box_type_at_offset_4"] = head[4:8].decode("ascii", "replace")
+    return report
