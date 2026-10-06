@@ -1,5 +1,8 @@
+import json
+import logging
+
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -22,6 +25,7 @@ from app.sync import audible_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/audible")
+logger = logging.getLogger(__name__)
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 _SORT_COLUMNS = {
@@ -209,6 +213,17 @@ async def refresh_audible(request: Request, db: Session = Depends(get_db)):
     except Exception:
         pass  # error already recorded on the credential row by refresh_audible_library
     return templates.TemplateResponse(request, "audible/_content.html", _context(db))
+
+
+@router.get("/probe-series", response_class=PlainTextResponse)
+async def probe_series(asin: str, db: Session = Depends(get_db)):
+    try:
+        data = await audible_sync.probe_catalog_product(db, asin)
+    except audible_sync.NotConnectedError as exc:
+        return PlainTextResponse(str(exc), status_code=409)
+    text = json.dumps(data, indent=2, ensure_ascii=False)
+    logger.info("audible probe %s:\n%s", asin, text[:20000])
+    return PlainTextResponse(text)
 
 
 @router.get("/{asin}", response_class=HTMLResponse)

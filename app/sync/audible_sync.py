@@ -177,3 +177,16 @@ async def refresh_audible_wishlist(db: Session) -> dict:
     db.commit()
     _set_credential_status(db, STATUS_OK, None)
     return {"total": len(entries), "new": new, "price_changes": price_changes, "removed": removed}
+
+
+async def probe_catalog_product(db: Session, asin: str) -> dict:
+    """Read-only: fetches one catalogue product with the stored session and
+    returns its raw JSON. Saves the refreshed authenticator, but never touches
+    the credential's status or the synced library."""
+    payload = get_audible_credential(db)
+    if not payload:
+        raise NotConnectedError("Audible is not connected yet — connect it in Settings.")
+    auth = audible.Authenticator.from_dict(dict(payload))
+    data = await audible_connector.probe_catalog_product(auth, asin)
+    save_authenticator(db, auth)
+    return data
