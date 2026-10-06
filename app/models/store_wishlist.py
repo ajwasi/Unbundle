@@ -108,3 +108,45 @@ class GogWishlistItem(Base):
 class GogWishlistPrice(_WishlistPriceMixin, Base):
     __tablename__ = "gog_wishlist_price"
     product_id: Mapped[int] = mapped_column(ForeignKey("gog_wishlist_item.product_id"), nullable=False, index=True)
+
+
+class ChirpWishlistItem(Base):
+    """One wishlisted Chirp audiobook. Keyed on the book's own URL path, the
+    same key the owned library uses (ChirpAudiobook.url_path) — Chirp's
+    wishlist page exposes no numeric id, only that path.
+    """
+
+    __tablename__ = "chirp_wishlist_item"
+
+    url_path: Mapped[str] = mapped_column(String(300), primary_key=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    authors: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    cover_url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+
+    current_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    list_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
+
+    details_fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    @property
+    def store_url(self) -> str:
+        return f"https://www.chirpbooks.com{self.url_path}"
+
+    @property
+    def discount_pct(self) -> int | None:
+        if self.current_price is None or not self.list_price or self.list_price <= 0:
+            return None
+        pct = round((1 - self.current_price / self.list_price) * 100)
+        return pct if pct > 0 else None
+
+
+class ChirpWishlistPrice(_WishlistPriceMixin, Base):
+    __tablename__ = "chirp_wishlist_price"
+
+    url_path: Mapped[str] = mapped_column(
+        String(300), ForeignKey("chirp_wishlist_item.url_path"), nullable=False, index=True
+    )

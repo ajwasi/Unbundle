@@ -482,6 +482,85 @@ async def fetch_purchases(client: httpx.AsyncClient) -> list[ChirpPurchase]:
 
 
 @dataclass
+class ChirpWishlistEntry:
+    url_path: str
+    title: str
+    authors: str
+    cover_url: str
+    current_price: float | None
+    list_price: float | None
+
+
+_WISHLIST_ITEM_START = re.compile(r'wishlistItem[^"]*" role="listitem" aria-label="([^"]*)"')
+_WISHLIST_GRID_MARKER = "bookGridWide"
+_WISHLIST_CAROUSEL_MARKER = "userRelatedAudiobooksCarousel"
+
+
+def parse_wishlist_page(page_html: str) -> list[ChirpWishlistEntry]:
+    """The wishlist grid itself. Everything below the grid is a "Books You
+    May Also Like" carousel that uses the same list-item markup, so the grid
+    is cut out first rather than matching items from the whole page.
+    """
+    grid_start = page_html.find(_WISHLIST_GRID_MARKER)
+    if grid_start == -1:
+        return []
+    carousel_start = page_html.find(_WISHLIST_CAROUSEL_MARKER, grid_start)
+    grid = page_html[grid_start: carousel_start if carousel_start != -1 else None]
+
+    starts = list(_WISHLIST_ITEM_START.finditer(grid))
+    entries: list[ChirpWishlistEntry] = []
+    for index, match in enumerate(starts):
+        chunk_end = starts[index + 1].start() if index + 1 < len(starts) else len(grid)
+        chunk = grid[match.end():chunk_end]
+
+        url_match = re.search(r'href="(/audiobooks/[^"]+)"', chunk)
+        if not url_match:
+            continue
+        title_match = re.search(r"<h3[^>]*>\s*<a[^>]*>(.*?)</a>", chunk, re.S)
+        byline_match = re.search(r"<h4[^>]*>(.*?)</h4>", chunk, re.S)
+        cover_match = re.search(r'<img[^>]*\bsrc="([^"]+)"', chunk)
+        discount_match = re.search(r'discountPrice[^"]*"[^>]*>\s*([^<]*?)\s*</div>', chunk)
+        listing_match = re.search(r'listingPrice[^"]*"[^>]*>\s*([^<]*?)\s*</div>', chunk)
+
+        current = _parse_price(discount_match.group(1)) if discount_match else None
+        listing = _parse_price(listing_match.group(1)) if listing_match else None
+        if current is None:
+            current = listing
+            listing = None
+
+        title = title_match.group(1).strip() if title_match else match.group(1)
+        authors = re.sub(r"<[^>]+>", "", byline_match.group(1)).replace("by", "", 1).strip() if byline_match else ""
+        entries.append(
+            ChirpWishlistEntry(
+                url_path=url_match.group(1),
+                title=html_module.unescape(title),
+                authors=html_module.unescape(authors),
+                cover_url=cover_match.group(1) if cover_match else "",
+                current_price=current,
+                list_price=listing if listing is not None and current is not None and listing > current else None,
+            )
+        )
+    return entries
+
+
+async def fetch_wishlist(client: httpx.AsyncClient) -> list[ChirpWishlistEntry]:
+    resp = await client.get(f"{BASE_URL}/wishlist")
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise ChirpRequestError(f"Chirp's wishlist answered with status {exc.response.status_code}.") from exc
+    if _looks_like_cloudflare_challenge(resp.text):
+        raise ChirpRequestError(
+            "Cloudflare intercepted the wishlist request — paste a fresh Cookie header value in Settings."
+        )
+    if 'id="wishlist-app"' not in resp.text:
+        raise ChirpRequestError(
+            "Chirp's wishlist didn't load — the pasted cookie session is likely stale; paste a fresh one."
+        )
+    return parse_wishlist_page(resp.text)
+
+
+@dataclass
 class ChirpTrack:
     part_number: int
     chapter_number: int

@@ -17,9 +17,11 @@ from datetime import datetime
 import httpx
 from sqlalchemy.orm import Session
 
-from app.connectors import gog_connector, gog_wishlist, steam_wishlist
-from app.models.credential import SOURCE_GOG, SOURCE_STEAM, Credential
+from app.connectors import chirp_connector, gog_connector, gog_wishlist, steam_wishlist
+from app.models.credential import SOURCE_CHIRP, SOURCE_GOG, SOURCE_STEAM, Credential
 from app.models.store_wishlist import (
+    ChirpWishlistItem,
+    ChirpWishlistPrice,
     GogWishlistItem,
     GogWishlistPrice,
     SteamWishlistItem,
@@ -161,5 +163,59 @@ async def refresh_gog_wishlist(db: Session) -> dict:
         "new": new,
         "price_changes": price_changes,
         "detail_fetches": detail_fetches,
+        "removed": removed,
+    }
+
+
+# ------------------------------------------------------------------- chirp
+
+
+async def refresh_chirp_wishlist(db: Session) -> dict:
+    payload = Credential.get_payload(db, SOURCE_CHIRP)
+    if not payload or not payload.get("cookie"):
+        raise NotConnectedError("Chirp is not connected yet — paste your Cookie header value in Settings.")
+
+    async with chirp_connector.client_from_cookie_header(payload["cookie"]) as client:
+        entries = await chirp_connector.fetch_wishlist(client)
+
+    now = datetime.utcnow()
+    seen: set[str] = set()
+    new = price_changes = 0
+    for entry in entries:
+        seen.add(entry.url_path)
+        row = db.get(ChirpWishlistItem, entry.url_path)
+        if row is None:
+            row = ChirpWishlistItem(url_path=entry.url_path, first_seen_at=now)
+            db.add(row)
+            new += 1
+
+        row.title = entry.title
+        row.authors = entry.authors
+        row.cover_url = entry.cover_url
+        row.current_price = entry.current_price
+        row.list_price = entry.list_price
+        row.details_fetched_at = now
+        row.last_seen_at = now
+        row.removed_at = None
+        db.flush()
+        if record_price_if_changed(
+            db,
+            ChirpWishlistPrice,
+            "url_path",
+            row.url_path,
+            row.current_price,
+            row.list_price,
+            row.currency,
+            now,
+        ):
+            price_changes += 1
+
+    removed = flag_removed(db, ChirpWishlistItem, "url_path", seen, now)
+    db.commit()
+    return {
+        "total": len(entries),
+        "new": new,
+        "price_changes": price_changes,
+        "detail_fetches": 0,
         "removed": removed,
     }

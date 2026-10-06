@@ -19,9 +19,12 @@ from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.audible_book import AudibleBook
 from app.models.audible_wishlist import AudibleWishlistItem, AudibleWishlistPrice
+from app.models.chirp_audiobook import ChirpAudiobook
 from app.models.gog_game import GogGame
 from app.models.steam_game import SteamGame
 from app.models.store_wishlist import (
+    ChirpWishlistItem,
+    ChirpWishlistPrice,
     GogWishlistItem,
     GogWishlistPrice,
     SteamWishlistItem,
@@ -35,18 +38,20 @@ router = APIRouter(prefix="/wishlist")
 
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
-SOURCES = ("audible", "steam", "gog")
-SOURCE_LABELS = {"audible": "Audible", "steam": "Steam", "gog": "GOG"}
+SOURCES = ("audible", "steam", "gog", "chirp")
+SOURCE_LABELS = {"audible": "Audible", "steam": "Steam", "gog": "GOG", "chirp": "Chirp"}
 
 _ITEM_MODELS = {
     "audible": (AudibleWishlistItem, "asin"),
     "steam": (SteamWishlistItem, "appid"),
     "gog": (GogWishlistItem, "product_id"),
+    "chirp": (ChirpWishlistItem, "url_path"),
 }
 _PRICE_MODELS = {
     "audible": (AudibleWishlistPrice, "asin"),
     "steam": (SteamWishlistPrice, "appid"),
     "gog": (GogWishlistPrice, "product_id"),
+    "chirp": (ChirpWishlistPrice, "url_path"),
 }
 
 SORTS = {
@@ -70,6 +75,12 @@ SORTS = {
         "price": GogWishlistItem.current_price.asc(),
         # No "author"/"rating" here — GOG's wishlist model carries neither
         # field (see GogWishlistItem's own docstring on the rating gap).
+    },
+    "chirp": {
+        "added": ChirpWishlistItem.first_seen_at.desc(),
+        "title": ChirpWishlistItem.title.asc(),
+        "price": ChirpWishlistItem.current_price.asc(),
+        "author": ChirpWishlistItem.authors.asc(),
     },
 }
 
@@ -106,6 +117,8 @@ def _owned_keys(db: Session, source: str) -> set:
         return {a for (a,) in db.query(AudibleBook.asin).all()}
     if source == "steam":
         return {a for (a,) in db.query(SteamGame.appid).all()}
+    if source == "chirp":
+        return {p for (p,) in db.query(ChirpAudiobook.url_path).all()}
     return {p for (p,) in db.query(GogGame.product_id).all()}
 
 
@@ -121,6 +134,8 @@ def _search(query, source: str, needle: str):
         )
     if source == "steam":
         return query.filter(or_(SteamWishlistItem.name.ilike(like), SteamWishlistItem.developers.ilike(like)))
+    if source == "chirp":
+        return query.filter(or_(ChirpWishlistItem.title.ilike(like), ChirpWishlistItem.authors.ilike(like)))
     return query.filter(GogWishlistItem.title.ilike(like))
 
 
@@ -202,6 +217,8 @@ async def _run_refresh(source: str, db: Session):
         return await audible_sync.refresh_audible_wishlist(db)
     if source == "steam":
         return await store_wishlist_sync.refresh_steam_wishlist(db)
+    if source == "chirp":
+        return await store_wishlist_sync.refresh_chirp_wishlist(db)
     return await store_wishlist_sync.refresh_gog_wishlist(db)
 
 

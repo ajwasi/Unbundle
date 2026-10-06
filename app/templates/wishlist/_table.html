@@ -45,7 +45,7 @@
       <option value="{{ s }}" {{ "selected" if sort == s else "" }}>
         {%- if s == "added" %}{{ "Wishlist order" if source == "steam" else "Recently added" }}
         {%- elif s == "rating" %}Highest rated
-        {%- elif s == "author" %}{{ "Author" if source == "audible" else "Developer" }}
+        {%- elif s == "author" %}{{ "Developer" if source == "steam" else "Author" }}
         {%- elif s == "lowest" %}Lowest seen
         {%- else %}{{ s|capitalize }}{% endif -%}
       </option>
@@ -66,8 +66,8 @@
       <tr>
         <th></th>
         <th>Title</th>
-        <th>{% if source == "audible" %}Author{% elif source == "steam" %}Developer{% else %}&nbsp;{% endif %}</th>
-        {% if source != "gog" %}
+        <th>{% if source == "steam" %}Developer{% elif source in ("audible", "chirp") %}Author{% else %}&nbsp;{% endif %}</th>
+        {% if source in ("audible", "steam") %}
         <th>{% if source == "audible" %}Rating{% else %}Metacritic{% endif %}</th>
         {% endif %}
         <th>Price</th>
@@ -83,10 +83,11 @@
           {% if source == "audible" and i.cover_url %}<img src="{{ i.cover_url }}" alt="" height="44" loading="lazy" style="border-radius: 4px;">
           {% elif source == "steam" and i.header_image %}<img src="{{ i.header_image }}" alt="" height="44" loading="lazy" style="border-radius: 4px;">
           {% elif source == "gog" and i.cover_url %}<img src="{{ i.cover_url }}" alt="" height="44" loading="lazy" style="border-radius: 4px;">
+          {% elif source == "chirp" and i.cover_url %}<img src="{{ i.cover_url }}" alt="" height="44" loading="lazy" style="border-radius: 4px;">
           {% endif %}
         </td>
         <td>
-          <strong>{% if source == "audible" %}{{ i.title }}{% elif source == "steam" %}{{ i.name or "App " ~ i.appid }}{% else %}{{ i.title or "Product " ~ i.product_id }}{% endif %}</strong>
+          <strong>{% if source == "audible" or source == "chirp" %}{{ i.title }}{% elif source == "steam" %}{{ i.name or "App " ~ i.appid }}{% else %}{{ i.title or "Product " ~ i.product_id }}{% endif %}</strong>
           {% if source == "audible" and i.subtitle %}<br><span class="muted">{{ i.subtitle }}</span>{% endif %}
           {% if key in owned_keys %}
           <span class="badge badge-ok tip" title="Already in your synced library for this store — you can probably remove it from the wishlist.">Owned</span>
@@ -95,6 +96,7 @@
         <td class="muted">
           {%- if source == "audible" %}{{ i.authors or "—" }}
           {%- elif source == "steam" %}{{ i.developers or "—" }}
+          {%- elif source == "chirp" %}{{ i.authors or "—" }}
           {%- endif -%}
         </td>
         {% if source == "audible" %}
@@ -134,6 +136,7 @@
         <td>
           {%- if source == "audible" %}<a href="https://www.audible.com/pd/{{ i.asin }}" target="_blank" rel="noopener">View &rarr;</a>
           {%- elif source == "steam" %}<a href="https://store.steampowered.com/app/{{ i.appid }}/" target="_blank" rel="noopener">View &rarr;</a>
+          {%- elif source == "chirp" %}<a href="{{ i.store_url }}" target="_blank" rel="noopener">View &rarr;</a>
           {%- else %}<a href="{{ i.store_url or 'https://www.gog.com/game/' ~ i.product_id }}" target="_blank" rel="noopener">View &rarr;</a>
           {%- endif -%}
         </td>
