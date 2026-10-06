@@ -15,10 +15,12 @@ instead of spinning forever or double-counting the same page.
 
 from datetime import datetime
 
+import httpx
 from sqlalchemy.orm import Session
 
 from app.connectors import chirp_connector
 from app.models.chirp_audiobook import ChirpAudiobook
+from app.models.chirp_series_book import ChirpSeriesBook
 from app.models.credential import SOURCE_CHIRP, STATUS_ERROR, STATUS_OK, Credential
 from app.security import decrypt_json
 
@@ -60,6 +62,41 @@ async def _fetch_all_pages(client) -> tuple[list[chirp_connector.ChirpAudiobook]
     return all_items, total
 
 
+async def _fetch_series_rows(client, books) -> list[ChirpSeriesBook]:
+    """One book page and one series page per distinct series the library
+    touches. A series that fails to load is skipped rather than failing the
+    whole refresh — the library itself is still good.
+    """
+    representative: dict[str, str] = {}
+    for b in books:
+        if b.series_name and b.series_name not in representative:
+            representative[b.series_name] = b.url_path
+
+    rows: list[ChirpSeriesBook] = []
+    for series_name, book_url_path in representative.items():
+        try:
+            series_url = await chirp_connector.fetch_series_url_for_book(client, book_url_path)
+            if not series_url:
+                continue
+            for entry in await chirp_connector.fetch_series_books(client, series_url):
+                rows.append(
+                    ChirpSeriesBook(
+                        series_url=series_url,
+                        url_path=entry.url_path,
+                        series_name=series_name,
+                        title=entry.title,
+                        authors=entry.authors,
+                        series_number=entry.series_number,
+                        listing_price=entry.listing_price,
+                        current_price=entry.current_price,
+                        fetched_at=datetime.utcnow(),
+                    )
+                )
+        except (chirp_connector.ChirpRequestError, httpx.HTTPError):
+            continue
+    return rows
+
+
 def _earliest_purchase_by_url(purchases: list[chirp_connector.ChirpPurchase]) -> dict[str, tuple]:
     earliest: dict[str, tuple] = {}
     for p in purchases:
@@ -81,6 +118,7 @@ async def refresh_chirp_library(db: Session) -> int:
         async with chirp_connector.client_from_cookie_header(cookie) as client:
             books, _total = await _fetch_all_pages(client)
             purchases = await chirp_connector.fetch_purchases(client)
+            series_rows = await _fetch_series_rows(client, books)
     except Exception as exc:
         _set_credential_status(db, STATUS_ERROR, str(exc))
         raise
@@ -111,6 +149,15 @@ async def refresh_chirp_library(db: Session) -> int:
                 fetched_at=now,
             )
         )
+
+    db.query(ChirpSeriesBook).delete()
+    seen_series_keys: set[tuple[str, str]] = set()
+    for row in series_rows:
+        key = (row.series_url, row.url_path)
+        if key in seen_series_keys:
+            continue
+        seen_series_keys.add(key)
+        db.add(row)
     db.commit()
 
     _set_credential_status(db, STATUS_OK, None)
