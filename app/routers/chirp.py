@@ -100,8 +100,9 @@ async def probe_download(purchase_id: str, audiobook_id: str, db: Session = Depe
     try:
         async with chirp_connector.client_from_cookie_header(cookie) as client:
             report = await chirp_connector.probe_first_track(client, purchase_id, audiobook_id)
-    except (chirp_connector.ChirpRequestError, httpx.HTTPError, UnicodeEncodeError) as exc:
-        return PlainTextResponse(f"Probe failed: {exc}", status_code=502)
+    except (chirp_connector.ChirpRequestError, httpx.HTTPError, UnicodeEncodeError):
+        logger.exception("Probe download failed for purchase_id=%s audiobook_id=%s", purchase_id, audiobook_id)
+        return PlainTextResponse("Probe failed due to an upstream error.", status_code=502)
     text = json.dumps(report, indent=2)
     logger.info("chirp download probe %s:\n%s", audiobook_id, text)
     return PlainTextResponse(text)
