@@ -7,7 +7,7 @@ import pytest
 
 from app.connectors import chirp_connector as chirp
 from app.models.chirp_audiobook import ChirpAudiobook
-from app.models.credential import SOURCE_CHIRP, STATUS_ERROR, Credential
+from app.models.credential import SOURCE_CHIRP, STATUS_ERROR, STATUS_OK, Credential
 from app.security import encrypt_json
 from app.sync import chirp_sync
 
@@ -191,3 +191,29 @@ async def test_refresh_records_the_error_on_failure(db):
 
     cred = Credential.get(db, SOURCE_CHIRP)
     assert cred.status == STATUS_ERROR
+
+
+async def test_a_failing_order_history_keeps_the_library_and_previous_purchase_data(db):
+    _connect(db)
+    db.add(
+        ChirpAudiobook(
+            purchase_id="old", url_path="/audiobooks/1", title="Book 1", fetched_at=datetime.utcnow(),
+            purchased_at=date(2025, 1, 1), paid_price=3.0,
+        )
+    )
+    db.commit()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/purchases":
+            return httpx.Response(403, text="<html>Forbidden</html>")
+        return httpx.Response(200, json=_page_response(["1"], 1))
+
+    with patch.object(chirp, "client_from_cookie_header", new=_cookie_client_stub(handler)):
+        count = await chirp_sync.refresh_chirp_library(db)
+
+    assert count == 1
+    book = db.query(ChirpAudiobook).filter(ChirpAudiobook.url_path == "/audiobooks/1").one()
+    assert book.purchase_id == "1"
+    assert book.purchased_at == date(2025, 1, 1)
+    assert book.paid_price == 3.0
+    assert Credential.get(db, SOURCE_CHIRP).status == STATUS_OK

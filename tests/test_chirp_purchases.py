@@ -114,3 +114,22 @@ async def test_fetch_purchases_reports_a_cloudflare_challenge():
     async with _purchases_client(handler) as client:
         with pytest.raises(chirp.ChirpRequestError, match="Cloudflare"):
             await chirp.fetch_purchases(client)
+
+
+async def test_a_403_on_order_history_says_the_session_likely_expired():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<html>Forbidden</html>")
+
+    async with _purchases_client(handler) as client:
+        with pytest.raises(chirp.ChirpRequestError, match="403") as excinfo:
+            await chirp.fetch_purchases(client)
+    assert "cookie" in str(excinfo.value).lower()
+
+
+async def test_a_403_carrying_a_cloudflare_challenge_is_reported_as_cloudflare():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<html><title>Just a moment...</title></html>")
+
+    async with _purchases_client(handler) as client:
+        with pytest.raises(chirp.ChirpRequestError, match="Cloudflare"):
+            await chirp.fetch_purchases(client)
