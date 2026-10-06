@@ -66,9 +66,12 @@ NOT yet confirmed at all — reconstructed by pattern-matching a real
 """
 
 import base64
+import html as html_module
 import logging
 import re
 from dataclasses import dataclass
+from datetime import date, datetime
+from urllib.parse import urljoin
 
 import httpx
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -377,6 +380,105 @@ def parse_library_page(payload: dict) -> tuple[list[ChirpAudiobook], int]:
 async def fetch_library_page(client: httpx.AsyncClient, page: int = 1) -> tuple[list[ChirpAudiobook], int]:
     data = await _graphql(client, "fetchCurrentUserAudiobooks", _LIBRARY_QUERY, {"page": page})
     return parse_library_page(data)
+
+
+@dataclass
+class ChirpPurchase:
+    item_id: str
+    url_path: str
+    title: str
+    purchased_at: date | None
+    paid_price: float | None
+    list_price: float | None
+    is_free: bool
+
+
+_MAX_PURCHASE_PAGES = 100
+_PURCHASE_ITEM_MARKER = 'data-purchase-item-id="'
+_ORDINAL_SUFFIX = re.compile(r"(\d+)(st|nd|rd|th)")
+
+
+def _parse_purchase_date(text: str) -> date | None:
+    cleaned = _ORDINAL_SUFFIX.sub(r"\1", text.strip())
+    try:
+        return datetime.strptime(cleaned, "%B %d, %Y").date()
+    except ValueError:
+        return None
+
+
+def parse_purchases_page(page_html: str) -> tuple[list[ChirpPurchase], str | None]:
+    """One /purchases order-history page, server-rendered (confirmed from a
+    real capture — no XHR involved). Returns the purchases on it, plus the
+    relative URL of the next page if one exists. Each order's date applies to
+    every book inside it; each book's invoice-price is what was actually paid,
+    list-price is the struck-through original.
+    """
+    purchases: list[ChirpPurchase] = []
+    for order_chunk in page_html.split('<div class="purchase">')[1:]:
+        date_match = re.search(r'<div class="purchase-date">\s*(.*?)\s*</div>', order_chunk, re.S)
+        purchased_at = _parse_purchase_date(date_match.group(1)) if date_match else None
+
+        for item_chunk in order_chunk.split(_PURCHASE_ITEM_MARKER)[1:]:
+            item_id_match = re.match(r'(\d+)"', item_chunk)
+            url_match = re.search(r'<a href="(/audiobooks/[^"]+)"', item_chunk)
+            title_match = re.search(r'<div class="title">\s*<a[^>]*>(.*?)</a>', item_chunk, re.S)
+            if not (item_id_match and url_match and title_match):
+                continue
+            list_match = re.search(r'<div class="list-price( free)?">\s*(.*?)\s*</div>', item_chunk, re.S)
+            invoice_match = re.search(r'<div class="invoice-price">\s*(.*?)\s*</div>', item_chunk, re.S)
+            is_free = bool(list_match and list_match.group(1))
+            purchases.append(
+                ChirpPurchase(
+                    item_id=item_id_match.group(1),
+                    url_path=url_match.group(1),
+                    title=html_module.unescape(title_match.group(1).strip()),
+                    purchased_at=purchased_at,
+                    paid_price=0.0 if is_free else _parse_price(invoice_match.group(1) if invoice_match else None),
+                    list_price=None if is_free or not list_match else _parse_price(list_match.group(2)),
+                    is_free=is_free,
+                )
+            )
+
+    next_match = re.search(r'<a[^>]*\brel="next"[^>]*\bhref="([^"]+)"', page_html)
+    return purchases, html_module.unescape(next_match.group(1)) if next_match else None
+
+
+async def fetch_purchases(client: httpx.AsyncClient) -> list[ChirpPurchase]:
+    """Walks every page of order history. Stops at the first page with no
+    next link, on a repeated URL, or at _MAX_PURCHASE_PAGES. A session that's
+    expired (or a Cloudflare challenge) shows up as a page with no purchase
+    list at all, which is reported rather than read as an empty history.
+    """
+    purchases: list[ChirpPurchase] = []
+    seen_item_ids: set[str] = set()
+    seen_urls: set[str] = set()
+    url: str | None = f"{BASE_URL}/purchases"
+
+    while url and url not in seen_urls and len(seen_urls) < _MAX_PURCHASE_PAGES:
+        seen_urls.add(url)
+        try:
+            resp = await client.get(url)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ChirpRequestError(f"Chirp's order history answered with status {exc.response.status_code}.") from exc
+
+        if _looks_like_cloudflare_challenge(resp.text):
+            raise ChirpRequestError(
+                "Cloudflare intercepted the order history request — paste a fresh Cookie header value in Settings."
+            )
+        if 'class="purchases-list"' not in resp.text:
+            raise ChirpRequestError(
+                "Chirp's order history didn't load — the pasted cookie session is likely stale; paste a fresh one."
+            )
+
+        page_purchases, next_path = parse_purchases_page(resp.text)
+        for purchase in page_purchases:
+            if purchase.item_id not in seen_item_ids:
+                seen_item_ids.add(purchase.item_id)
+                purchases.append(purchase)
+        url = urljoin(BASE_URL, next_path) if next_path else None
+
+    return purchases
 
 
 @dataclass

@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -36,6 +36,11 @@ class ChirpAudiobook(Base):
     series_number: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     listing_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     discount_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Denormalized from the order-history page at sync time — the earliest
+    # purchase of this book, and what was actually paid for it (0.0 for a
+    # free title). Same denormalize-at-sync shape Bundle.purchased_at uses.
+    purchased_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    paid_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
     @property

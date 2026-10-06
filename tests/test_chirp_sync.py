@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import date, datetime
 from unittest.mock import patch
 
 import httpx
@@ -10,6 +10,9 @@ from app.models.chirp_audiobook import ChirpAudiobook
 from app.models.credential import SOURCE_CHIRP, STATUS_ERROR, Credential
 from app.security import encrypt_json
 from app.sync import chirp_sync
+
+
+_EMPTY_ORDER_HISTORY = '<div class="purchases-list"></div>'
 
 
 def _connect(db, cookie="cf_clearance=abc"):
@@ -65,6 +68,8 @@ async def test_refresh_walks_every_page_until_the_total_is_reached(db):
     }
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/purchases":
+            return httpx.Response(200, text=_EMPTY_ORDER_HISTORY)
         page_num = json.loads(request.content)["variables"]["page"]
         return httpx.Response(200, json=pages[page_num])
 
@@ -83,6 +88,8 @@ async def test_refresh_stops_if_a_page_stops_introducing_new_ids(db):
     same_page = _page_response([str(i) for i in range(1, 21)], 78)
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/purchases":
+            return httpx.Response(200, text=_EMPTY_ORDER_HISTORY)
         return httpx.Response(200, json=same_page)
 
     with patch.object(chirp, "client_from_cookie_header", new=_cookie_client_stub(handler)):
@@ -99,6 +106,8 @@ async def test_refresh_replaces_stale_rows_no_longer_in_the_library(db):
     _connect(db)
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/purchases":
+            return httpx.Response(200, text=_EMPTY_ORDER_HISTORY)
         return httpx.Response(200, json=_page_response(["1"], 1))
 
     with patch.object(chirp, "client_from_cookie_header", new=_cookie_client_stub(handler)):
@@ -106,6 +115,68 @@ async def test_refresh_replaces_stale_rows_no_longer_in_the_library(db):
 
     assert db.query(ChirpAudiobook).filter(ChirpAudiobook.purchase_id == "stale").one_or_none() is None
     assert db.query(ChirpAudiobook).filter(ChirpAudiobook.purchase_id == "1").one_or_none() is not None
+
+
+async def test_refresh_attaches_the_earliest_purchase_date_and_paid_price(db):
+    from pathlib import Path
+
+    _connect(db)
+    html = (Path(__file__).parent / "fixtures" / "chirp_purchases_page.html").read_text(encoding="utf-8")
+    library = {
+        "data": {
+            "currentUserAudiobooks": [
+                {
+                    "id": "27991647",
+                    "progressStatus": "IN_PROGRESS",
+                    "positionPercent": 0,
+                    "playable": True,
+                    "audiobook": {
+                        "id": "626000",
+                        "url": "/audiobooks/sand-by-hugh-howey-f6379e10a9",
+                        "coverUrl": "",
+                        "displayTitle": "Sand",
+                        "displayAuthors": "Hugh Howey",
+                        "displayNarrators": "Jeremy Arthur",
+                        "seriesAudiobook": None,
+                        "currentProduct": None,
+                    },
+                },
+                {
+                    "id": "99999999",
+                    "progressStatus": "NOT_STARTED",
+                    "positionPercent": 0,
+                    "playable": True,
+                    "audiobook": {
+                        "id": "1",
+                        "url": "/audiobooks/never-bought",
+                        "coverUrl": "",
+                        "displayTitle": "Never Bought",
+                        "displayAuthors": "",
+                        "displayNarrators": "",
+                        "seriesAudiobook": None,
+                        "currentProduct": None,
+                    },
+                },
+            ],
+            "currentUserAudiobooksCount": 2,
+        }
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/purchases":
+            return httpx.Response(200, text=html)
+        return httpx.Response(200, json=library)
+
+    with patch.object(chirp, "client_from_cookie_header", new=_cookie_client_stub(handler)):
+        await chirp_sync.refresh_chirp_library(db)
+
+    sand = db.query(ChirpAudiobook).filter(ChirpAudiobook.purchase_id == "27991647").one()
+    assert sand.purchased_at == date(2025, 12, 1)
+    assert sand.paid_price == 7.99
+
+    never = db.query(ChirpAudiobook).filter(ChirpAudiobook.purchase_id == "99999999").one()
+    assert never.purchased_at is None
+    assert never.paid_price is None
 
 
 async def test_refresh_records_the_error_on_failure(db):

@@ -60,6 +60,15 @@ async def _fetch_all_pages(client) -> tuple[list[chirp_connector.ChirpAudiobook]
     return all_items, total
 
 
+def _earliest_purchase_by_url(purchases: list[chirp_connector.ChirpPurchase]) -> dict[str, tuple]:
+    earliest: dict[str, tuple] = {}
+    for p in purchases:
+        current = earliest.get(p.url_path)
+        if current is None or (p.purchased_at is not None and (current[0] is None or p.purchased_at < current[0])):
+            earliest[p.url_path] = (p.purchased_at, p.paid_price)
+    return earliest
+
+
 async def refresh_chirp_library(db: Session) -> int:
     """Returns the number of audiobooks fetched. Raises NotConnectedError or
     chirp_connector.ChirpRequestError/httpx.HTTPError — caller surfaces the
@@ -71,13 +80,16 @@ async def refresh_chirp_library(db: Session) -> int:
     try:
         async with chirp_connector.client_from_cookie_header(cookie) as client:
             books, _total = await _fetch_all_pages(client)
+            purchases = await chirp_connector.fetch_purchases(client)
     except Exception as exc:
         _set_credential_status(db, STATUS_ERROR, str(exc))
         raise
 
+    earliest = _earliest_purchase_by_url(purchases)
     db.query(ChirpAudiobook).delete()
     now = datetime.utcnow()
     for b in books:
+        purchased_at, paid_price = earliest.get(b.url_path, (None, None))
         db.add(
             ChirpAudiobook(
                 purchase_id=b.purchase_id,
@@ -94,6 +106,8 @@ async def refresh_chirp_library(db: Session) -> int:
                 series_number=b.series_number or "",
                 listing_price=b.listing_price,
                 discount_price=b.discount_price,
+                purchased_at=purchased_at,
+                paid_price=paid_price,
                 fetched_at=now,
             )
         )
