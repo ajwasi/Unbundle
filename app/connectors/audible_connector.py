@@ -459,3 +459,11 @@ async def fetch_wishlist(auth: "audible.Authenticator") -> list[AudibleWishlistD
             if len(raw) < WISHLIST_PAGE_SIZE:
                 break
     return items
+
+
+PROBE_RESPONSE_GROUPS = "relationships,series,price,product_desc,contributors,media,rating"
+
+
+async def probe_catalog_product(auth: audible.Authenticator, asin: str) -> dict:
+    async with audible.AsyncClient(auth) as client:
+        return await client.get(f"catalog/products/{asin}", params={"response_groups": PROBE_RESPONSE_GROUPS})
