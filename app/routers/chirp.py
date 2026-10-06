@@ -21,6 +21,7 @@ from app.csrf import require_csrf
 from app.deps import get_db
 from app.list_views import render_list_or_partial, sorted_query
 from app.models.chirp_audiobook import ChirpAudiobook
+from app.models.chirp_series_book import ChirpSeriesBook
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_CHIRP
 from app.ratelimit import RateLimiter, rate_limit
 from app.sync import chirp_sync
@@ -53,10 +54,15 @@ def _context(db: Session, q: str = "", sort: str = "title", dir: str = "asc") ->
         )
     books = sorted_query(query, _SORT_COLUMNS, sort, dir, ChirpAudiobook.title).all()
 
+    owned_urls = {u for (u,) in db.query(ChirpAudiobook.url_path).all()}
+    series_rows = db.query(ChirpSeriesBook).order_by(ChirpSeriesBook.series_name, ChirpSeriesBook.series_number).all()
+    missing_series = [row for row in series_rows if row.url_path not in owned_urls]
+
     return {
         "chirp_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "chirp_error": cred.last_error if cred else None,
         "books": books,
+        "missing_series": missing_series,
         "book_count": db.query(func.count(ChirpAudiobook.purchase_id)).scalar() or 0,
         "q": q,
         "sort": sort,

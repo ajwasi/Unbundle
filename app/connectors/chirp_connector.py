@@ -66,6 +66,7 @@ NOT yet confirmed at all — reconstructed by pattern-matching a real
 """
 
 import base64
+import json
 import html as html_module
 import logging
 import re
@@ -765,3 +766,87 @@ async def fetch_library_preview_via_cookie(cookie_header: str, page: int = 1) ->
     """
     async with client_from_cookie_header(cookie_header) as client:
         return await fetch_library_page(client, page=page)
+
+
+@dataclass
+class ChirpSeriesBook:
+    url_path: str
+    title: str
+    authors: str
+    series_number: str
+    listing_price: float | None
+    current_price: float | None
+
+
+_AUDIOBOOK_DATA_ATTR = re.compile(r'data-audiobook="([^"]*)"')
+_SERIES_CARD_START = re.compile(r'data-qa="book-card-collection-item-\d+"')
+
+
+def parse_series_url(book_html: str) -> str | None:
+    """A book page's own JSON (its data-audiobook attribute) names its series
+    as seriesUrl, e.g. "/series/the-silo-saga-audiobooks"."""
+    match = _AUDIOBOOK_DATA_ATTR.search(book_html)
+    if not match:
+        return None
+    try:
+        data = json.loads(html_module.unescape(match.group(1)))
+    except ValueError:
+        return None
+    series_url = data.get("seriesUrl")
+    return series_url if isinstance(series_url, str) and series_url.startswith("/series/") else None
+
+
+def parse_series_books(series_html: str) -> list[ChirpSeriesBook]:
+    starts = list(_SERIES_CARD_START.finditer(series_html))
+    books: list[ChirpSeriesBook] = []
+    for index, match in enumerate(starts):
+        chunk_end = starts[index + 1].start() if index + 1 < len(starts) else len(series_html)
+        chunk = series_html[match.end():chunk_end]
+
+        url_match = re.search(r'href="(/audiobooks/[^"]+)"', chunk)
+        title_match = re.search(r"<h3[^>]*>\s*<a[^>]*>(.*?)</a>", chunk, re.S)
+        if not (url_match and title_match):
+            continue
+        byline_match = re.search(r"<h4[^>]*>(.*?)</h4>", chunk, re.S)
+        number_match = re.search(r'data-testid="series-number">\s*(.*?)\s*</span>', chunk, re.S)
+        discount_match = re.search(r'discountPrice[^"]*"[^>]*>\s*([^<]*?)\s*</div>', chunk)
+        listing_match = re.search(r'listingPrice[^"]*"[^>]*>\s*([^<]*?)\s*</div>', chunk)
+
+        current = _parse_price(discount_match.group(1)) if discount_match else None
+        listing = _parse_price(listing_match.group(1)) if listing_match else None
+        if current is None:
+            current = listing
+            listing = None
+
+        number = number_match.group(1).replace("Book #", "").strip() if number_match else ""
+        authors = re.sub(r"<[^>]+>", "", byline_match.group(1)).replace("by", "", 1).strip() if byline_match else ""
+        books.append(
+            ChirpSeriesBook(
+                url_path=url_match.group(1),
+                title=html_module.unescape(re.sub(r"<[^>]+>", "", title_match.group(1)).strip()),
+                authors=html_module.unescape(authors),
+                series_number=number,
+                listing_price=listing if listing is not None and current is not None and listing > current else None,
+                current_price=current,
+            )
+        )
+    return books
+
+
+async def _get_page(client: httpx.AsyncClient, url: str) -> str:
+    resp = await client.get(url)
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise ChirpRequestError(f"Chirp answered {url} with status {exc.response.status_code}.") from exc
+    if _looks_like_cloudflare_challenge(resp.text):
+        raise ChirpRequestError("Cloudflare intercepted a series request — paste a fresh Cookie header value in Settings.")
+    return resp.text
+
+
+async def fetch_series_url_for_book(client: httpx.AsyncClient, book_url_path: str) -> str | None:
+    return parse_series_url(await _get_page(client, urljoin(BASE_URL, book_url_path)))
+
+
+async def fetch_series_books(client: httpx.AsyncClient, series_url: str) -> list[ChirpSeriesBook]:
+    return parse_series_books(await _get_page(client, urljoin(BASE_URL, series_url)))
