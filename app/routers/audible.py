@@ -219,8 +219,9 @@ async def refresh_audible(request: Request, db: Session = Depends(get_db)):
 async def probe_series(asin: str, db: Session = Depends(get_db)):
     try:
         data = await audible_sync.probe_catalog_product(db, asin)
-    except audible_sync.NotConnectedError as exc:
-        return PlainTextResponse(str(exc), status_code=409)
+    except audible_sync.NotConnectedError:
+        logger.warning("Audible probe failed: not connected (asin=%s)", asin, exc_info=True)
+        return PlainTextResponse("Audible account is not connected.", status_code=409)
     text = json.dumps(data, indent=2, ensure_ascii=False)
     logger.info("audible probe %s:\n%s", asin, text[:20000])
     return PlainTextResponse(text)
