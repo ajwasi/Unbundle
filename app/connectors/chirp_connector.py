@@ -457,15 +457,19 @@ async def fetch_purchases(client: httpx.AsyncClient) -> list[ChirpPurchase]:
 
     while url and url not in seen_urls and len(seen_urls) < _MAX_PURCHASE_PAGES:
         seen_urls.add(url)
-        try:
-            resp = await client.get(url)
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise ChirpRequestError(f"Chirp's order history answered with status {exc.response.status_code}.") from exc
-
+        resp = await client.get(url)
         if _looks_like_cloudflare_challenge(resp.text):
             raise ChirpRequestError(
                 "Cloudflare intercepted the order history request — paste a fresh Cookie header value in Settings."
+            )
+        if resp.status_code >= 400:
+            logger.warning(
+                "chirp(purchases): order history returned %d. Body starts: %r",
+                resp.status_code, resp.text[:300],
+            )
+            raise ChirpRequestError(
+                f"Chirp refused the order history request (status {resp.status_code}). "
+                "The pasted cookie session has most likely expired — paste a fresh Cookie header value in Settings."
             )
         if 'class="purchases-list"' not in resp.text:
             raise ChirpRequestError(

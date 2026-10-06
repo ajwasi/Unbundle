@@ -13,6 +13,7 @@ this degrades to exactly today's single-page behavior (first ~20 items)
 instead of spinning forever or double-counting the same page.
 """
 
+import logging
 from datetime import datetime
 
 import httpx
@@ -23,6 +24,8 @@ from app.models.chirp_audiobook import ChirpAudiobook
 from app.models.chirp_series_book import ChirpSeriesBook
 from app.models.credential import SOURCE_CHIRP, STATUS_ERROR, STATUS_OK, Credential
 from app.security import decrypt_json
+
+logger = logging.getLogger(__name__)
 
 _MAX_PAGES = 50  # far beyond any real library (50 * ~20/page = ~1000 books) — a runaway-loop backstop, not a real limit
 
@@ -114,16 +117,21 @@ async def refresh_chirp_library(db: Session) -> int:
     if not cookie:
         raise NotConnectedError("Chirp is not connected yet — paste your Cookie header value in Settings.")
 
+    previous = {row.url_path: (row.purchased_at, row.paid_price) for row in db.query(ChirpAudiobook).all()}
     try:
         async with chirp_connector.client_from_cookie_header(cookie) as client:
             books, _total = await _fetch_all_pages(client)
-            purchases = await chirp_connector.fetch_purchases(client)
+            try:
+                purchases = await chirp_connector.fetch_purchases(client)
+            except (chirp_connector.ChirpRequestError, httpx.HTTPError) as exc:
+                logger.warning("chirp: order history unavailable, keeping previous purchase data: %s", exc)
+                purchases = None
             series_rows = await _fetch_series_rows(client, books)
     except Exception as exc:
         _set_credential_status(db, STATUS_ERROR, str(exc))
         raise
 
-    earliest = _earliest_purchase_by_url(purchases)
+    earliest = _earliest_purchase_by_url(purchases) if purchases is not None else previous
     db.query(ChirpAudiobook).delete()
     now = datetime.utcnow()
     for b in books:
