@@ -131,11 +131,35 @@ def test_a_broken_refresh_reads_as_a_connector_failure_not_a_500(authed_client, 
     assert "boom" in resp.text
 
 
-def test_htmx_request_returns_only_the_content(authed_client, db):
+def test_htmx_sort_or_search_returns_only_the_table_not_the_whole_content(authed_client, db):
+    # A sort/search swaps just #chirp-books-table — returning the whole
+    # #chirp-content here nests a fresh copy of the count line and table
+    # inside the old table on every click.
     _connect(db)
-    resp = authed_client.get("/chirp", headers={"HX-Request": "true"})
+    db.add(_book())
+    db.commit()
+
+    resp = authed_client.get("/chirp", params={"sort": "author"}, headers={"HX-Request": "true"})
     assert "<html" not in resp.text
-    assert 'id="chirp-content"' in resp.text
+    assert 'id="chirp-books-table"' in resp.text
+    assert 'id="chirp-content"' not in resp.text
+    assert "audiobook(s) owned" not in resp.text
+
+
+def test_repeated_sorts_never_duplicate_the_count_line(authed_client, db):
+    _connect(db)
+    db.add(_book(purchase_id="1", title="A Book"))
+    db.add(_book(purchase_id="2", title="B Book"))
+    db.commit()
+
+    full = authed_client.get("/chirp")
+    assert full.text.count("audiobook(s) owned") == 1
+
+    # Each htmx response replaces #chirp-books-table only, so none of them may carry the count line.
+    for params in ({"sort": "author"}, {"sort": "title", "dir": "desc"}):
+        swapped = authed_client.get("/chirp", params=params, headers={"HX-Request": "true"}).text
+        assert swapped.count('id="chirp-books-table"') == 1
+        assert swapped.count("audiobook(s) owned") == 0
 
 
 def test_sidebar_links_to_the_page(authed_client):

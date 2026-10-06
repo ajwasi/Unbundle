@@ -66,7 +66,7 @@ def _context(db: Session, q: str = "", sort: str = "title", dir: str = "asc") ->
 @router.get("", response_class=HTMLResponse)
 def chirp_page(request: Request, q: str = "", sort: str = "title", dir: str = "asc", db: Session = Depends(get_db)):
     context = _context(db, q, sort, dir)
-    return render_list_or_partial(request, templates, "chirp/index.html", "chirp/_content.html", context)
+    return render_list_or_partial(request, templates, "chirp/index.html", "chirp/_books_table.html", context)
 
 
 @router.post(
