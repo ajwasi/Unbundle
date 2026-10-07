@@ -250,8 +250,9 @@ def audible_series_detail(request: Request, series_asin: str, db: Session = Depe
             "title": b.title,
             "authors": b.author,
             "sequence": b.series_sequence,
-            "current_price": None,
-            "currency": "",
+            "cover_url": b.cover_url,
+            "price": b.price_amount,
+            "currency": b.price_currency,
             "discount_pct": None,
         }
         for b in owned
@@ -262,7 +263,8 @@ def audible_series_detail(request: Request, series_asin: str, db: Session = Depe
             "title": s.title,
             "authors": s.authors,
             "sequence": s.sequence,
-            "current_price": s.current_price,
+            "cover_url": s.cover_url,
+            "price": s.current_price,
             "currency": s.currency,
             "discount_pct": s.discount_pct,
         }

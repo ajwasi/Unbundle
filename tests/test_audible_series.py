@@ -187,8 +187,12 @@ def test_a_book_bought_since_the_last_series_refresh_drops_off_the_list(authed_c
 def test_series_detail_page_lists_owned_and_missing_books_in_order(authed_client, db):
     now = datetime.utcnow()
     db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
-    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_title="Bobiverse", series_sequence="1", series_asin="B01M1RDL6W"))
-    db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many", authors="Dennis E. Taylor", sequence="2", current_price=13.96, list_price=19.95, currency="USD", fetched_at=now))
+    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596,
+                       cover_url="https://example.com/bob1.jpg", price_amount=13.96, price_currency="USD", fetched_at=now,
+                       series_title="Bobiverse", series_sequence="1", series_asin="B01M1RDL6W"))
+    db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many",
+                             authors="Dennis E. Taylor", sequence="2", cover_url="https://example.com/bob2.jpg",
+                             current_price=13.96, list_price=19.95, currency="USD", fetched_at=now))
     db.commit()
 
     resp = authed_client.get("/audible/series/B01M1RDL6W")
@@ -199,6 +203,10 @@ def test_series_detail_page_lists_owned_and_missing_books_in_order(authed_client
     assert resp.text.count(">Missing<") == 1
     assert 'href="/audible/B01L082HJ2"' in resp.text
     assert 'href="https://www.audible.com/pd/B01N17THEO"' in resp.text
+    # Owned row shows what was paid; missing row shows the live price. Both covers render.
+    assert resp.text.count("13.96") == 2
+    assert 'src="https://example.com/bob1.jpg"' in resp.text
+    assert 'src="https://example.com/bob2.jpg"' in resp.text
 
 
 def test_series_detail_page_404s_for_an_unknown_series(authed_client):
