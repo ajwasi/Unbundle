@@ -6,22 +6,20 @@ library and caches it locally, same "cached snapshot" shape as Steam/GOG/
 Audible's own synced libraries — see chirp_sync.py's own docstring for why
 that page-walk is written defensively).
 
-No download support yet. "Price" is Chirp's current storefront price for
-the book, not what this account paid — see ChirpAudiobook's own docstring
-for why those are different things and only one of them is confirmed to
-exist in Chirp's API at all.
+No download support — confirmed live (2026-10-06) that Cloudflare blocks the
+player page itself even with a cookie the same session already used
+successfully elsewhere; see chirp_connector.py's own probe_first_track()
+docstring. "Price" is Chirp's current storefront price for the book, not
+what this account paid — see ChirpAudiobook's own docstring for why those
+are different things and only one of them is confirmed to exist in Chirp's
+API at all.
 """
 
-import json
-import logging
-
-import httpx
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.connectors import chirp_connector
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.list_views import render_list_or_partial, sorted_query
@@ -33,7 +31,6 @@ from app.sync import chirp_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/chirp")
-logger = logging.getLogger(__name__)
 
 # Same ceiling as Settings' own chirp-login limiter — a refresh performs the
 # identical live, Cloudflare-fronted fetch against the same rate-limited path.
@@ -96,19 +93,3 @@ async def refresh_chirp(request: Request, db: Session = Depends(get_db)):
     except Exception:
         pass  # error already recorded on the credential row by refresh_chirp_library
     return templates.TemplateResponse(request, "chirp/_content.html", _context(db))
-
-
-@router.get("/probe-download", response_class=PlainTextResponse)
-async def probe_download(purchase_id: str, audiobook_id: str, db: Session = Depends(get_db)):
-    cookie = chirp_sync._stored_cookie(db)
-    if not cookie:
-        return PlainTextResponse("Chirp is not connected yet.", status_code=409)
-    try:
-        async with chirp_connector.client_from_cookie_header(cookie) as client:
-            report = await chirp_connector.probe_first_track(client, purchase_id, audiobook_id)
-    except (chirp_connector.ChirpRequestError, httpx.HTTPError, UnicodeEncodeError):
-        logger.exception("Probe download failed for purchase_id=%s audiobook_id=%s", purchase_id, audiobook_id)
-        return PlainTextResponse("Probe failed due to an upstream error.", status_code=502)
-    text = json.dumps(report, indent=2)
-    logger.info("chirp download probe %s:\n%s", audiobook_id, text)
-    return PlainTextResponse(text)

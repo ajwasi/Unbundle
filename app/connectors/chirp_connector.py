@@ -777,6 +777,15 @@ async def probe_first_track(client: httpx.AsyncClient, purchase_id: str, audiobo
     reports each step, without saving any media. The key, the signed media
     URL's query string and the audio bytes themselves are never returned —
     only the host, extension, status, content type and the first bytes.
+
+    **Confirmed live (2026-10-06): Cloudflare blocks the player page itself**
+    (/player/{id}), even with a cookie that the same request session already
+    used successfully for the library, order history and GraphQL calls. The
+    same wall this codebase already hit for Humble, Audible and Chirp's own
+    login — a download feature built on this path isn't viable with a plain
+    cookie reuse. Kept here as a record and in case that ever changes; the
+    diagnostic route that called this (/chirp/probe-download) has been
+    removed now that the question it existed to answer has one.
     """
     resp = await client.get(f"{BASE_URL}/player/{purchase_id}")
     if _looks_like_cloudflare_challenge(resp.text):
