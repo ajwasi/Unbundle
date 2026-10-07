@@ -25,7 +25,7 @@
       <tbody>
         {% for s in missing_series %}
         <tr>
-          <td>{{ s.series_title }}</td>
+          <td><a href="/audible/series/{{ s.series_asin }}">{{ s.series_title }}</a></td>
           <td>{{ s.sequence }}</td>
           <td><a href="https://www.audible.com/pd/{{ s.asin }}" target="_blank" rel="noopener">{{ s.title }}</a></td>
           <td>{{ s.authors }}</td>

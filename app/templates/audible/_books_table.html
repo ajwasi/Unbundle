@@ -73,7 +73,12 @@
           <td><a href="/audible/{{ b.asin }}">{{ b.title }}</a></td>
           <td>{{ b.author }}</td>
           <td>{{ b.narrator }}</td>
-          <td>{% if b.series_title %}{{ b.series_title }}{% if b.series_sequence %} #{{ b.series_sequence }}{% endif %}{% endif %}</td>
+          <td>
+            {% if b.series_title %}
+            {% if b.series_asin %}<a href="/audible/series/{{ b.series_asin }}">{{ b.series_title }}</a>{% else %}{{ b.series_title }}{% endif %}
+            {% if b.series_sequence %} #{{ b.series_sequence }}{% endif %}
+            {% endif %}
+          </td>
           <td>{{ (b.runtime_minutes // 60) }}h {{ (b.runtime_minutes % 60) }}m</td>
           <td>{% if b.purchase_date %}{{ b.purchase_date.strftime('%Y-%m-%d') }}{% endif %}</td>
           <td>{% if b.price_amount %}{{ "%.2f"|format(b.price_amount) }} {{ b.price_currency }}{% endif %}</td>
