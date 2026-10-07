@@ -26,6 +26,11 @@ class ChirpSeriesBook(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
     @property
+    def series_slug(self) -> str:
+        """series_url minus its "/series/" prefix, for building /chirp/series/{slug} links."""
+        return self.series_url.removeprefix("/series/")
+
+    @property
     def discount_pct(self) -> int | None:
         if self.current_price is None or not self.listing_price or self.listing_price <= 0:
             return None

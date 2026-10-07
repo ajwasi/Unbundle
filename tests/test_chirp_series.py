@@ -146,3 +146,43 @@ def test_the_page_lists_series_books_you_do_not_own(authed_client, db):
     assert "20.99" in missing
     assert "-9%" in missing
     assert "Wool" not in missing
+
+
+def test_series_detail_page_lists_owned_and_missing_books_in_order(authed_client, db):
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_CHIRP, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(ChirpAudiobook(purchase_id="1", url_path=WOOL_PATH, title="Wool", authors="Hugh Howey",
+                          fetched_at=now, series_name="The Silo Saga", series_number="1"))
+    db.add(ChirpSeriesBook(series_url=SERIES_URL, url_path=WOOL_PATH, series_name="The Silo Saga", title="Wool",
+                           authors="Hugh Howey", series_number="1", current_price=14.99, fetched_at=now))
+    db.add(ChirpSeriesBook(series_url=SERIES_URL, url_path="/audiobooks/shift-by-hugh-howey-ff77656a0a",
+                           series_name="The Silo Saga", title="Shift", authors="Hugh Howey", series_number="2",
+                           listing_price=22.95, current_price=20.99, fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/chirp/series/the-silo-saga-audiobooks")
+    assert resp.status_code == 200
+    assert "The Silo Saga" in resp.text
+    assert resp.text.index("Wool") < resp.text.index("Shift")
+    assert resp.text.count(">Owned<") == 1
+    assert resp.text.count(">Missing<") == 1
+    assert "20.99" in resp.text
+    assert "-9%" in resp.text
+
+
+def test_series_detail_page_404s_for_an_unknown_series(authed_client):
+    resp = authed_client.get("/chirp/series/no-such-series")
+    assert resp.status_code == 404
+
+
+def test_list_page_links_series_name_to_its_detail_page(authed_client, db):
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_CHIRP, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(ChirpAudiobook(purchase_id="1", url_path=WOOL_PATH, title="Wool", authors="Hugh Howey",
+                          fetched_at=now, series_name="The Silo Saga", series_number="1"))
+    db.add(ChirpSeriesBook(series_url=SERIES_URL, url_path=WOOL_PATH, series_name="The Silo Saga", title="Wool",
+                           authors="Hugh Howey", series_number="1", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/chirp")
+    assert 'href="/chirp/series/the-silo-saga-audiobooks"' in resp.text

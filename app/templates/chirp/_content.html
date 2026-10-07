@@ -18,7 +18,7 @@
     <tbody>
       {% for s in missing_series %}
       <tr>
-        <td>{{ s.series_name }}</td>
+        <td><a href="/chirp/series/{{ s.series_slug }}">{{ s.series_name }}</a></td>
         <td>{{ s.series_number }}</td>
         <td><a href="https://www.chirpbooks.com{{ s.url_path }}" target="_blank" rel="noopener">{{ s.title }}</a></td>
         <td>{{ s.authors }}</td>

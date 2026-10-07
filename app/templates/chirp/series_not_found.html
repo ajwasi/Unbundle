@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Not found — Unbundle{% endblock %}
+{% block content %}
+<h1>Not Found</h1>
+<div class="card">
+  <p>
+    No cached series at <code>/series/{{ slug }}</code>. Try refreshing your library
+    from the <a href="/chirp">Chirp list</a>.
+  </p>
+</div>
+{% endblock %}

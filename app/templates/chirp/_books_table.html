@@ -38,7 +38,13 @@
           <td><a href="https://www.chirpbooks.com{{ b.url_path }}" target="_blank" rel="noopener">{{ b.title }}</a></td>
           <td>{{ b.authors }}</td>
           <td>{{ b.narrators }}</td>
-          <td>{% if b.series_name %}{{ b.series_name }}{% if b.series_number %} #{{ b.series_number }}{% endif %}{% endif %}</td>
+          <td>
+            {% if b.series_name %}
+            {% set slug = series_slug_by_path.get(b.url_path) %}
+            {% if slug %}<a href="/chirp/series/{{ slug }}">{{ b.series_name }}</a>{% else %}{{ b.series_name }}{% endif %}
+            {% if b.series_number %} #{{ b.series_number }}{% endif %}
+            {% endif %}
+          </td>
           <td>{{ b.position_percent }}%</td>
           <td>
             {% if b.display_price is not none %}
