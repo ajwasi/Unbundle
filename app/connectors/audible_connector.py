@@ -93,6 +93,7 @@ class AudibleBookData:
     price_currency: str = ""
     series_title: str = ""
     series_sequence: str = ""
+    series_asin: str = ""
     rating_average: float | None = None
     description: str = ""
     is_finished: bool = False
@@ -134,12 +135,21 @@ def _parse_price(item: dict) -> tuple[float | None, str]:
         return (None, "")
 
 
-def _parse_series(item: dict) -> tuple[str, str]:
+def _parse_series(item: dict) -> tuple[str, str, str]:
+    """Confirmed live (2026-10-06) against a real catalogue product: the same
+    "series" response group this app already requests for the owned library
+    also carries the series' own asin, not just its title/sequence — so a
+    missing-from-series feature needs no extra lookup to find which series an
+    owned book belongs to."""
     try:
         series = (item.get("series") or [])[0]
-        return (str(series.get("title") or ""), str(series.get("sequence") or ""))
+        return (
+            str(series.get("title") or ""),
+            str(series.get("sequence") or ""),
+            str(series.get("asin") or ""),
+        )
     except (TypeError, ValueError, IndexError, AttributeError):
-        return ("", "")
+        return ("", "", "")
 
 
 def _parse_rating(item: dict) -> float | None:
@@ -301,7 +311,7 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
         images = item.get("product_images") or {}
         cover = images.get("500") or next(iter(images.values()), "")
         price_amount, price_currency = _parse_price(item)
-        series_title, series_sequence = _parse_series(item)
+        series_title, series_sequence, series_asin = _parse_series(item)
         description = nh3.clean(item.get("publisher_summary") or item.get("merchandising_summary") or "", tags=set())
         books.append(
             AudibleBookData(
@@ -316,6 +326,7 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
                 price_currency=price_currency,
                 series_title=series_title,
                 series_sequence=series_sequence,
+                series_asin=series_asin,
                 rating_average=_parse_rating(item),
                 description=description,
                 is_finished=bool(item.get("is_finished")),
@@ -465,5 +476,64 @@ PROBE_RESPONSE_GROUPS = "relationships,series,price,product_desc,contributors,me
 
 
 async def probe_catalog_product(auth: audible.Authenticator, asin: str) -> dict:
+    """Originally a diagnostic-only call; confirmed live (2026-10-06) against
+    both a series asin and a book asin, and now also the one call behind
+    fetch_series_children() and the per-sibling lookups in
+    audible_sync._fetch_series_rows()."""
     async with audible.AsyncClient(auth) as client:
         return await client.get(f"catalog/products/{asin}", params={"response_groups": PROBE_RESPONSE_GROUPS})
+
+
+async def fetch_series_children(auth: audible.Authenticator, series_asin: str) -> list[tuple[str, str]]:
+    """[(asin, sequence), ...] for every book in a series, from the series
+    asin's own relationships. Confirmed live (2026-10-06): a series' catalogue
+    entry lists each book as relationship_type "series", relationship_to_product
+    "child" — sort is used as a sequence fallback since not every relationship
+    is guaranteed to carry its own "sequence" key.
+    """
+    data = await probe_catalog_product(auth, series_asin)
+    product = data.get("product") or {}
+    children = []
+    for rel in product.get("relationships") or []:
+        if rel.get("relationship_type") != "series" or rel.get("relationship_to_product") != "child":
+            continue
+        asin = rel.get("asin")
+        if asin:
+            children.append((str(asin), str(rel.get("sequence") or rel.get("sort") or "")))
+    return children
+
+
+@dataclass
+class AudibleSeriesBookData:
+    asin: str
+    title: str
+    authors: str
+    narrators: str
+    cover_url: str
+    sequence: str
+    current_price: float | None
+    list_price: float | None
+    currency: str
+
+
+def parse_series_book_item(item: dict, sequence: str) -> AudibleSeriesBookData | None:
+    """Same product shape parse_wishlist_item already reads — a catalogue
+    product (owned or not) carries the same authors/narrators/price/cover
+    fields either way."""
+    asin = item.get("asin")
+    if not asin:
+        return None
+    images = item.get("product_images") or {}
+    cover = images.get("500") or next(iter(images.values()), "")
+    current, listed, currency = _wishlist_prices(item)
+    return AudibleSeriesBookData(
+        asin=asin,
+        title=item.get("title") or asin,
+        authors=", ".join(a["name"] for a in item.get("authors") or [] if a.get("name")),
+        narrators=", ".join(n["name"] for n in item.get("narrators") or [] if n.get("name")),
+        cover_url=cover,
+        sequence=sequence,
+        current_price=current,
+        list_price=listed,
+        currency=currency,
+    )

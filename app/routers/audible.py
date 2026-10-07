@@ -1,8 +1,5 @@
-import json
-import logging
-
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -19,13 +16,13 @@ from app.list_views import (
 )
 from app.models.audible_book import AudibleBook
 from app.models.audible_pdf_download import STATUS_COMPLETED, STATUS_QUEUED, STATUS_RUNNING
+from app.models.audible_series_book import AudibleSeriesBook
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_AUDIBLE
 from app.ratelimit import RateLimiter, rate_limit
 from app.sync import audible_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/audible")
-logger = logging.getLogger(__name__)
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 _SORT_COLUMNS = {
@@ -114,10 +111,24 @@ def _context(
     total_book_count, total_runtime_minutes = db.query(
         func.count(AudibleBook.asin), func.coalesce(func.sum(AudibleBook.runtime_minutes), 0)
     ).one()
+
+    # Computed against the current library at read time (not just at sync
+    # time), so a book bought since the last series refresh drops off the
+    # list immediately rather than waiting for the next refresh to catch up.
+    owned_asins = {a for (a,) in db.query(AudibleBook.asin).all()}
+    missing_series = [
+        row
+        for row in db.query(AudibleSeriesBook)
+        .order_by(AudibleSeriesBook.series_title, AudibleSeriesBook.sequence)
+        .all()
+        if row.asin not in owned_asins
+    ]
+
     return {
         "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "audible_error": cred.last_error if cred else None,
         "books": books,
+        "missing_series": missing_series,
         "title": title,
         "author": author,
         "narrator": narrator,
@@ -213,18 +224,6 @@ async def refresh_audible(request: Request, db: Session = Depends(get_db)):
     except Exception:
         pass  # error already recorded on the credential row by refresh_audible_library
     return templates.TemplateResponse(request, "audible/_content.html", _context(db))
-
-
-@router.get("/probe-series", response_class=PlainTextResponse)
-async def probe_series(asin: str, db: Session = Depends(get_db)):
-    try:
-        data = await audible_sync.probe_catalog_product(db, asin)
-    except audible_sync.NotConnectedError:
-        logger.warning("Audible probe failed: not connected (asin=%s)", asin, exc_info=True)
-        return PlainTextResponse("Audible account is not connected.", status_code=409)
-    text = json.dumps(data, indent=2, ensure_ascii=False)
-    logger.info("audible probe %s:\n%s", asin, text[:20000])
-    return PlainTextResponse(text)
 
 
 @router.get("/{asin}", response_class=HTMLResponse)
