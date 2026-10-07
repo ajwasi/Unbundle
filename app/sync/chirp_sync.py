@@ -80,6 +80,7 @@ async def _fetch_series_rows(client, books) -> list[ChirpSeriesBook]:
         try:
             series_url = await chirp_connector.fetch_series_url_for_book(client, book_url_path)
             if not series_url:
+                logger.info("chirp(series): %s's book page (%s) named no series — skipping", series_name, book_url_path)
                 continue
             for entry in await chirp_connector.fetch_series_books(client, series_url):
                 rows.append(
@@ -95,7 +96,8 @@ async def _fetch_series_rows(client, books) -> list[ChirpSeriesBook]:
                         fetched_at=datetime.utcnow(),
                     )
                 )
-        except (chirp_connector.ChirpRequestError, httpx.HTTPError):
+        except (chirp_connector.ChirpRequestError, httpx.HTTPError) as exc:
+            logger.warning("chirp(series): failed to load series %r via %s: %s", series_name, book_url_path, exc)
             continue
     return rows
 
