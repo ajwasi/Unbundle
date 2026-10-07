@@ -182,3 +182,35 @@ def test_a_book_bought_since_the_last_series_refresh_drops_off_the_list(authed_c
 
     resp = authed_client.get("/audible")
     assert "Missing from your series" not in resp.text
+
+
+def test_series_detail_page_lists_owned_and_missing_books_in_order(authed_client, db):
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_title="Bobiverse", series_sequence="1", series_asin="B01M1RDL6W"))
+    db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many", authors="Dennis E. Taylor", sequence="2", current_price=13.96, list_price=19.95, currency="USD", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible/series/B01M1RDL6W")
+    assert resp.status_code == 200
+    assert "Bobiverse" in resp.text
+    assert resp.text.index("We Are Legion") < resp.text.index("For We Are Many")
+    assert resp.text.count(">Owned<") == 1
+    assert resp.text.count(">Missing<") == 1
+    assert 'href="/audible/B01L082HJ2"' in resp.text
+    assert 'href="https://www.audible.com/pd/B01N17THEO"' in resp.text
+
+
+def test_series_detail_page_404s_for_an_unknown_series(authed_client):
+    resp = authed_client.get("/audible/series/NOSUCHSERIES")
+    assert resp.status_code == 404
+
+
+def test_list_page_links_series_name_to_its_detail_page(authed_client, db):
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_title="Bobiverse", series_sequence="1", series_asin="B01M1RDL6W"))
+    db.commit()
+
+    resp = authed_client.get("/audible")
+    assert 'href="/audible/series/B01M1RDL6W"' in resp.text

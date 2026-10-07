@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Not found — Unbundle{% endblock %}
+{% block content %}
+<h1>Not Found</h1>
+<div class="card">
+  <p>
+    No cached series with ASIN <code>{{ series_asin }}</code>. Try refreshing your library
+    from the <a href="/audible">Audible list</a>.
+  </p>
+</div>
+{% endblock %}

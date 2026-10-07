@@ -226,6 +226,57 @@ async def refresh_audible(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "audible/_content.html", _context(db))
 
 
+def _series_sort_key(sequence: str) -> tuple:
+    try:
+        return (0, float(sequence))
+    except (TypeError, ValueError):
+        return (1, sequence or "")
+
+
+@router.get("/series/{series_asin}", response_class=HTMLResponse)
+def audible_series_detail(request: Request, series_asin: str, db: Session = Depends(get_db)):
+    owned = db.query(AudibleBook).filter(AudibleBook.series_asin == series_asin).all()
+    missing = db.query(AudibleSeriesBook).filter(AudibleSeriesBook.series_asin == series_asin).all()
+    if not owned and not missing:
+        return templates.TemplateResponse(
+            request, "audible/series_not_found.html", {"series_asin": series_asin}, status_code=404
+        )
+    series_title = (owned[0].series_title if owned else missing[0].series_title) or ""
+
+    rows = [
+        {
+            "owned": True,
+            "asin": b.asin,
+            "title": b.title,
+            "authors": b.author,
+            "sequence": b.series_sequence,
+            "current_price": None,
+            "currency": "",
+            "discount_pct": None,
+        }
+        for b in owned
+    ] + [
+        {
+            "owned": False,
+            "asin": s.asin,
+            "title": s.title,
+            "authors": s.authors,
+            "sequence": s.sequence,
+            "current_price": s.current_price,
+            "currency": s.currency,
+            "discount_pct": s.discount_pct,
+        }
+        for s in missing
+    ]
+    rows.sort(key=lambda r: _series_sort_key(r["sequence"]))
+
+    return templates.TemplateResponse(
+        request,
+        "audible/series_detail.html",
+        {"series_title": series_title, "series_asin": series_asin, "rows": rows},
+    )
+
+
 @router.get("/{asin}", response_class=HTMLResponse)
 def audible_detail(request: Request, asin: str, db: Session = Depends(get_db)):
     book = db.get(AudibleBook, asin)
