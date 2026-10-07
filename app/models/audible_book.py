@@ -39,6 +39,9 @@ class AudibleBook(Base):
     price_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="")
     series_title: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     series_sequence: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    # Confirmed live (2026-10-06): the same "series" response group also
+    # carries the series' own asin — see audible_connector.py's _parse_series.
+    series_asin: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     rating_average: Mapped[float | None] = mapped_column(Float, nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     is_finished: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

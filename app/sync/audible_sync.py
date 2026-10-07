@@ -12,17 +12,21 @@ persist whatever came back" philosophy gog_sync.py already applies to its
 own refresh_token.
 """
 
+import logging
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.connectors import audible_connector
 from app.models.audible_book import AudibleBook
+from app.models.audible_series_book import AudibleSeriesBook
 from app.models.audible_wishlist import AudibleWishlistItem, AudibleWishlistPrice
 from app.models.credential import SOURCE_AUDIBLE, STATUS_ERROR, STATUS_OK, Credential
 from app.security import encrypt_json
 
 import audible
+
+logger = logging.getLogger(__name__)
 
 
 class NotConnectedError(Exception):
@@ -74,6 +78,7 @@ async def refresh_audible_library(db: Session) -> int:
                 price_currency=b.price_currency,
                 series_title=b.series_title,
                 series_sequence=b.series_sequence,
+                series_asin=b.series_asin,
                 rating_average=b.rating_average,
                 description=b.description,
                 is_finished=b.is_finished,
@@ -84,8 +89,72 @@ async def refresh_audible_library(db: Session) -> int:
         )
     db.commit()
 
+    try:
+        series_rows = await _fetch_series_rows(auth, books)
+    except Exception as exc:
+        logger.warning("audible: series refresh failed, keeping previous series data: %s", exc)
+        series_rows = None
+    if series_rows is not None:
+        db.query(AudibleSeriesBook).delete()
+        for row in series_rows:
+            db.add(row)
+        db.commit()
+
     _set_credential_status(db, STATUS_OK, None)
     return len(books)
+
+
+async def _fetch_series_rows(
+    auth: audible.Authenticator, books: list[audible_connector.AudibleBookData]
+) -> list[AudibleSeriesBook]:
+    """One series-relationships call per distinct owned series, then one
+    catalogue call per sibling not already owned — owned siblings are never
+    re-fetched, since AudibleBook already has everything a display needs
+    from one. A series or a sibling that fails to load is skipped rather
+    than failing the whole refresh.
+    """
+    owned_asins = {b.asin for b in books}
+    representative: dict[str, str] = {}
+    for b in books:
+        if b.series_asin and b.series_asin not in representative:
+            representative[b.series_asin] = b.series_title
+
+    rows: list[AudibleSeriesBook] = []
+    now = datetime.utcnow()
+    for series_asin, series_title in representative.items():
+        try:
+            children = await audible_connector.fetch_series_children(auth, series_asin)
+        except Exception as exc:
+            logger.warning("audible: series %s unavailable, skipping: %s", series_asin, exc)
+            continue
+        for asin, sequence in children:
+            if asin in owned_asins:
+                continue
+            try:
+                data = await audible_connector.probe_catalog_product(auth, asin)
+            except Exception as exc:
+                logger.warning("audible: series book %s unavailable, skipping: %s", asin, exc)
+                continue
+            parsed = audible_connector.parse_series_book_item(data.get("product") or {}, sequence)
+            if parsed is None:
+                continue
+            rows.append(
+                AudibleSeriesBook(
+                    series_asin=series_asin,
+                    asin=parsed.asin,
+                    series_title=series_title,
+                    title=parsed.title,
+                    authors=parsed.authors,
+                    narrators=parsed.narrators,
+                    cover_url=parsed.cover_url,
+                    sequence=parsed.sequence,
+                    current_price=parsed.current_price,
+                    list_price=parsed.list_price,
+                    currency=parsed.currency,
+                    fetched_at=now,
+                )
+            )
+    return rows
 
 
 def _set_credential_status(db: Session, status: str, error: str | None) -> None:
@@ -179,14 +248,3 @@ async def refresh_audible_wishlist(db: Session) -> dict:
     return {"total": len(entries), "new": new, "price_changes": price_changes, "removed": removed}
 
 
-async def probe_catalog_product(db: Session, asin: str) -> dict:
-    """Read-only: fetches one catalogue product with the stored session and
-    returns its raw JSON. Saves the refreshed authenticator, but never touches
-    the credential's status or the synced library."""
-    payload = get_audible_credential(db)
-    if not payload:
-        raise NotConnectedError("Audible is not connected yet — connect it in Settings.")
-    auth = audible.Authenticator.from_dict(dict(payload))
-    data = await audible_connector.probe_catalog_product(auth, asin)
-    save_authenticator(db, auth)
-    return data
