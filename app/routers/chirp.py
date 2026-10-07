@@ -60,12 +60,14 @@ def _context(db: Session, q: str = "", sort: str = "title", dir: str = "asc") ->
     owned_urls = {u for (u,) in db.query(ChirpAudiobook.url_path).all()}
     series_rows = db.query(ChirpSeriesBook).order_by(ChirpSeriesBook.series_name, ChirpSeriesBook.series_number).all()
     missing_series = [row for row in series_rows if row.url_path not in owned_urls]
+    series_slug_by_path = {row.url_path: row.series_slug for row in series_rows}
 
     return {
         "chirp_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "chirp_error": cred.last_error if cred else None,
         "books": books,
         "missing_series": missing_series,
+        "series_slug_by_path": series_slug_by_path,
         "book_count": db.query(func.count(ChirpAudiobook.purchase_id)).scalar() or 0,
         "q": q,
         "sort": sort,
@@ -78,6 +80,42 @@ def _context(db: Session, q: str = "", sort: str = "title", dir: str = "asc") ->
 def chirp_page(request: Request, q: str = "", sort: str = "title", dir: str = "asc", db: Session = Depends(get_db)):
     context = _context(db, q, sort, dir)
     return render_list_or_partial(request, templates, "chirp/index.html", "chirp/_books_table.html", context)
+
+
+def _series_sort_key(series_number: str) -> tuple:
+    try:
+        return (0, float(series_number))
+    except (TypeError, ValueError):
+        return (1, series_number or "")
+
+
+@router.get("/series/{slug}", response_class=HTMLResponse)
+def chirp_series_detail(request: Request, slug: str, db: Session = Depends(get_db)):
+    series_url = f"/series/{slug}"
+    rows = db.query(ChirpSeriesBook).filter(ChirpSeriesBook.series_url == series_url).all()
+    if not rows:
+        return templates.TemplateResponse(request, "chirp/series_not_found.html", {"slug": slug}, status_code=404)
+
+    owned_urls = {u for (u,) in db.query(ChirpAudiobook.url_path).all()}
+    table_rows = [
+        {
+            "owned": row.url_path in owned_urls,
+            "url_path": row.url_path,
+            "title": row.title,
+            "authors": row.authors,
+            "sequence": row.series_number,
+            "current_price": row.current_price,
+            "discount_pct": row.discount_pct,
+        }
+        for row in rows
+    ]
+    table_rows.sort(key=lambda r: _series_sort_key(r["sequence"]))
+
+    return templates.TemplateResponse(
+        request,
+        "chirp/series_detail.html",
+        {"series_name": rows[0].series_name, "slug": slug, "rows": table_rows},
+    )
 
 
 @router.post(
