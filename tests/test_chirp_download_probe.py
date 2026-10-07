@@ -2,6 +2,7 @@ import base64
 from unittest.mock import AsyncMock, patch
 
 import httpx
+import pytest
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.connectors import chirp_connector as chirp
@@ -79,3 +80,22 @@ def test_probe_route_returns_the_report(authed_client, db):
 
     assert resp.status_code == 200
     assert '"media_extension": "m4a"' in resp.text
+
+
+async def test_a_403_on_the_player_page_says_the_session_may_be_stale():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<html>Forbidden</html>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+        with pytest.raises(chirp.ChirpRequestError, match="403") as excinfo:
+            await chirp.probe_first_track(client, "27991647", "626000")
+    assert "cookie" in str(excinfo.value).lower()
+
+
+async def test_a_403_on_the_player_page_carrying_a_cloudflare_challenge_is_reported_as_cloudflare():
+    def h(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<html><title>Just a moment...</title></html>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(h), follow_redirects=True) as client:
+        with pytest.raises(chirp.ChirpRequestError, match="Cloudflare"):
+            await chirp.probe_first_track(client, "27991647", "626000")

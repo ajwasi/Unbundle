@@ -779,7 +779,19 @@ async def probe_first_track(client: httpx.AsyncClient, purchase_id: str, audiobo
     only the host, extension, status, content type and the first bytes.
     """
     resp = await client.get(f"{BASE_URL}/player/{purchase_id}")
-    resp.raise_for_status()
+    if _looks_like_cloudflare_challenge(resp.text):
+        raise ChirpRequestError(
+            "Cloudflare intercepted the player page request — paste a fresh Cookie header value in Settings."
+        )
+    if resp.status_code >= 400:
+        logger.warning(
+            "chirp(probe): player page returned %d. Body starts: %r",
+            resp.status_code, resp.text[:300],
+        )
+        raise ChirpRequestError(
+            f"Chirp refused the player page request (status {resp.status_code}). The pasted cookie session may "
+            "be stale, or the player page may need headers (e.g. a Referer) this probe doesn't send yet."
+        )
     html = resp.text
     key = parse_decryption_key(html)
     user_id = parse_user_id(html)
