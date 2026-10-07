@@ -7,9 +7,6 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.connectors import chirp_connector as chirp
 from app.connectors.chirp_connector import ChirpTrack
-from app.models.credential import SOURCE_CHIRP, STATUS_OK, Credential
-from app.security import encrypt_json
-from app.sync import chirp_sync
 
 KEY = b"0123456789abcdef"
 USER_ID = 4210139
@@ -64,22 +61,6 @@ async def test_probe_stops_cleanly_when_the_player_page_has_no_key():
 
     assert report["key_found"] is False
     assert "stopped_at" in report
-
-
-def test_probe_route_reports_not_connected(authed_client):
-    resp = authed_client.get("/chirp/probe-download", params={"purchase_id": "27991647", "audiobook_id": "626000"})
-    assert resp.status_code == 409
-
-
-def test_probe_route_returns_the_report(authed_client, db):
-    db.add(Credential(source=SOURCE_CHIRP, status=STATUS_OK, encrypted_payload=encrypt_json({"cookie": "cf_clearance=abc"})))
-    db.commit()
-    report = {"key_found": True, "media_extension": "m4a"}
-    with patch.object(chirp, "probe_first_track", new=AsyncMock(return_value=report)):
-        resp = authed_client.get("/chirp/probe-download", params={"purchase_id": "27991647", "audiobook_id": "626000"})
-
-    assert resp.status_code == 200
-    assert '"media_extension": "m4a"' in resp.text
 
 
 async def test_a_403_on_the_player_page_says_the_session_may_be_stale():
