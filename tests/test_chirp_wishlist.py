@@ -52,6 +52,24 @@ def test_a_discount_only_wishlist_entry_has_no_list_price():
     assert rights.list_price is None
 
 
+async def test_a_403_on_the_wishlist_page_says_the_status():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<html>Forbidden</html>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+        with pytest.raises(chirp.ChirpRequestError, match="403"):
+            await chirp.fetch_wishlist(client)
+
+
+async def test_a_403_on_the_wishlist_page_carrying_a_cloudflare_challenge_is_reported_as_cloudflare():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<html><title>Just a moment...</title></html>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+        with pytest.raises(chirp.ChirpRequestError, match="Cloudflare"):
+            await chirp.fetch_wishlist(client)
+
+
 async def test_refresh_wishlist_stores_items_and_records_price_history(db):
     _connect(db)
 

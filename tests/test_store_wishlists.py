@@ -426,3 +426,16 @@ def test_a_broken_source_reads_as_one_connector_failing(authed_client, db):
 
     assert resp.status_code == 200
     assert "Steam wishlist refresh failed" in resp.text
+
+
+def test_a_broken_source_logs_the_real_exception_the_page_does_not_show(authed_client, db, caplog):
+    _connect_steam(db)
+    with (
+        patch.object(sync, "refresh_steam_wishlist", new=AsyncMock(side_effect=KeyError("items"))),
+        caplog.at_level("ERROR"),
+    ):
+        resp = authed_client.post("/wishlist/steam/refresh")
+
+    assert resp.status_code == 200
+    assert "'items'" not in resp.text  # the page never shows the real exception text...
+    assert "'items'" in caplog.text  # ...but it's still findable in the log

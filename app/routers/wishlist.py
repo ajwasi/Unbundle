@@ -10,6 +10,8 @@ every column had to mean whatever the row's store said it meant.
 never an empty tab when another one is full.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, or_
@@ -35,6 +37,8 @@ from app.sync import audible_sync, store_wishlist_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/wishlist")
+
+logger = logging.getLogger(__name__)
 
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
@@ -243,6 +247,12 @@ async def refresh_wishlist(
     except (audible_sync.NotConnectedError, store_wishlist_sync.NotConnectedError) as exc:
         error = str(exc)
     except Exception as exc:
+        # The user-facing message only ever names the exception type, not
+        # str(exc) — a connector's own message can carry request/response
+        # detail not meant for the page. Logged in full here instead, so the
+        # real reason (a Cloudflare block vs. a stale cookie vs. something
+        # else) is still findable without having to reproduce the failure.
+        logger.exception("%s wishlist refresh failed", source)
         error = (
             f"The {SOURCE_LABELS[source]} wishlist refresh failed ({type(exc).__name__}). "
             "Reconnect it in Settings if this persists."

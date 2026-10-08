@@ -550,14 +550,15 @@ def parse_wishlist_page(page_html: str) -> list[ChirpWishlistEntry]:
 
 async def fetch_wishlist(client: httpx.AsyncClient) -> list[ChirpWishlistEntry]:
     resp = await client.get(f"{BASE_URL}/wishlist")
-    try:
-        resp.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        raise ChirpRequestError(f"Chirp's wishlist answered with status {exc.response.status_code}.") from exc
     if _looks_like_cloudflare_challenge(resp.text):
         raise ChirpRequestError(
             "Cloudflare intercepted the wishlist request — paste a fresh Cookie header value in Settings."
         )
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        logger.warning("chirp(wishlist): request returned %d. Body starts: %r", resp.status_code, resp.text[:300])
+        raise ChirpRequestError(f"Chirp's wishlist answered with status {exc.response.status_code}.") from exc
     if 'id="wishlist-app"' not in resp.text:
         raise ChirpRequestError(
             "Chirp's wishlist didn't load — the pasted cookie session is likely stale; paste a fresh one."
