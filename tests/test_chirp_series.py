@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import httpx
+import pytest
 
 from app.connectors import chirp_connector as chirp
 from app.models.chirp_audiobook import ChirpAudiobook
@@ -55,6 +56,25 @@ def test_parse_series_url_reads_the_series_a_book_belongs_to():
 def test_a_book_page_without_a_series_has_no_series_url():
     assert chirp.parse_series_url('<div data-audiobook="{&quot;displayTitle&quot;:&quot;Standalone&quot;}"></div>') is None
     assert chirp.parse_series_url("<html>no json here</html>") is None
+
+
+async def test_a_403_on_a_book_page_says_the_session_may_be_stale():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<html>Forbidden</html>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+        with pytest.raises(chirp.ChirpRequestError, match="403") as excinfo:
+            await chirp.fetch_series_url_for_book(client, WOOL_PATH)
+    assert "cookie" not in str(excinfo.value).lower()  # no cookie-reconnect hint for a bare 403 here, unlike the player page
+
+
+async def test_a_403_on_a_book_page_carrying_a_cloudflare_challenge_is_reported_as_cloudflare():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<html><title>Just a moment...</title></html>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+        with pytest.raises(chirp.ChirpRequestError, match="Cloudflare"):
+            await chirp.fetch_series_url_for_book(client, WOOL_PATH)
 
 
 def _library_payload() -> dict:

@@ -915,13 +915,19 @@ def parse_series_books(series_html: str) -> list[ChirpSeriesBook]:
 
 
 async def _get_page(client: httpx.AsyncClient, url: str) -> str:
+    """Same "Cloudflare challenge checked before status, body snippet logged
+    on failure" order as the player-page and order-history fetches — a 403
+    here was previously reported as a bare status with no way to tell a
+    Cloudflare block apart from anything else Chirp might answer with.
+    """
     resp = await client.get(url)
+    if _looks_like_cloudflare_challenge(resp.text):
+        raise ChirpRequestError(f"Cloudflare intercepted the request to {url} — paste a fresh Cookie header value in Settings.")
     try:
         resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
+        logger.warning("chirp(page): %s returned %d. Body starts: %r", url, exc.response.status_code, resp.text[:300])
         raise ChirpRequestError(f"Chirp answered {url} with status {exc.response.status_code}.") from exc
-    if _looks_like_cloudflare_challenge(resp.text):
-        raise ChirpRequestError("Cloudflare intercepted a series request — paste a fresh Cookie header value in Settings.")
     return resp.text
 
 
