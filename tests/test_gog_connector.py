@@ -132,6 +132,24 @@ async def test_refresh_access_token_raises_on_rejected_token():
             await gog_connector.refresh_access_token("stale-token")
 
 
+def test_gog_image_url_appends_the_confirmed_size_suffix_to_a_bare_hash():
+    # Real captured shape (2026-10-10): a protocol-relative path to a bare
+    # content hash with no extension — the bare path 404s, "_196.jpg" 200s.
+    assert (
+        gog_connector._gog_image_url("//images-3.gog-statics.com/346e28f68ac65fd")
+        == "https://images-3.gog-statics.com/346e28f68ac65fd_196.jpg"
+    )
+
+
+def test_gog_image_url_does_not_double_suffix_a_path_that_already_has_one():
+    assert gog_connector._gog_image_url("//images-3.gog-statics.com/abc.png") == "https://images-3.gog-statics.com/abc.png"
+
+
+def test_gog_image_url_leaves_a_non_protocol_relative_value_alone():
+    assert gog_connector._gog_image_url("") == ""
+    assert gog_connector._gog_image_url("https://already-absolute/x.jpg") == "https://already-absolute/x.jpg"
+
+
 @pytest.mark.asyncio
 async def test_fetch_owned_games_parses_real_shape_and_tags_content_type():
     page_response = {
@@ -151,7 +169,7 @@ async def test_fetch_owned_games_parses_real_shape_and_tags_content_type():
     assert len(games) == 3
     game = next(g for g in games if g.product_id == 1207660413)
     assert game.title == "Shadowrun Returns"
-    assert game.image_url == "https://images-2.gog.com/abc"
+    assert game.image_url == "https://images-2.gog.com/abc_196.jpg"
     assert game.content_type == gog_connector.CONTENT_TYPE_GAME
     movie = next(g for g in games if g.product_id == 999)
     assert movie.content_type == gog_connector.CONTENT_TYPE_MOVIE
@@ -186,28 +204,3 @@ async def test_fetch_owned_games_sends_bearer_header():
     with patch("httpx.AsyncClient.get", new=mock_get):
         await gog_connector.fetch_owned_games("my-access-token")
     assert mock_get.call_args.kwargs["headers"]["Authorization"] == "Bearer my-access-token"
-
-
-@pytest.mark.asyncio
-async def test_probe_account_returns_one_sample_product_and_the_orders_response():
-    products_resp = _resp({"page": 1, "totalPages": 1, "products": [{"id": 1, "title": "Game One", "image": "//x/a"}]})
-    orders_resp = httpx.Response(200, text='{"orders": []}', request=httpx.Request("GET", "https://x"))
-    mock_get = AsyncMock(side_effect=[products_resp, orders_resp])
-
-    with patch("httpx.AsyncClient.get", new=mock_get):
-        report = await gog_connector.probe_account("AT")
-
-    assert report["sample_product"] == {"id": 1, "title": "Game One", "image": "//x/a"}
-    assert report["orders_status"] == 200
-    assert report["orders_body"] == '{"orders": []}'
-    urls_called = [str(call.args[0]) for call in mock_get.call_args_list]
-    assert urls_called[0].endswith("/account/getFilteredProducts")
-    assert urls_called[1].endswith("/account/settings/orders/data")
-
-
-@pytest.mark.asyncio
-async def test_probe_account_raises_on_auth_failure():
-    resp = _resp({}, status=401)
-    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
-        with pytest.raises(gog_connector.GogAuthError):
-            await gog_connector.probe_account("bad-token")

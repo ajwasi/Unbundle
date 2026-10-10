@@ -26,16 +26,27 @@ GOG's own (the ones GOG Galaxy itself uses), extracted by the
 reverse-engineering community — not something either GOG or a user issues
 per-app.
 
-Confirmed real request/response shapes from the docs (not GOG's own, so
-treat as best-effort — no live success response has been seen from this
-environment, only the real 200/302/400 auth-stage responses noted above/below):
+Confirmed real request/response shapes (the 200/302/400 auth-stage ones from
+the docs, everything else from a real captured response on 2026-10-10 — see
+_gog_image_url's own docstring for the image-field fix that capture led to):
 - Token endpoint is a GET with query-string params (not a POST body) — an
   unusual, non-standard-OAuth choice, but that's what the docs show.
 - GET /account/getFilteredProducts returns {"products": [...], "page":,
   "totalPages":, ...} with each product carrying isGame/isMovie booleans and
-  a protocol-relative "image" URL (needs "https:" prefixed to be usable).
-  Every product is kept (not just isGame ones) — _content_type() below
-  labels each "game"/"movie"/"other" rather than discarding non-games.
+  a protocol-relative "image" URL needing both "https:" and a size suffix to
+  resolve (see _gog_image_url). Every product is kept (not just isGame ones)
+  — _content_type() below labels each "game"/"movie"/"other" rather than
+  discarding non-games.
+
+No purchase price or date anywhere in this connector, and that's as far as
+this goes — GOG's (undocumented, reverse-engineered) API does have a
+GET /account/settings/orders/data "History" endpoint under this same host
+and auth, confirmed live to return {"orders": [...], "totalPages": N}, but
+this account's own orders list came back empty. Unsurprising for a library
+built mostly from Humble-redeemed keys rather than direct GOG purchases —
+there may be nothing in "orders" to parse even for an account where this
+*does* return real rows. Not pursued further without a real non-empty
+example to parse from.
 """
 
 import re
@@ -167,6 +178,25 @@ async def refresh_access_token(refresh_token: str) -> dict:
     return data
 
 
+def _gog_image_url(image: str) -> str:
+    """Confirmed live (2026-10-10) via a real captured product: "image" is a
+    protocol-relative path to a bare content hash with no extension at all
+    (e.g. "//images-3.gog-statics.com/<hash>") — fetching that path directly
+    404s. GOG's own site appends a size suffix to pick a rendition; "_196"
+    (one of its own breakpoints, not an arbitrary width — "_400" 400s while
+    "_392" and "_196" both 200) is confirmed to resolve to a real
+    image/jpeg. A path that already carries its own extension (seen nowhere
+    in the one real sample so far, but the docs give no guarantee every
+    product looks the same) is left alone rather than double-suffixed.
+    """
+    if not image.startswith("//"):
+        return image
+    base = f"https:{image}"
+    if base.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+        return base
+    return f"{base}_196.jpg"
+
+
 async def fetch_owned_games(access_token: str) -> list[GogGameData]:
     games: list[GogGameData] = []
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -179,48 +209,13 @@ async def fetch_owned_games(access_token: str) -> list[GogGameData]:
             data = resp.json()
             total_pages = int(data.get("totalPages") or 1)
             for p in data.get("products") or []:
-                image = p.get("image") or ""
                 games.append(
                     GogGameData(
                         product_id=p["id"],
                         title=p.get("title") or f"Product {p['id']}",
-                        image_url=f"https:{image}" if image.startswith("//") else image,
+                        image_url=_gog_image_url(p.get("image") or ""),
                         content_type=_content_type(p),
                     )
                 )
             page += 1
     return games
-
-
-async def probe_account(access_token: str) -> dict:
-    """Diagnostic-only. Two things this connector has never independently
-    confirmed live:
-
-    1. getFilteredProducts' own "image" field shape — the "//"-prefixed
-       protocol-relative URL fetch_owned_games assumes is this module's own
-       inference from the docs, not something a real response has verified.
-    2. Whether purchase price/date exist anywhere in GOG's API at all.
-       getFilteredProducts (the only endpoint this connector calls) carries
-       neither. https://gogapidocs.readthedocs.io/en/latest/store.html#history
-       documents a GET /account/settings/orders/data under this same
-       embed.gog.com host and auth as a "History" endpoint, with no
-       response shape given — the only other documented lead.
-
-    Returns one raw product dict (not the whole library) and the orders
-    endpoint's raw status/body (capped) for a human to read and confirm or
-    refute both of the above against this account's real data.
-    """
-    headers = {"Authorization": f"Bearer {access_token}"}
-    async with httpx.AsyncClient(timeout=30) as client:
-        products_resp = await client.get(f"{_api_base()}/account/getFilteredProducts", params={"page": 1}, headers=headers)
-        if products_resp.status_code != 200:
-            raise GogAuthError(f"GOG rejected the games request (HTTP {products_resp.status_code}).")
-        products = products_resp.json().get("products") or []
-
-        orders_resp = await client.get(f"{_api_base()}/account/settings/orders/data", headers=headers)
-
-    return {
-        "sample_product": products[0] if products else None,
-        "orders_status": orders_resp.status_code,
-        "orders_body": orders_resp.text[:8000],
-    }

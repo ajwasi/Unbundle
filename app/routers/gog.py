@@ -1,8 +1,5 @@
-import json
-import logging
-
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy import asc, desc, func
 from sqlalchemy.orm import Session
 
@@ -17,8 +14,6 @@ from app.models.gog_game import GogGame
 from app.ratelimit import RateLimiter, rate_limit
 from app.sync import gog_sync
 from app.templates_env import templates
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/gog")
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
@@ -91,21 +86,3 @@ async def refresh_gog(request: Request, db: Session = Depends(get_db)):
     except Exception:
         pass  # error already recorded on the credential row by refresh_gog_library
     return templates.TemplateResponse(request, "gog/_content.html", _context(db))
-
-
-@router.get("/probe", response_class=PlainTextResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "gog-refresh"))])
-async def probe_gog(db: Session = Depends(get_db)) -> PlainTextResponse:
-    """Temporary diagnostic route — see gog_connector.probe_account's own
-    docstring for exactly what this is confirming. Remove once the image_url
-    shape and the orders-history question are both settled.
-    """
-    payload = gog_sync.get_gog_credential(db)
-    if not payload:
-        return PlainTextResponse("GOG is not connected yet — connect it in Settings.", status_code=400)
-    try:
-        tokens = await gog_connector.refresh_access_token(payload["refresh_token"])
-        report = await gog_connector.probe_account(tokens["access_token"])
-    except Exception:
-        logger.exception("gog: probe failed")
-        return PlainTextResponse("Probe failed due to an upstream error.", status_code=502)
-    return PlainTextResponse(json.dumps(report, indent=2))
