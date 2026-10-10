@@ -186,3 +186,28 @@ async def test_fetch_owned_games_sends_bearer_header():
     with patch("httpx.AsyncClient.get", new=mock_get):
         await gog_connector.fetch_owned_games("my-access-token")
     assert mock_get.call_args.kwargs["headers"]["Authorization"] == "Bearer my-access-token"
+
+
+@pytest.mark.asyncio
+async def test_probe_account_returns_one_sample_product_and_the_orders_response():
+    products_resp = _resp({"page": 1, "totalPages": 1, "products": [{"id": 1, "title": "Game One", "image": "//x/a"}]})
+    orders_resp = httpx.Response(200, text='{"orders": []}', request=httpx.Request("GET", "https://x"))
+    mock_get = AsyncMock(side_effect=[products_resp, orders_resp])
+
+    with patch("httpx.AsyncClient.get", new=mock_get):
+        report = await gog_connector.probe_account("AT")
+
+    assert report["sample_product"] == {"id": 1, "title": "Game One", "image": "//x/a"}
+    assert report["orders_status"] == 200
+    assert report["orders_body"] == '{"orders": []}'
+    urls_called = [str(call.args[0]) for call in mock_get.call_args_list]
+    assert urls_called[0].endswith("/account/getFilteredProducts")
+    assert urls_called[1].endswith("/account/settings/orders/data")
+
+
+@pytest.mark.asyncio
+async def test_probe_account_raises_on_auth_failure():
+    resp = _resp({}, status=401)
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
+        with pytest.raises(gog_connector.GogAuthError):
+            await gog_connector.probe_account("bad-token")
