@@ -56,9 +56,16 @@ from datetime import datetime
 
 import httpx
 
+from app.browser import fetch_rendered_html
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# A leading "." so Playwright's cookie matching covers www.gog.com (what's
+# actually navigated to) regardless of which exact host each cookie was
+# originally scoped to — the same flat, domain-agnostic treatment every
+# other connector in this app already gives a pasted Cookie header.
+GOG_COOKIE_DOMAIN = ".gog.com"
 
 AUTH_URL = "https://auth.gog.com/auth"
 TOKEN_URL = "https://auth.gog.com/token"
@@ -309,38 +316,37 @@ def parse_order_history(html: str) -> list[GogOrderItem]:
 
 
 async def fetch_order_history(cookie: str) -> list[GogOrderItem]:
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-        resp = await client.get(f"{_web_base()}/en/account/settings/orders", headers={"Cookie": cookie})
-    if resp.status_code != 200:
-        raise GogAuthError(f"GOG rejected the order history request (HTTP {resp.status_code}).")
-    items = parse_order_history(resp.text)
+    """Fetched via a real headless browser (app.browser), not a plain httpx
+    request. Confirmed live (2026-10-10): this page's raw server response
+    is Angular's own uncompiled template — literal "{{:: order.publicId }}"
+    placeholders, never real data — regardless of cookie validity. Only a
+    real browser that actually runs the page's own JavaScript ever sees the
+    rendered order list parse_order_history is built to read; the
+    gog-order-item= markup a plain GET sees is the template's own
+    placeholder attribute, not evidence of a real order.
+    """
+    html = await fetch_rendered_html(f"{_web_base()}/en/account/settings/orders", cookie, GOG_COOKIE_DOMAIN)
+    items = parse_order_history(html)
     if not items:
-        # A 200 with zero parsed orders is ambiguous on its own, and the
-        # obvious causes (no orders at all, a logged-out response that still
-        # 200s, client-side-JS-only rendering) were already ruled out live —
-        # gog-order-item= wrappers ARE present in the raw response. What's
-        # left is a structural mismatch somewhere inside them: these counts
-        # pinpoint which stage breaks (order wrapper vs. product-row div vs.
-        # title span) without needing another full-page capture, and the
-        # snippet shows what the first real order's own markup actually
-        # looks like — the one real order parse_order_history was built
-        # from was a direct, Google-Pay-paid GOG order; most real accounts'
-        # orders are distributor-sourced (bundle-redeemed keys activated on
-        # GOG), which the template's own ng-show="::(!order.distributor...)"
-        # guards suggest may render differently inside.
-        order_matches = list(_ORDER_START.finditer(resp.text))
+        # Zero parsed orders from a real rendered page is still worth
+        # explaining rather than silently returning nothing — could be a
+        # genuinely empty order history, or a real parsing mismatch against
+        # this account's own rendered markup. These counts pinpoint which
+        # stage breaks (order wrapper vs. product-row div vs. title span)
+        # without needing another full-page capture.
+        order_matches = list(_ORDER_START.finditer(html))
         first_order_snippet = ""
         if order_matches:
             start = order_matches[0].end()
-            first_order_snippet = resp.text[start : start + 1500]
+            first_order_snippet = html[start : start + 1500]
         logger.warning(
-            "gog(orders): parsed 0 orders from a 200 response (%d bytes). "
+            "gog(orders): parsed 0 orders from a rendered page (%d bytes). "
             "order blocks: %d, product-row divs: %d, product titles: %d. "
             "First order's own markup starts: %r",
-            len(resp.text),
+            len(html),
             len(order_matches),
-            len(_PRODUCT_ROW_START.findall(resp.text)),
-            len(_PRODUCT_TITLE.findall(resp.text)),
+            len(_PRODUCT_ROW_START.findall(html)),
+            len(_PRODUCT_TITLE.findall(html)),
             first_order_snippet,
         )
     return items
