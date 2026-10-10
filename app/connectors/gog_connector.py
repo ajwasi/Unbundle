@@ -315,17 +315,32 @@ async def fetch_order_history(cookie: str) -> list[GogOrderItem]:
         raise GogAuthError(f"GOG rejected the order history request (HTTP {resp.status_code}).")
     items = parse_order_history(resp.text)
     if not items:
-        # A 200 with zero parsed orders is ambiguous on its own — genuinely
-        # no orders, a logged-out/wrong-account response that still 200s, or
-        # (the live-suspected case) this page populating view.orders via
-        # client-side JS after load, which a plain GET never executes and so
-        # never sees. Logged either way rather than silently doing nothing,
-        # since the three have very different fixes.
+        # A 200 with zero parsed orders is ambiguous on its own, and the
+        # obvious causes (no orders at all, a logged-out response that still
+        # 200s, client-side-JS-only rendering) were already ruled out live —
+        # gog-order-item= wrappers ARE present in the raw response. What's
+        # left is a structural mismatch somewhere inside them: these counts
+        # pinpoint which stage breaks (order wrapper vs. product-row div vs.
+        # title span) without needing another full-page capture, and the
+        # snippet shows what the first real order's own markup actually
+        # looks like — the one real order parse_order_history was built
+        # from was a direct, Google-Pay-paid GOG order; most real accounts'
+        # orders are distributor-sourced (bundle-redeemed keys activated on
+        # GOG), which the template's own ng-show="::(!order.distributor...)"
+        # guards suggest may render differently inside.
+        order_matches = list(_ORDER_START.finditer(resp.text))
+        first_order_snippet = ""
+        if order_matches:
+            start = order_matches[0].end()
+            first_order_snippet = resp.text[start : start + 1500]
         logger.warning(
             "gog(orders): parsed 0 orders from a 200 response (%d bytes). "
-            "has gog-order-item markup: %s. Body starts: %r",
+            "order blocks: %d, product-row divs: %d, product titles: %d. "
+            "First order's own markup starts: %r",
             len(resp.text),
-            bool(_ORDER_START.search(resp.text)),
-            resp.text[:500],
+            len(order_matches),
+            len(_PRODUCT_ROW_START.findall(resp.text)),
+            len(_PRODUCT_TITLE.findall(resp.text)),
+            first_order_snippet,
         )
     return items

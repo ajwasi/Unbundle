@@ -79,4 +79,24 @@ async def test_fetch_order_history_logs_a_diagnostic_on_a_200_with_zero_orders(c
         items = await gog.fetch_order_history("gog_session=abc")
     assert items == []
     assert "parsed 0 orders" in caplog.text
-    assert "has gog-order-item markup: False" in caplog.text
+    assert "order blocks: 0" in caplog.text
+
+
+async def test_fetch_order_history_diagnostic_counts_order_blocks_with_no_matching_products(caplog):
+    # The live-confirmed shape (2026-10-10): gog-order-item= wrappers are
+    # present in the real response, but zero products parse out of them —
+    # e.g. a distributor-sourced order (a bundle-redeemed key activated on
+    # GOG) whose product rows don't match the one real, directly-paid order
+    # parse_order_history was originally built from.
+    html = (
+        '<div class="module order-item" gog-order-item="abc123">'
+        '<span gog-relative-time="1719792000"></span>'
+        '<div class="some-other-shape">no product-row divs here</div>'
+        "</div>"
+    )
+    resp = httpx.Response(200, text=html, request=httpx.Request("GET", "https://x"))
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)), caplog.at_level("WARNING"):
+        items = await gog.fetch_order_history("gog_session=abc")
+    assert items == []
+    assert "order blocks: 1" in caplog.text
+    assert "product-row divs: 0" in caplog.text
