@@ -50,12 +50,15 @@ example to parse from.
 """
 
 import html as html_module
+import logging
 import re
 from datetime import datetime
 
 import httpx
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 AUTH_URL = "https://auth.gog.com/auth"
 TOKEN_URL = "https://auth.gog.com/token"
@@ -310,4 +313,19 @@ async def fetch_order_history(cookie: str) -> list[GogOrderItem]:
         resp = await client.get(f"{_web_base()}/en/account/settings/orders", headers={"Cookie": cookie})
     if resp.status_code != 200:
         raise GogAuthError(f"GOG rejected the order history request (HTTP {resp.status_code}).")
-    return parse_order_history(resp.text)
+    items = parse_order_history(resp.text)
+    if not items:
+        # A 200 with zero parsed orders is ambiguous on its own — genuinely
+        # no orders, a logged-out/wrong-account response that still 200s, or
+        # (the live-suspected case) this page populating view.orders via
+        # client-side JS after load, which a plain GET never executes and so
+        # never sees. Logged either way rather than silently doing nothing,
+        # since the three have very different fixes.
+        logger.warning(
+            "gog(orders): parsed 0 orders from a 200 response (%d bytes). "
+            "has gog-order-item markup: %s. Body starts: %r",
+            len(resp.text),
+            bool(_ORDER_START.search(resp.text)),
+            resp.text[:500],
+        )
+    return items

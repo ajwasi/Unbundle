@@ -151,6 +151,7 @@ async def refresh_gog_library(db: Session) -> int:
     if cookie:
         try:
             purchase_rows = await _fetch_order_history_rows(cookie)
+            logger.info("gog: order history matched %d distinct title(s)", len(purchase_rows))
         except Exception as exc:
             logger.warning("gog: order history unavailable, continuing without purchase data: %s", exc)
 
