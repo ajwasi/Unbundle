@@ -21,6 +21,8 @@ _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 _SORT_COLUMNS = {
     "title": GogGame.title,
     "type": GogGame.content_type,
+    "purchased": GogGame.purchased_at,
+    "paid": GogGame.paid_price,
 }
 
 

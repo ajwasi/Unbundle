@@ -49,7 +49,9 @@ there may be nothing in "orders" to parse even for an account where this
 example to parse from.
 """
 
+import html as html_module
 import re
+from datetime import datetime
 
 import httpx
 
@@ -58,6 +60,7 @@ from app.config import settings
 AUTH_URL = "https://auth.gog.com/auth"
 TOKEN_URL = "https://auth.gog.com/token"
 API_BASE = "https://embed.gog.com"
+WEB_BASE = "https://www.gog.com"
 CLIENT_ID = "46899977096215655"
 CLIENT_SECRET = "9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9"
 # The only redirect_uri this client_id actually accepts (confirmed via a real
@@ -80,6 +83,10 @@ def _token_url() -> str:
 
 def _api_base() -> str:
     return f"{settings.mock_api_base_url}/gog" if settings.demo_mode else API_BASE
+
+
+def _web_base() -> str:
+    return f"{settings.mock_api_base_url}/gog" if settings.demo_mode else WEB_BASE
 
 
 CONTENT_TYPE_GAME = "game"
@@ -219,3 +226,88 @@ async def fetch_owned_games(access_token: str) -> list[GogGameData]:
                 )
             page += 1
     return games
+
+
+class GogOrderItem:
+    """One product line item from the account's own order-history page —
+    not one row per order, one per product, since a bundle order (e.g.
+    "Deus Ex Bundle") is itself a single line with its own title and price,
+    never matching any individual owned GogGame.title. Those games just
+    end up with no purchase data from this source — the same honest gap a
+    Humble-redeemed GOG key already has, since a key activation is never a
+    GOG "order" at all and never appears here either.
+    """
+
+    def __init__(self, title: str, price_amount: float | None, purchased_at: datetime | None):
+        self.title = title
+        self.price_amount = price_amount
+        self.purchased_at = purchased_at
+
+
+_ORDER_START = re.compile(r'gog-order-item="[^"]+"')
+_ORDER_DATE = re.compile(r'gog-relative-time="(\d+)"')
+_PRODUCT_ROW_START = re.compile(r'class="product-state-holder product-row\s+order-product"')
+_PRODUCT_TITLE = re.compile(r'hook-test="productTitle">([^<]*)<')
+_PRODUCT_PRICE = re.compile(r'data-cy="product-price">\s*([\d.,]+)\s*<')
+
+
+def _parse_gog_price(raw: str | None) -> float | None:
+    if not raw:
+        return None
+    try:
+        return float(raw.replace(",", ""))
+    except ValueError:
+        return None
+
+
+def parse_order_history(html: str) -> list[GogOrderItem]:
+    """www.gog.com/en/account/settings/orders — behind the account's own
+    website session (cookie), a completely separate auth path from the
+    OAuth token the rest of this connector uses for the Galaxy library API.
+
+    Confirmed live (2026-10-10) via real captured rendered markup for a
+    Free order; a paid order's fields were cross-checked only against a
+    real screenshot (same field names/positions, real numbers in place of
+    "0.00") — never independently captured as raw HTML, so treat anything
+    beyond title/price/date as unconfirmed.
+
+    Every order loads in a single fetch — confirmed live that neither the
+    URL nor any network request changes when moving between the page's own
+    "pages"; that pagination is a purely client-side display window over
+    data already fully present, not real server-side pagination.
+    """
+    items: list[GogOrderItem] = []
+    order_starts = list(_ORDER_START.finditer(html))
+    for index, match in enumerate(order_starts):
+        chunk_end = order_starts[index + 1].start() if index + 1 < len(order_starts) else len(html)
+        chunk = html[match.end():chunk_end]
+
+        date_match = _ORDER_DATE.search(chunk)
+        purchased_at = datetime.utcfromtimestamp(int(date_match.group(1))) if date_match else None
+
+        product_starts = list(_PRODUCT_ROW_START.finditer(chunk))
+        for p_index, p_match in enumerate(product_starts):
+            p_end = product_starts[p_index + 1].start() if p_index + 1 < len(product_starts) else len(chunk)
+            p_chunk = chunk[p_match.end():p_end]
+
+            title_match = _PRODUCT_TITLE.search(p_chunk)
+            if not title_match:
+                continue
+            price_match = _PRODUCT_PRICE.search(p_chunk)
+
+            items.append(
+                GogOrderItem(
+                    title=html_module.unescape(title_match.group(1).strip()),
+                    price_amount=_parse_gog_price(price_match.group(1) if price_match else None),
+                    purchased_at=purchased_at,
+                )
+            )
+    return items
+
+
+async def fetch_order_history(cookie: str) -> list[GogOrderItem]:
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        resp = await client.get(f"{_web_base()}/en/account/settings/orders", headers={"Cookie": cookie})
+    if resp.status_code != 200:
+        raise GogAuthError(f"GOG rejected the order history request (HTTP {resp.status_code}).")
+    return parse_order_history(resp.text)

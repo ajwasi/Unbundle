@@ -11,9 +11,36 @@
   </button>
   {% if gog_status != 'not_configured' %}
   <form hx-post="/settings/gog/disconnect" hx-target="#gog-modal-content" hx-swap="innerHTML"
-        hx-confirm="Disconnect GOG? This removes the saved refresh token; already-matched ownership data is kept." style="margin: 0;">
+        hx-confirm="Disconnect GOG? This removes the saved refresh token and order-history cookie (if set); already-matched ownership data is kept." style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="danger">Disconnect</button>
+  </form>
+  {% endif %}
+</div>
+
+<div style="margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--border-color, #ddd);">
+  <p class="muted" style="margin-bottom: 0.4rem;">
+    Optional: paste a session cookie from gog.com to also show purchase price and date for games bought
+    directly on GOG (not Humble-redeemed keys, and not bundle purchases — see each game's own tooltip).
+    Separate from the connection above.
+  </p>
+  <p>
+    Order history:
+    {% if gog_cookie_configured %}<span class="badge badge-ok">Configured</span>{% else %}<span class="badge badge-pending">Not configured</span>{% endif %}
+  </p>
+  {% if gog_cookie_error %}<p class="text-error">{{ gog_cookie_error }}</p>{% endif %}
+  <form hx-post="/settings/gog/cookie" hx-target="#gog-card-body" hx-swap="innerHTML">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <label for="gog-order-cookie" class="sr-only">GOG Cookie header value</label>
+    <input id="gog-order-cookie" type="password" name="cookie" placeholder="Cookie header value" required style="width: 100%; max-width: 480px;">
+    <button type="submit">{{ 'Reconnect' if gog_cookie_configured else 'Save' }}</button>
+    <span class="muted htmx-indicator">Checking your order history&hellip;</span>
+  </form>
+  {% if gog_cookie_configured %}
+  <form hx-post="/settings/gog/cookie/disconnect" hx-target="#gog-card-body" hx-swap="innerHTML"
+        hx-confirm="Remove the saved order-history cookie? The GOG library connection itself is unaffected." style="margin-top: 0.4rem;">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit" class="danger">Remove cookie</button>
   </form>
   {% endif %}
 </div>

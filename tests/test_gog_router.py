@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
@@ -249,3 +250,21 @@ def test_unredeemed_table_headers_carry_explanatory_tooltips(authed_client, db):
     resp = authed_client.get("/gog")
     assert "A revealed key may still be unredeemed." in resp.text
     assert "redeeming the key may be redundant" in resp.text
+
+
+def test_purchased_and_paid_columns_render(authed_client, db):
+    from datetime import datetime
+
+    _connect_gog(db)
+    db.add(GogGame(product_id=1, title="Firewatch", image_url="", content_type="game",
+                    purchased_at=datetime(2026, 7, 1), paid_price=4.23))
+    db.add(GogGame(product_id=2, title="A Free Promo", image_url="", content_type="game",
+                    purchased_at=datetime(2026, 7, 1), paid_price=0))
+    db.add(GogGame(product_id=3, title="Unmatched Game", image_url="", content_type="game"))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "2026-07-01" in resp.text
+    assert "4.23" in resp.text
+    assert re.search(r"<td>\s*Free\s*</td>", resp.text)
+    assert resp.text.count("&mdash;") >= 2  # the unmatched game's purchased + paid cells

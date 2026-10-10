@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 from app.connectors.gog_connector import GogAuthError
 from app.models.credential import SOURCE_GOG, STATUS_ERROR, STATUS_OK, Credential
-from app.security import decrypt_json
+from app.security import decrypt_json, encrypt_json
 
 
 def test_settings_page_shows_gog_card_with_login_link(authed_client):
@@ -115,3 +115,57 @@ def test_disconnect_gog_shows_button_only_when_configured(authed_client, db):
     db.commit()
     resp = authed_client.get("/settings")
     assert "/settings/gog/disconnect" in resp.text
+
+
+def test_gog_order_history_section_shows_not_configured_by_default(authed_client):
+    resp = authed_client.get("/settings")
+    assert "Not configured" in resp.text
+    assert 'name="cookie"' in resp.text
+
+
+def test_save_gog_cookie_success_marks_it_configured(authed_client, db):
+    with patch("app.routers.settings.gog_connector.fetch_order_history", new=AsyncMock(return_value=[])):
+        resp = authed_client.post("/settings/gog/cookie", data={"cookie": "gog_session=abc"})
+    assert resp.status_code == 200
+    assert "Configured" in resp.text
+    cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one()
+    assert decrypt_json(cred.encrypted_payload)["cookie"] == "gog_session=abc"
+
+
+def test_save_gog_cookie_failure_does_not_save_and_shows_the_error(authed_client, db):
+    with patch("app.routers.settings.gog_connector.fetch_order_history", new=AsyncMock(side_effect=GogAuthError("HTTP 403"))):
+        resp = authed_client.post("/settings/gog/cookie", data={"cookie": "stale"})
+    assert "HTTP 403" in resp.text
+    assert db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none() is None
+
+
+def test_save_gog_cookie_preserves_an_existing_oauth_connection(authed_client, db):
+    with patch("app.routers.settings.gog_connector.exchange_code", new=AsyncMock(return_value={"access_token": "AT", "refresh_token": "RT"})):
+        authed_client.post("/settings/gog", data={"pasted_code": "abc123"})
+    with patch("app.routers.settings.gog_connector.fetch_order_history", new=AsyncMock(return_value=[])):
+        authed_client.post("/settings/gog/cookie", data={"cookie": "gog_session=abc"})
+
+    cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one()
+    payload = decrypt_json(cred.encrypted_payload)
+    assert payload["refresh_token"] == "RT"
+    assert payload["cookie"] == "gog_session=abc"
+
+
+def test_disconnect_gog_cookie_keeps_the_refresh_token(authed_client, db):
+    db.add(Credential(source=SOURCE_GOG, status=STATUS_OK, encrypted_payload=encrypt_json({"refresh_token": "RT", "cookie": "gog_session=abc"})))
+    db.commit()
+
+    resp = authed_client.post("/settings/gog/cookie/disconnect")
+    assert resp.status_code == 200
+    assert "Not configured" in resp.text
+    payload = decrypt_json(db.query(Credential).filter(Credential.source == SOURCE_GOG).one().encrypted_payload)
+    assert payload == {"refresh_token": "RT"}
+
+
+def test_disconnect_gog_fully_removes_the_credential_including_the_cookie(authed_client, db):
+    db.add(Credential(source=SOURCE_GOG, status=STATUS_OK, encrypted_payload=encrypt_json({"refresh_token": "RT", "cookie": "gog_session=abc"})))
+    db.commit()
+
+    resp = authed_client.post("/settings/gog/disconnect")
+    assert resp.status_code == 200
+    assert db.query(Credential).filter(Credential.source == SOURCE_GOG).one_or_none() is None
