@@ -6,6 +6,7 @@ operation and access tokens are only good for about an hour anyway.
 """
 
 import json
+import logging
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -16,6 +17,8 @@ from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import SOURCE_GOG, STATUS_ERROR, STATUS_OK, Credential
 from app.models.gog_game import GogGame
 from app.security import encrypt_json
+
+logger = logging.getLogger(__name__)
 
 
 class NotConnectedError(Exception):
@@ -81,18 +84,55 @@ def match_entitlements_to_gog(db: Session) -> int:
     return matched
 
 
-def save_refresh_token(db: Session, refresh_token: str) -> None:
+def _save_gog_payload_field(db: Session, key: str, value: str) -> None:
+    """Merges one field into the stored payload rather than overwriting it —
+    refresh_token (OAuth, for the Galaxy library API) and cookie (session,
+    for the order-history page) are two independent, coexisting credentials
+    on the same row, and connecting/reconnecting one must never silently
+    drop the other."""
     cred = Credential.get_or_create(db, SOURCE_GOG)
-    cred.encrypted_payload = encrypt_json({"refresh_token": refresh_token})
+    payload = get_gog_credential(db) or {}
+    payload[key] = value
+    cred.encrypted_payload = encrypt_json(payload)
     db.commit()
+
+
+def save_refresh_token(db: Session, refresh_token: str) -> None:
+    _save_gog_payload_field(db, "refresh_token", refresh_token)
+
+
+def save_cookie(db: Session, cookie: str) -> None:
+    _save_gog_payload_field(db, "cookie", cookie)
+
+
+async def _fetch_order_history_rows(cookie: str) -> dict[str, tuple[datetime | None, float | None]]:
+    """casefolded title -> (purchased_at, price_amount), earliest purchase
+    wins on a repeated title — same convention as Chirp's own
+    _earliest_purchase_by_url, though a title repeating at all is unlikely
+    here in practice."""
+    items = await gog_connector.fetch_order_history(cookie)
+    earliest: dict[str, tuple[datetime | None, float | None]] = {}
+    for item in items:
+        key = item.title.strip().casefold()
+        current = earliest.get(key)
+        if current is None or (item.purchased_at is not None and (current[0] is None or item.purchased_at < current[0])):
+            earliest[key] = (item.purchased_at, item.price_amount)
+    return earliest
 
 
 async def refresh_gog_library(db: Session) -> int:
     """Returns the number of products fetched (games and movies both — see
     GogGame's own docstring). Raises NotConnectedError or
-    gog_connector.GogAuthError — caller surfaces the message."""
+    gog_connector.GogAuthError — caller surfaces the message.
+
+    purchase_rows (title -> date/price, from the order-history page) is
+    best-effort: fetched only if a cookie is stored, and a failure there
+    logs a warning and continues the refresh with no purchase data rather
+    than failing it outright — same defensive shape as Chirp's own
+    order-history fetch within its own library refresh.
+    """
     payload = get_gog_credential(db)
-    if not payload:
+    if not payload or not payload.get("refresh_token"):
         raise NotConnectedError("GOG is not connected yet — connect it in Settings.")
 
     try:
@@ -106,10 +146,24 @@ async def refresh_gog_library(db: Session) -> int:
         _set_credential_status(db, STATUS_ERROR, str(exc))
         raise
 
+    purchase_rows: dict[str, tuple[datetime | None, float | None]] = {}
+    cookie = payload.get("cookie")
+    if cookie:
+        try:
+            purchase_rows = await _fetch_order_history_rows(cookie)
+        except Exception as exc:
+            logger.warning("gog: order history unavailable, continuing without purchase data: %s", exc)
+
     db.query(GogGame).delete()
     now = datetime.utcnow()
     for g in games:
-        db.add(GogGame(product_id=g.product_id, title=g.title, image_url=g.image_url, content_type=g.content_type, fetched_at=now))
+        purchased_at, paid_price = purchase_rows.get(g.title.strip().casefold(), (None, None))
+        db.add(
+            GogGame(
+                product_id=g.product_id, title=g.title, image_url=g.image_url, content_type=g.content_type,
+                purchased_at=purchased_at, paid_price=paid_price, fetched_at=now,
+            )
+        )
     db.commit()
 
     _set_credential_status(db, STATUS_OK, None)

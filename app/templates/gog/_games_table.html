@@ -12,7 +12,13 @@
   <div class="table-scroll">
     <table>
       <thead>
-        <tr><th></th><th scope="col">{{ sort_link('title', 'Title') }}</th><th scope="col">{{ sort_link('type', 'Type') }}</th></tr>
+        <tr>
+          <th></th>
+          <th scope="col">{{ sort_link('title', 'Title') }}</th>
+          <th scope="col">{{ sort_link('type', 'Type') }}</th>
+          <th scope="col">{{ sort_link('purchased', 'Purchased') }}</th>
+          <th scope="col">{{ sort_link('paid', 'Paid') }}</th>
+        </tr>
         <tr>
           <th>
             <input type="hidden" name="sort" value="{{ sort }}" class="gog-filter">
@@ -33,6 +39,8 @@
               <option value="other" {{ "selected" if content_type == "other" else "" }}>Other</option>
             </select>
           </th>
+          <th></th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -41,9 +49,17 @@
           <td>{% if g.image_url %}<img class="owned-item-icon" src="{{ g.image_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
           <td>{{ g.title }}</td>
           <td><span class="badge badge-pending">{{ g.content_type | title }}</span></td>
+          <td>
+            {% if g.purchased_at %}{{ g.purchased_at.strftime('%Y-%m-%d') }}{% else %}<span class="muted" title="Not found in GOG's own order history — a Humble-redeemed key, a bundle purchase, or no order-history cookie configured in Settings.">&mdash;</span>{% endif %}
+          </td>
+          <td>
+            {% if g.paid_price is none %}<span class="muted">&mdash;</span>
+            {% elif g.paid_price == 0 %}Free
+            {% else %}{{ "%.2f"|format(g.paid_price) }}{% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="3" class="muted">{{ "No items match." if (title or content_type) else "No games loaded yet — click Refresh." }}</td></tr>
+        <tr><td colspan="5" class="muted">{{ "No items match." if (title or content_type) else "No games loaded yet — click Refresh." }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

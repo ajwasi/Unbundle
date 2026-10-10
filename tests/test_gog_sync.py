@@ -1,9 +1,10 @@
 import json
+from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.connectors.gog_connector import GogAuthError, GogGameData
+from app.connectors.gog_connector import GogAuthError, GogGameData, GogOrderItem
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import SOURCE_GOG, STATUS_ERROR, STATUS_OK, Credential
 from app.models.gog_game import GogGame
@@ -192,3 +193,88 @@ def test_save_refresh_token_creates_credential_if_missing(db):
     gog_sync.save_refresh_token(db, "new-token")
     cred = db.query(Credential).filter(Credential.source == SOURCE_GOG).one()
     assert decrypt_json(cred.encrypted_payload)["refresh_token"] == "new-token"
+
+
+def test_save_refresh_token_preserves_an_existing_cookie(db):
+    gog_sync.save_cookie(db, "gog_session=abc")
+    gog_sync.save_refresh_token(db, "new-token")
+    payload = decrypt_json(db.query(Credential).filter(Credential.source == SOURCE_GOG).one().encrypted_payload)
+    assert payload == {"cookie": "gog_session=abc", "refresh_token": "new-token"}
+
+
+def test_save_cookie_preserves_an_existing_refresh_token(db):
+    gog_sync.save_refresh_token(db, "rt")
+    gog_sync.save_cookie(db, "gog_session=abc")
+    payload = decrypt_json(db.query(Credential).filter(Credential.source == SOURCE_GOG).one().encrypted_payload)
+    assert payload == {"refresh_token": "rt", "cookie": "gog_session=abc"}
+
+
+@pytest.mark.asyncio
+async def test_refresh_gog_library_fills_in_purchase_data_from_order_history(db):
+    _connect_gog(db)
+    gog_sync.save_cookie(db, "gog_session=abc")
+    games = [GogGameData(product_id=1, title="Firewatch", image_url="")]
+    order_items = [GogOrderItem(title="Firewatch", price_amount=4.23, purchased_at=datetime(2026, 7, 1))]
+    with (
+        patch("app.sync.gog_sync.gog_connector.refresh_access_token", new=AsyncMock(return_value={"access_token": "AT"})),
+        patch("app.sync.gog_sync.gog_connector.fetch_owned_games", new=AsyncMock(return_value=games)),
+        patch("app.sync.gog_sync.gog_connector.fetch_order_history", new=AsyncMock(return_value=order_items)),
+    ):
+        await gog_sync.refresh_gog_library(db)
+
+    saved = db.get(GogGame, 1)
+    assert saved.paid_price == 4.23
+    assert saved.purchased_at == datetime(2026, 7, 1)
+
+
+@pytest.mark.asyncio
+async def test_refresh_gog_library_skips_order_history_without_a_cookie(db):
+    _connect_gog(db)
+    games = [GogGameData(product_id=1, title="Firewatch", image_url="")]
+    fetch_order_history = AsyncMock()
+    with (
+        patch("app.sync.gog_sync.gog_connector.refresh_access_token", new=AsyncMock(return_value={"access_token": "AT"})),
+        patch("app.sync.gog_sync.gog_connector.fetch_owned_games", new=AsyncMock(return_value=games)),
+        patch("app.sync.gog_sync.gog_connector.fetch_order_history", new=fetch_order_history),
+    ):
+        await gog_sync.refresh_gog_library(db)
+
+    fetch_order_history.assert_not_called()
+    saved = db.get(GogGame, 1)
+    assert saved.paid_price is None
+    assert saved.purchased_at is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_gog_library_survives_a_broken_order_history_fetch(db):
+    _connect_gog(db)
+    gog_sync.save_cookie(db, "gog_session=abc")
+    games = [GogGameData(product_id=1, title="Firewatch", image_url="")]
+    with (
+        patch("app.sync.gog_sync.gog_connector.refresh_access_token", new=AsyncMock(return_value={"access_token": "AT"})),
+        patch("app.sync.gog_sync.gog_connector.fetch_owned_games", new=AsyncMock(return_value=games)),
+        patch("app.sync.gog_sync.gog_connector.fetch_order_history", new=AsyncMock(side_effect=GogAuthError("stale cookie"))),
+    ):
+        count = await gog_sync.refresh_gog_library(db)
+
+    assert count == 1
+    saved = db.get(GogGame, 1)
+    assert saved.paid_price is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_gog_library_does_not_match_a_bundle_line_item_to_any_game(db):
+    # A bundle order ("Anno Bundle") never matches any single owned title —
+    # see GogGame's own docstring on this known gap.
+    _connect_gog(db)
+    gog_sync.save_cookie(db, "gog_session=abc")
+    games = [GogGameData(product_id=1, title="Anno 1800", image_url="")]
+    order_items = [GogOrderItem(title="Anno Bundle", price_amount=10.48, purchased_at=datetime(2026, 7, 1))]
+    with (
+        patch("app.sync.gog_sync.gog_connector.refresh_access_token", new=AsyncMock(return_value={"access_token": "AT"})),
+        patch("app.sync.gog_sync.gog_connector.fetch_owned_games", new=AsyncMock(return_value=games)),
+        patch("app.sync.gog_sync.gog_connector.fetch_order_history", new=AsyncMock(return_value=order_items)),
+    ):
+        await gog_sync.refresh_gog_library(db)
+
+    assert db.get(GogGame, 1).paid_price is None

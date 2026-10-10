@@ -53,6 +53,10 @@ _music_probe_limiter = RateLimiter(max_calls=5, period_seconds=60)
 # rather than letting repeated clicks here hammer a bot-protected endpoint.
 _chirp_login_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
+# Same login-shaped-outbound-call ceiling as every other one above — this one
+# validates a pasted GOG session cookie with a real request to gog.com.
+_gog_cookie_limiter = RateLimiter(max_calls=5, period_seconds=60)
+
 
 def _account_context(db: Session, account_error: str | None = None, saved: bool = False) -> dict:
     cfg = accounts.get_or_create_account_settings(db)
@@ -105,10 +109,15 @@ def _get_or_create_gog_credential(db: Session) -> Credential:
 
 def _gog_context(db: Session, error: str | None = None) -> dict:
     cred = Credential.get(db, SOURCE_GOG)
+    payload = Credential.get_payload(db, SOURCE_GOG) or {}
     return {
         "gog_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "gog_error": error if error is not None else (cred.last_error if cred else None),
         "gog_login_url": gog_connector.LOGIN_URL,
+        # Independent of gog_status/gog_error, which track the OAuth/library
+        # connection only — the order-history cookie is a second, optional
+        # credential on the same row (see gog_sync._save_gog_payload_field).
+        "gog_cookie_configured": bool(payload.get("cookie")),
         "demo_mode": settings.demo_mode,
     }
 
@@ -120,12 +129,17 @@ def _gog_response(
     just_connected: bool = False,
     connected_as: str | None = None,
 ):
-    """Every state-changing GOG settings route (save/disconnect) renders this
-    same response: an out-of-band update to the card behind the modal (status
-    badge, Connect/Disconnect) plus the modal's own content (paste-URL form,
-    or a "Connected" confirmation) — mirrors _audible_response()'s identical
-    shape below, for the same reason (one response shape means every action
-    stays consistent regardless of which of the two ever triggered it).
+    """Every state-changing route for the OAuth library connection
+    (save/disconnect) renders this same response: an out-of-band update to
+    the card behind the modal (status badge, Connect/Disconnect) plus the
+    modal's own content (paste-URL form, or a "Connected" confirmation) —
+    mirrors _audible_response()'s identical shape below, for the same reason
+    (one response shape means every action stays consistent regardless of
+    which of the two ever triggered it).
+
+    Not used by the order-history cookie routes below — that credential has
+    nothing to do with the OAuth modal, so those just re-render
+    settings/_gog_form.html directly into #gog-card-body.
     """
     context = _gog_context(db, error)
     context["just_connected"] = just_connected
@@ -538,6 +552,49 @@ def disconnect_gog(request: Request, db: Session = Depends(get_db)):
         db.delete(cred)
         db.commit()
     return _gog_response(request, db)
+
+
+@router.post(
+    "/gog/cookie",
+    response_class=HTMLResponse,
+    dependencies=[Depends(rate_limit(_gog_cookie_limiter, "gog-cookie")), Depends(require_csrf)],
+)
+async def save_gog_cookie(request: Request, cookie: str = Form(...), db: Session = Depends(get_db)):
+    # Unrelated to the OAuth modal flow above — a second, independent
+    # credential on the same row (see gog_sync._save_gog_payload_field), so
+    # this re-renders settings/_gog_form.html directly into #gog-card-body
+    # rather than going through _gog_response/_gog_modal_content, which only
+    # ever speaks to the OAuth connect flow.
+    cookie = cookie.strip()
+    cookie_error = None
+    try:
+        await gog_connector.fetch_order_history(cookie)
+    except gog_connector.GogAuthError as exc:
+        cookie_error = str(exc)
+    else:
+        gog_sync.save_cookie(db, cookie)
+    context = _gog_context(db)
+    context["gog_cookie_error"] = cookie_error
+    return templates.TemplateResponse(request, "settings/_gog_form.html", context)
+
+
+@router.post("/gog/cookie/disconnect", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+def disconnect_gog_cookie(request: Request, db: Session = Depends(get_db)):
+    # Removes only the order-history cookie, keeping the OAuth refresh_token
+    # (and the library connection it represents) intact — the two are
+    # independent credentials on the same row (see
+    # gog_sync._save_gog_payload_field), unlike the full /gog/disconnect
+    # above, which deliberately clears both at once.
+    payload = gog_sync.get_gog_credential(db) or {}
+    if "cookie" in payload:
+        payload.pop("cookie")
+        cred = Credential.get(db, SOURCE_GOG)
+        if payload:
+            cred.encrypted_payload = encrypt_json(payload)
+        else:
+            db.delete(cred)
+        db.commit()
+    return templates.TemplateResponse(request, "settings/_gog_form.html", _gog_context(db))
 
 
 def _audible_response(
