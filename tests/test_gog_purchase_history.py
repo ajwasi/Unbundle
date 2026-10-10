@@ -67,3 +67,16 @@ async def test_fetch_order_history_raises_on_a_bad_status():
     with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
         with pytest.raises(gog.GogAuthError):
             await gog.fetch_order_history("stale-cookie")
+
+
+async def test_fetch_order_history_logs_a_diagnostic_on_a_200_with_zero_orders(caplog):
+    # A 200 with nothing parsed is ambiguous (truly empty vs. a page whose
+    # order list only exists after client-side JS runs, which a plain GET
+    # never executes) — this must be visible in the log either way, never
+    # silent, since the fix differs completely depending on which it is.
+    resp = httpx.Response(200, text="<html>some shell with no gog-order-item markup</html>", request=httpx.Request("GET", "https://x"))
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)), caplog.at_level("WARNING"):
+        items = await gog.fetch_order_history("gog_session=abc")
+    assert items == []
+    assert "parsed 0 orders" in caplog.text
+    assert "has gog-order-item markup: False" in caplog.text
