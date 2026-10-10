@@ -2,7 +2,6 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 
 from app.connectors import gog_connector as gog
@@ -53,29 +52,34 @@ def test_parse_order_history_handles_no_orders():
     assert gog.parse_order_history("<html>no orders here</html>") == []
 
 
-async def test_fetch_order_history_sends_the_cookie_and_parses_the_response():
-    resp = httpx.Response(200, text=_order_html(), request=httpx.Request("GET", "https://x"))
-    mock_get = AsyncMock(return_value=resp)
-    with patch("httpx.AsyncClient.get", new=mock_get):
+async def test_fetch_order_history_fetches_via_a_real_browser_and_parses_the_response():
+    # Confirmed live (2026-10-10): this page's raw server response is
+    # Angular's own uncompiled template, never real data — fetch_order_history
+    # goes through app.browser's real-headless-browser fetch instead of a
+    # plain httpx request, which is what app.browser's own test suite covers
+    # in detail. This just confirms fetch_order_history calls it correctly
+    # and parses whatever rendered HTML comes back.
+    mock_fetch = AsyncMock(return_value=_order_html())
+    with patch("app.connectors.gog_connector.fetch_rendered_html", new=mock_fetch):
         items = await gog.fetch_order_history("gog_session=abc")
     assert len(items) == 2
-    assert mock_get.call_args.kwargs["headers"]["Cookie"] == "gog_session=abc"
+    mock_fetch.assert_awaited_once_with(
+        "https://www.gog.com/en/account/settings/orders", "gog_session=abc", gog.GOG_COOKIE_DOMAIN
+    )
 
 
-async def test_fetch_order_history_raises_on_a_bad_status():
-    resp = httpx.Response(403, text="nope", request=httpx.Request("GET", "https://x"))
-    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
-        with pytest.raises(gog.GogAuthError):
+async def test_fetch_order_history_propagates_a_browser_fetch_failure():
+    with patch("app.connectors.gog_connector.fetch_rendered_html", new=AsyncMock(side_effect=RuntimeError("nav failed"))):
+        with pytest.raises(RuntimeError):
             await gog.fetch_order_history("stale-cookie")
 
 
-async def test_fetch_order_history_logs_a_diagnostic_on_a_200_with_zero_orders(caplog):
-    # A 200 with nothing parsed is ambiguous (truly empty vs. a page whose
-    # order list only exists after client-side JS runs, which a plain GET
-    # never executes) — this must be visible in the log either way, never
-    # silent, since the fix differs completely depending on which it is.
-    resp = httpx.Response(200, text="<html>some shell with no gog-order-item markup</html>", request=httpx.Request("GET", "https://x"))
-    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)), caplog.at_level("WARNING"):
+async def test_fetch_order_history_logs_a_diagnostic_on_zero_orders(caplog):
+    # Zero parsed orders from a real rendered page is still ambiguous
+    # (genuinely empty vs. a real parsing mismatch) — must stay visible in
+    # the log rather than silently returning nothing.
+    html = "<html>some shell with no gog-order-item markup</html>"
+    with patch("app.connectors.gog_connector.fetch_rendered_html", new=AsyncMock(return_value=html)), caplog.at_level("WARNING"):
         items = await gog.fetch_order_history("gog_session=abc")
     assert items == []
     assert "parsed 0 orders" in caplog.text
@@ -83,8 +87,7 @@ async def test_fetch_order_history_logs_a_diagnostic_on_a_200_with_zero_orders(c
 
 
 async def test_fetch_order_history_diagnostic_counts_order_blocks_with_no_matching_products(caplog):
-    # The live-confirmed shape (2026-10-10): gog-order-item= wrappers are
-    # present in the real response, but zero products parse out of them —
+    # gog-order-item= wrappers present but zero products parse out of them —
     # e.g. a distributor-sourced order (a bundle-redeemed key activated on
     # GOG) whose product rows don't match the one real, directly-paid order
     # parse_order_history was originally built from.
@@ -94,8 +97,7 @@ async def test_fetch_order_history_diagnostic_counts_order_blocks_with_no_matchi
         '<div class="some-other-shape">no product-row divs here</div>'
         "</div>"
     )
-    resp = httpx.Response(200, text=html, request=httpx.Request("GET", "https://x"))
-    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)), caplog.at_level("WARNING"):
+    with patch("app.connectors.gog_connector.fetch_rendered_html", new=AsyncMock(return_value=html)), caplog.at_level("WARNING"):
         items = await gog.fetch_order_history("gog_session=abc")
     assert items == []
     assert "order blocks: 1" in caplog.text

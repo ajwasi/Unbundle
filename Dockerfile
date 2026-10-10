@@ -98,6 +98,28 @@ COPY pyproject.toml ./
 # docker-compose.postgres.yml), never a rebuild. psycopg[binary] adds no
 # apt-get packages of its own (vendors libpq in the wheel).
 RUN pip install --no-cache-dir ".[postgres]"
+
+# A fixed, world-readable install location — playwright's own default
+# (~/.cache/ms-playwright, under whichever user runs `playwright install`,
+# root here) would be unreachable for appuser once docker-entrypoint.sh
+# drops privileges, since appuser's $HOME is /home/appuser instead. Set
+# before `playwright install` runs so it's honored both at install time and
+# at runtime (app/browser.py's own launch() reads this same env var to find
+# the browser it should start), and chmod'd afterward so appuser can
+# actually execute what root just installed.
+#
+# --with-deps also apt-get installs Chromium's own OS-level library
+# dependencies (fonts, libnss3, libasound2, etc.) — real, substantial image
+# weight (several hundred MB total for the browser plus its deps), accepted
+# deliberately: app/browser.py exists specifically for the handful of pages
+# (GOG's order-history page, Chirp's player page) a bare HTTP client can
+# never render or get past no matter how the request is shaped. Only
+# Chromium is installed, not Firefox/WebKit — nothing in this app ever
+# launches those.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN playwright install --with-deps chromium \
+    && chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}"
+
 COPY alembic.ini ./
 COPY app/ ./app/
 # Only used by the "demo" compose profile's mock-api service (see
