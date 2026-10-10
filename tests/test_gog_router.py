@@ -249,3 +249,28 @@ def test_unredeemed_table_headers_carry_explanatory_tooltips(authed_client, db):
     resp = authed_client.get("/gog")
     assert "A revealed key may still be unredeemed." in resp.text
     assert "redeeming the key may be redundant" in resp.text
+
+
+def test_gog_probe_without_a_connection_explains_rather_than_500s(authed_client):
+    resp = authed_client.get("/gog/probe")
+    assert resp.status_code == 400
+    assert "not connected" in resp.text
+
+
+def test_gog_probe_returns_the_raw_report(authed_client, db):
+    _connect_gog(db)
+    report = {"sample_product": {"id": 1, "image": "//x/a"}, "orders_status": 200, "orders_body": "{}"}
+    with patch("app.routers.gog.gog_connector.refresh_access_token", new=AsyncMock(return_value={"access_token": "AT"})):
+        with patch("app.routers.gog.gog_connector.probe_account", new=AsyncMock(return_value=report)):
+            resp = authed_client.get("/gog/probe")
+    assert resp.status_code == 200
+    assert '"sample_product"' in resp.text
+    assert "//x/a" in resp.text
+
+
+def test_gog_probe_reports_a_generic_message_on_failure(authed_client, db):
+    _connect_gog(db)
+    with patch("app.routers.gog.gog_connector.refresh_access_token", new=AsyncMock(side_effect=RuntimeError("boom"))):
+        resp = authed_client.get("/gog/probe")
+    assert resp.status_code == 502
+    assert "boom" not in resp.text

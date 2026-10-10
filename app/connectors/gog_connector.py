@@ -190,3 +190,37 @@ async def fetch_owned_games(access_token: str) -> list[GogGameData]:
                 )
             page += 1
     return games
+
+
+async def probe_account(access_token: str) -> dict:
+    """Diagnostic-only. Two things this connector has never independently
+    confirmed live:
+
+    1. getFilteredProducts' own "image" field shape — the "//"-prefixed
+       protocol-relative URL fetch_owned_games assumes is this module's own
+       inference from the docs, not something a real response has verified.
+    2. Whether purchase price/date exist anywhere in GOG's API at all.
+       getFilteredProducts (the only endpoint this connector calls) carries
+       neither. https://gogapidocs.readthedocs.io/en/latest/store.html#history
+       documents a GET /account/settings/orders/data under this same
+       embed.gog.com host and auth as a "History" endpoint, with no
+       response shape given — the only other documented lead.
+
+    Returns one raw product dict (not the whole library) and the orders
+    endpoint's raw status/body (capped) for a human to read and confirm or
+    refute both of the above against this account's real data.
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+    async with httpx.AsyncClient(timeout=30) as client:
+        products_resp = await client.get(f"{_api_base()}/account/getFilteredProducts", params={"page": 1}, headers=headers)
+        if products_resp.status_code != 200:
+            raise GogAuthError(f"GOG rejected the games request (HTTP {products_resp.status_code}).")
+        products = products_resp.json().get("products") or []
+
+        orders_resp = await client.get(f"{_api_base()}/account/settings/orders/data", headers=headers)
+
+    return {
+        "sample_product": products[0] if products else None,
+        "orders_status": orders_resp.status_code,
+        "orders_body": orders_resp.text[:8000],
+    }
