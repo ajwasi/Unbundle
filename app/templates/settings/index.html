@@ -3,8 +3,15 @@
 {% block content %}
 <h1>Settings</h1>
 
-<h2>Identity</h2>
+<nav class="settings-jump" aria-label="Jump to section">
+  <a href="#identity-section">Identity</a>
+  <a href="#accounts-section">Connected Accounts</a>
+  <a href="#system-section">System</a>
+</nav>
 
+<h2 id="identity-section">Identity</h2>
+
+<div class="settings-grid">
 <div class="card" id="account-card">
   <h3>Account</h3>
   <p class="muted">Your display identity and password for this instance.</p>
@@ -24,54 +31,62 @@
     {% include "settings/_oidc_form.html" %}
   </div>
 </div>
+</div>
 
-<h2>Connected Accounts</h2>
+<h2 id="accounts-section">Connected Accounts</h2>
 
-<div class="card" id="humble-card">
+<div class="settings-grid">
+<div class="card{% if humble_status == 'ok' %} is-connected{% elif humble_status == 'error' %} has-error{% endif %}" id="humble-card">
   <h3>Humble Bundle</h3>
-  <ol class="muted" style="padding-left: 1.2rem;">
-    <li>Log in at <a href="https://www.humblebundle.com" target="_blank" rel="noopener">humblebundle.com</a> in this browser, if you aren't already.</li>
-    <li>Open developer tools (press <code>F12</code>, or right-click the page &rarr; Inspect), then find
-        <strong>Application</strong> (Chrome/Edge) or <strong>Storage</strong> (Firefox) &rarr; Cookies &rarr;
-        <code>https://www.humblebundle.com</code> in the panel that opens.</li>
-    <li>Find the cookie named <code>_simpleauth_sess</code> in that list and copy its <strong>Value</strong>.</li>
-    <li>Paste it below and click Save.</li>
-  </ol>
-  <p class="muted">
-    There's no username/password login here — Humble's own login is behind Cloudflare's bot
-    protection, which blocks non-browser login attempts outright, so this manual cookie handoff
-    (the same one humble-cli itself uses) is the only way in. It doesn't expire on a fixed
-    schedule, but Humble may invalidate it eventually; if actions start failing, come back here
-    and paste a fresh one.
-  </p>
+  <details class="settings-howto"{% if humble_status == 'not_configured' %} open{% endif %}>
+    <summary>How to get your session cookie</summary>
+    <ol class="muted" style="padding-left: 1.2rem;">
+      <li>Log in at <a href="https://www.humblebundle.com" target="_blank" rel="noopener">humblebundle.com</a> in this browser, if you aren't already.</li>
+      <li>Open developer tools (press <code>F12</code>, or right-click the page &rarr; Inspect), then find
+          <strong>Application</strong> (Chrome/Edge) or <strong>Storage</strong> (Firefox) &rarr; Cookies &rarr;
+          <code>https://www.humblebundle.com</code> in the panel that opens.</li>
+      <li>Find the cookie named <code>_simpleauth_sess</code> in that list and copy its <strong>Value</strong>.</li>
+      <li>Paste it below and click Save.</li>
+    </ol>
+    <p class="muted">
+      There's no username/password login here — Humble's own login is behind Cloudflare's bot
+      protection, which blocks non-browser login attempts outright, so this manual cookie handoff
+      (the same one humble-cli itself uses) is the only way in. It doesn't expire on a fixed
+      schedule, but Humble may invalidate it eventually; if actions start failing, come back here
+      and paste a fresh one.
+    </p>
+  </details>
   <div id="humble-card-body">
     {% include "settings/_humble_form.html" %}
   </div>
 </div>
 
-<div class="card" id="steam-card">
+<div class="card{% if steam_status == 'ok' %} is-connected{% elif steam_status == 'error' %} has-error{% endif %}" id="steam-card">
   <h3>Steam</h3>
   <p class="muted">
     Compares your bundles' Steam keys against your actual Steam library, so you can see
     which ones you've never redeemed.
   </p>
-  <ol class="muted" style="padding-left: 1.2rem;">
-    <li>Get a free API key at
-        <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a>
-        &mdash; any domain name works for personal use, e.g. <code>localhost</code>.</li>
-    <li>Enter that key below, plus either your SteamID64 or your profile URL/vanity name (e.g.
-        <code>steamcommunity.com/id/yourname</code>) &mdash; whichever you already have works, no
-        need to look up the numeric ID separately.</li>
-    <li>Make sure your profile and game details are set to Public in your
-        <a href="https://steamcommunity.com/my/edit/settings" target="_blank" rel="noopener">Steam privacy settings</a>,
-        or the owned-games list won't be readable.</li>
-  </ol>
+  <details class="settings-howto"{% if steam_status == 'not_configured' %} open{% endif %}>
+    <summary>How to get an API key</summary>
+    <ol class="muted" style="padding-left: 1.2rem;">
+      <li>Get a free API key at
+          <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a>
+          &mdash; any domain name works for personal use, e.g. <code>localhost</code>.</li>
+      <li>Enter that key below, plus either your SteamID64 or your profile URL/vanity name (e.g.
+          <code>steamcommunity.com/id/yourname</code>) &mdash; whichever you already have works, no
+          need to look up the numeric ID separately.</li>
+      <li>Make sure your profile and game details are set to Public in your
+          <a href="https://steamcommunity.com/my/edit/settings" target="_blank" rel="noopener">Steam privacy settings</a>,
+          or the owned-games list won't be readable.</li>
+    </ol>
+  </details>
   <div id="steam-card-body">
     {% include "settings/_steam_form.html" %}
   </div>
 </div>
 
-<div class="card" id="gog-card">
+<div class="card{% if gog_status == 'ok' %} is-connected{% elif gog_status == 'error' %} has-error{% endif %}" id="gog-card">
   <h3>GOG</h3>
   <p class="muted">
     Compares your bundles' GOG keys against your actual GOG library. Click <strong>Connect</strong>
@@ -79,23 +94,20 @@
     a one-time manual log-in-and-paste-the-URL-back step instead. The code GOG gives you expires
     within a minute or two, so it may take a try or two to get through in time.
   </p>
-  <p class="muted">
-    Note: very few Humble bundles actually expose a matchable GOG key today (confirmed against
-    this library: 2 GOG-type keys total, neither matchable), so don't expect much from the
-    "never redeemed" comparison yet — the games catalog itself still works regardless.
-  </p>
+  <details class="settings-howto">
+    <summary>Why so few "never redeemed" matches?</summary>
+    <p class="muted">
+      Very few Humble bundles actually expose a matchable GOG key today (confirmed against
+      this library: 2 GOG-type keys total, neither matchable), so don't expect much from the
+      "never redeemed" comparison yet — the games catalog itself still works regardless.
+    </p>
+  </details>
   <div id="gog-card-body">
     {% include "settings/_gog_form.html" %}
   </div>
 </div>
 
-<dialog id="gog-login-modal">
-  <div id="gog-modal-content">
-    {% include "settings/_gog_modal_content.html" %}
-  </div>
-</dialog>
-
-<div class="card" id="audible-card">
+<div class="card{% if audible_status == 'ok' %} is-connected{% elif audible_status == 'error' %} has-error{% endif %}" id="audible-card">
   <h3>Audible</h3>
   <p class="muted">
     Lists your owned Audible audiobooks. Amazon has no public Audible API, and Amazon now
@@ -108,12 +120,6 @@
     {% include "settings/_audible_form.html" %}
   </div>
 </div>
-
-<dialog id="audible-login-modal">
-  <div id="audible-modal-content">
-    {% include "settings/_audible_modal_content.html" %}
-  </div>
-</dialog>
 
 <div class="card" id="amazon-music-card">
   <h3>Amazon Music <span class="badge badge-pending">Experimental</span></h3>
@@ -128,46 +134,60 @@
   </div>
 </div>
 
-<div class="card" id="chirp-card">
+<div class="card{% if chirp_status == 'ok' %} is-connected{% elif chirp_status == 'error' %} has-error{% endif %}" id="chirp-card">
   <h3>Chirp Books</h3>
   <p class="muted">
     Lists your owned Chirp audiobooks. Confirmed: Chirp's own Cloudflare protection blocks a
     plain automated login outright, the same wall Humble and Audible above already hit — so
     like Humble, this is a manual cookie handoff instead of a username/password login.
+    Unlike Humble's own session cookie, Cloudflare's clearance cookie is short-lived (commonly
+    30 minutes to a few hours) — expect to repeat this more often than Humble above.
   </p>
-  <ol class="muted" style="padding-left: 1.2rem;">
-    <li>Log in at <a href="https://www.chirpbooks.com/library" target="_blank" rel="noopener">chirpbooks.com/library</a> in this browser, if you aren't already.</li>
-    <li>Open developer tools (press <code>F12</code>, or right-click the page &rarr; Inspect), go to the
-        <strong>Network</strong> tab, and reload the page.</li>
-    <li>In the request list, click the <strong>very first one</strong> — named <code>library</code>, with type
-        <strong>Doc</strong>/<strong>document</strong>. This matters: the list will also be full of requests to
-        <code>img.chirpbooks.com</code>, <code>a0.chirpbooks.com</code>/<code>a1</code>/<code>a2</code>/<code>a3</code>
-        (cover art and site assets) — those are <strong>different subdomains with different cookies</strong> and
-        won't work here. If unsure, check the request's <strong>Domain</strong> column: it must say exactly
-        <code>www.chirpbooks.com</code>.</li>
-    <li>In that request's <strong>Headers</strong> panel, switch it to <strong>raw</strong>
-        (Chrome/Edge: a "view parsed"/"view source" toggle next to Request Headers; Firefox: a
-        "Raw headers" checkbox). This matters: the default parsed/table view truncates a long
-        <strong>Cookie</strong> value and shows "&hellip;" in the middle of it — copying from
-        there silently pastes a broken, cut-off cookie. The raw view shows the whole header as
-        plain text with nothing cut off.</li>
-    <li>Find <strong>Cookie:</strong> in that raw text and copy everything after the colon — the
-        value only, not the word "Cookie" itself.</li>
-    <li>Paste it below and click Save.</li>
-  </ol>
-  <p class="muted">
-    Unlike Humble's own session cookie, Cloudflare's own clearance cookies are short-lived
-    (commonly on the order of 30 minutes to a few hours) — this will need re-pasting far more
-    often than Humble does, likely every time you actually want to use this. Encrypted at rest
-    the same way every other connected account here is.
-  </p>
+  <details class="settings-howto"{% if chirp_status == 'not_configured' %} open{% endif %}>
+    <summary>How to get a fresh cookie</summary>
+    <ol class="muted" style="padding-left: 1.2rem;">
+      <li>Log in at <a href="https://www.chirpbooks.com/library" target="_blank" rel="noopener">chirpbooks.com/library</a> in this browser, if you aren't already.</li>
+      <li>Open developer tools (press <code>F12</code>, or right-click the page &rarr; Inspect), go to the
+          <strong>Network</strong> tab, and reload the page.</li>
+      <li>In the request list, click the <strong>very first one</strong> — named <code>library</code>, with type
+          <strong>Doc</strong>/<strong>document</strong>. This matters: the list will also be full of requests to
+          <code>img.chirpbooks.com</code>, <code>a0.chirpbooks.com</code>/<code>a1</code>/<code>a2</code>/<code>a3</code>
+          (cover art and site assets) — those are <strong>different subdomains with different cookies</strong> and
+          won't work here. If unsure, check the request's <strong>Domain</strong> column: it must say exactly
+          <code>www.chirpbooks.com</code>.</li>
+      <li>In that request's <strong>Headers</strong> panel, switch it to <strong>raw</strong>
+          (Chrome/Edge: a "view parsed"/"view source" toggle next to Request Headers; Firefox: a
+          "Raw headers" checkbox). This matters: the default parsed/table view truncates a long
+          <strong>Cookie</strong> value and shows "&hellip;" in the middle of it — copying from
+          there silently pastes a broken, cut-off cookie. The raw view shows the whole header as
+          plain text with nothing cut off.</li>
+      <li>Find <strong>Cookie:</strong> in that raw text and copy everything after the colon — the
+          value only, not the word "Cookie" itself.</li>
+      <li>Paste it below and click Save.</li>
+    </ol>
+    <p class="muted">Encrypted at rest the same way every other connected account here is.</p>
+  </details>
   <div id="chirp-card-body">
     {% include "settings/_chirp_form.html" %}
   </div>
 </div>
+</div>
 
-<h2>System</h2>
+<dialog id="gog-login-modal">
+  <div id="gog-modal-content">
+    {% include "settings/_gog_modal_content.html" %}
+  </div>
+</dialog>
 
+<dialog id="audible-login-modal">
+  <div id="audible-modal-content">
+    {% include "settings/_audible_modal_content.html" %}
+  </div>
+</dialog>
+
+<h2 id="system-section">System</h2>
+
+<div class="settings-grid">
 <div class="card" id="backup-card">
   <h3>Backups</h3>
   {% if backups_supported %}
@@ -227,5 +247,6 @@
   <div id="api-card-body" style="margin-top: 0.75rem;">
     {% include "settings/_api_form.html" %}
   </div>
+</div>
 </div>
 {% endblock %}

@@ -415,6 +415,75 @@ main {
   box-shadow: var(--shadow);
 }
 
+/* A row of cards (the Settings page's own sections) laid out as a grid
+   instead of a single stacked column — narrow screens fall back to one
+   column automatically via auto-fit, no separate media query needed.
+   Cards inside lose their own standalone margin-bottom since the grid's
+   own gap already spaces them, in both directions. */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  /* Without this, grid's own default (stretch) forces every card in a row
+     to match its tallest row-mate — fine when neighbors are similar, but
+     Chirp's long walkthrough next to Amazon Music's two-sentence probe
+     card left a cavern of empty space inside the short one. Each card now
+     sizes to its own content instead. */
+  align-items: start;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.settings-grid .card { margin-bottom: 0; }
+
+/* Same left-accent-border language .item-card.is-owned already uses for
+   "this one's good" — applied here to a whole settings card so the page
+   can be scanned at a glance for what still needs attention, without
+   reading every status badge individually. */
+.card.is-connected { border-left: 3px solid var(--success); }
+.card.has-error { border-left: 3px solid var(--error); }
+
+/* The quick-jump row under the page's own <h1> — plain anchor links styled
+   as pills, not a second full nav; this page is long enough (a dozen
+   cards) to want a way down to one section without scrolling blind. */
+.settings-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.settings-jump a {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.settings-jump a:hover { color: var(--accent); border-color: var(--accent); }
+
+/* A step-by-step walkthrough tucked behind a native disclosure instead of
+   always sitting fully expanded — a first-time connection needs to read
+   every step, a reconnect six months later doesn't. Server decides the
+   starting open/closed state per card (open until that source is actually
+   configured); this is purely the chrome around whichever state it picks. */
+details.settings-howto {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.9rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+details.settings-howto summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style-position: outside;
+}
+details.settings-howto summary:hover { color: var(--accent); }
+details.settings-howto[open] summary { margin-bottom: 0.6rem; }
+details.settings-howto ol:last-child,
+details.settings-howto p:last-child { margin-bottom: 0; }
+
 /* Marks a term whose title= attribute explains it — without the dotted
    underline a tooltip is undiscoverable, since nothing invites the hover.
    Icon-only buttons don't need it: the icon itself is the affordance. */
