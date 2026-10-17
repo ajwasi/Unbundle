@@ -484,6 +484,27 @@ async def probe_catalog_product(auth: audible.Authenticator, asin: str) -> dict:
         return await client.get(f"catalog/products/{asin}", params={"response_groups": PROBE_RESPONSE_GROUPS})
 
 
+async def request_license(auth: audible.Authenticator, asin: str, quality: str = "Extreme") -> dict:
+    """The license-request call behind an actual audiobook download —
+    NOT reverse-engineered for this app specifically: this is the `audible`
+    package's own official example
+    (github.com/mkb79/Audible/blob/master/examples/download_books_aaxc.py),
+    using the exact same already-authenticated AsyncClient every other call
+    in this file does. Confirmed by that example (not independently
+    re-verified live against this account) that the response's download URL
+    lives at response["content_license"]["content_metadata"]["content_url"]
+    ["offline_url"], and that audible.aescipher.decrypt_voucher_from_licenserequest(
+    auth, response) decrypts the per-file key/iv book_downloader.py needs —
+    see that module for the rest of the pipeline (download, then ffmpeg
+    remux into a plain .m4b).
+    """
+    async with audible.AsyncClient(auth) as client:
+        return await client.post(
+            f"content/{asin}/licenserequest",
+            body={"drm_type": "Adrm", "consumption_type": "Download", "quality": quality},
+        )
+
+
 async def fetch_series_children(auth: audible.Authenticator, series_asin: str) -> list[tuple[str, str]]:
     """[(asin, sequence), ...] for every book in a series, from the series
     asin's own relationships. Confirmed live (2026-10-06): a series' catalogue

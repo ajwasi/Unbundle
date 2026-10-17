@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.audible import pdf_downloader
+from app.audible import book_downloader, pdf_downloader
 from app.connectors.audible_connector import is_owned
 from app.csrf import require_csrf
 from app.deps import get_db
@@ -15,6 +15,9 @@ from app.list_views import (
     sorted_query,
 )
 from app.models.audible_book import AudibleBook
+from app.models.audible_book_download import STATUS_COMPLETED as BOOK_STATUS_COMPLETED
+from app.models.audible_book_download import STATUS_QUEUED as BOOK_STATUS_QUEUED
+from app.models.audible_book_download import STATUS_RUNNING as BOOK_STATUS_RUNNING
 from app.models.audible_pdf_download import STATUS_COMPLETED, STATUS_QUEUED, STATUS_RUNNING
 from app.models.audible_series_book import AudibleSeriesBook
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_AUDIBLE
@@ -162,9 +165,20 @@ def _pdf_status_context(db: Session, asin: str) -> dict:
     }
 
 
+def _book_status_context(db: Session, asin: str) -> dict:
+    job = book_downloader.latest_status(db, asin)
+    return {
+        "asin": asin,
+        "book_job": job,
+        "book_running": job is not None and job.status in (BOOK_STATUS_QUEUED, BOOK_STATUS_RUNNING),
+        "book_completed": job is not None and job.status == BOOK_STATUS_COMPLETED,
+    }
+
+
 def _detail_context(db: Session, book: AudibleBook) -> dict:
     context = {"book": book, "owned": is_owned(book.benefit_id)}
     context.update(_pdf_status_context(db, book.asin))
+    context.update(_book_status_context(db, book.asin))
     return context
 
 
@@ -314,3 +328,30 @@ def download_pdf_file(asin: str, db: Session = Depends(get_db)):
     book = db.get(AudibleBook, asin)
     filename = f"{book.title}.pdf" if book else f"{asin}.pdf"
     return FileResponse(job.downloaded_path, filename=filename, media_type="application/pdf")
+
+
+@router.post("/{asin}/book/download", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+async def start_book_download(request: Request, asin: str, db: Session = Depends(get_db)):
+    # async def for the same reason start_pdf_download above is — must run on
+    # the event loop so book_downloader.start_download()'s background task
+    # has one to attach to.
+    try:
+        book_downloader.start_download(db, asin)
+    except (book_downloader.NoAudiobookAvailableError, book_downloader.BookDownloadInProgressError):
+        pass  # surfaced via the same status partial either way
+    return templates.TemplateResponse(request, "audible/_book_status.html", _book_status_context(db, asin))
+
+
+@router.get("/{asin}/book/status", response_class=HTMLResponse)
+def book_download_status(request: Request, asin: str, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(request, "audible/_book_status.html", _book_status_context(db, asin))
+
+
+@router.get("/{asin}/book/file")
+def download_book_file(asin: str, db: Session = Depends(get_db)):
+    job = book_downloader.latest_status(db, asin)
+    if job is None or job.status != BOOK_STATUS_COMPLETED or not job.downloaded_path:
+        return HTMLResponse("No completed audiobook download found for this title.", status_code=404)
+    book = db.get(AudibleBook, asin)
+    filename = f"{book.title}.m4b" if book else f"{asin}.m4b"
+    return FileResponse(job.downloaded_path, filename=filename, media_type="audio/mp4")

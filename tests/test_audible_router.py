@@ -393,6 +393,44 @@ def test_download_pdf_file_route_404s_without_a_completed_download(authed_client
     assert resp.status_code == 404
 
 
+def test_audible_detail_always_shows_the_audiobook_section(authed_client, db):
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    resp = authed_client.get("/audible/B001")
+    assert "Audiobook" in resp.text
+    assert "Download audiobook" in resp.text
+
+
+def test_start_book_download_route(authed_client, db):
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    resp = authed_client.post("/audible/B001/book/download")
+    assert resp.status_code == 200
+
+
+def test_start_book_download_route_handles_missing_book_gracefully(authed_client):
+    resp = authed_client.post("/audible/NONEXISTENT/book/download")
+    assert resp.status_code == 200
+
+
+def test_book_download_status_route(authed_client, db):
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    resp = authed_client.get("/audible/B001/book/status")
+    assert resp.status_code == 200
+
+
+def test_download_book_file_route_404s_without_a_completed_download(authed_client, db):
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    resp = authed_client.get("/audible/B001/book/file")
+    assert resp.status_code == 404
+
+
 def test_plus_catalog_badge_explains_itself_in_a_tooltip(authed_client, db):
     _connect_audible(db)
     db.add(AudibleBook(asin="B001", title="Library Title", benefit_id="LIBRARY"))

@@ -309,3 +309,42 @@ def test_is_owned_true_for_unknown_or_empty_benefit_id():
 
 def test_is_owned_false_for_plus_catalog_benefit_id():
     assert audible_connector.is_owned("AYCL") is False
+
+
+@pytest.mark.asyncio
+async def test_request_license_posts_the_official_example_body():
+    fake_response = {"content_license": {"asin": "B001"}}
+
+    class _FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def post(self, path, body=None):
+            assert path == "content/B001/licenserequest"
+            assert body == {"drm_type": "Adrm", "consumption_type": "Download", "quality": "Extreme"}
+            return fake_response
+
+    with patch("audible.AsyncClient", return_value=_FakeAsyncClient()):
+        result = await audible_connector.request_license(auth=object(), asin="B001")
+
+    assert result == fake_response
+
+
+@pytest.mark.asyncio
+async def test_request_license_sends_a_custom_quality():
+    class _FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def post(self, path, body=None):
+            assert body["quality"] == "High"
+            return {}
+
+    with patch("audible.AsyncClient", return_value=_FakeAsyncClient()):
+        await audible_connector.request_license(auth=object(), asin="B001", quality="High")
