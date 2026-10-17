@@ -725,6 +725,28 @@ details.settings-howto p:last-child { margin-bottom: 0; }
 .item-description p { margin: 0 0 0.5rem; }
 .item-description :last-child { margin-bottom: 0; }
 
+/* One collapsible per series on Audible's "Missing from your series" tab —
+   block-level (not the compact inline .disclosure button look) since each
+   one's own summary carries a cover thumbnail and a count, more like a
+   table row than a toggle control. */
+.series-group { border-bottom: 1px solid var(--border); padding: 0.6rem 0; }
+.series-group:last-child { border-bottom: none; }
+.series-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.series-group > summary:hover { background: none; }
+.series-cover { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+.series-group > p { margin: 0.6rem 0 0.3rem; font-size: 0.85rem; }
+.series-group table { margin-top: 0.4rem; }
+
 .view-toggle {
   padding: 0.3rem 0.7rem;
   border: 1px solid var(--border);

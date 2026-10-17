@@ -51,8 +51,42 @@ def _destinations_context(db: Session) -> dict:
     return {"destinations": _destination_rows(db)}
 
 
+def _series_sort_key(sequence: str) -> tuple:
+    try:
+        return (0, float(sequence))
+    except (TypeError, ValueError):
+        return (1, sequence or "")
+
+
+def _group_missing_by_series(rows: list[AudibleSeriesBook]) -> list[dict]:
+    """rows must already be sorted by series_title, then sequence (the query
+    below does this) — groups are then emitted in that same series_title
+    order, and each group's own books list is sorted by sequence to match
+    series_detail.html's own ordering. The group's cover_url is just the
+    first book encountered with one, there being no dedicated series-cover
+    field on AudibleSeriesBook (see that model's own docstring).
+    """
+    groups: dict[str, dict] = {}
+    for row in rows:
+        g = groups.get(row.series_asin)
+        if g is None:
+            g = groups[row.series_asin] = {
+                "series_asin": row.series_asin,
+                "series_title": row.series_title,
+                "cover_url": "",
+                "books": [],
+            }
+        if not g["cover_url"] and row.cover_url:
+            g["cover_url"] = row.cover_url
+        g["books"].append(row)
+    for g in groups.values():
+        g["books"].sort(key=lambda r: _series_sort_key(r.sequence))
+    return list(groups.values())
+
+
 def _context(
     db: Session,
+    view: str = "owned",
     title: str = "",
     author: str = "",
     narrator: str = "",
@@ -131,7 +165,7 @@ def _context(
     # time), so a book bought since the last series refresh drops off the
     # list immediately rather than waiting for the next refresh to catch up.
     owned_asins = {a for (a,) in db.query(AudibleBook.asin).all()}
-    missing_series = [
+    missing_rows = [
         row
         for row in db.query(AudibleSeriesBook)
         .order_by(AudibleSeriesBook.series_title, AudibleSeriesBook.sequence)
@@ -143,8 +177,10 @@ def _context(
         "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "audible_error": cred.last_error if cred else None,
         "books": books,
-        "missing_series": missing_series,
+        "missing_count": len(missing_rows),
+        "missing_series_groups": _group_missing_by_series(missing_rows),
         "destinations": _destination_rows(db),
+        "view": view if view == "missing" else "owned",
         "title": title,
         "author": author,
         "narrator": narrator,
@@ -198,6 +234,7 @@ def _detail_context(db: Session, book: AudibleBook) -> dict:
 @router.get("", response_class=HTMLResponse)
 def audible_page(
     request: Request,
+    view: str = "owned",
     title: str = "",
     author: str = "",
     narrator: str = "",
@@ -218,6 +255,7 @@ def audible_page(
 ):
     context = _context(
         db,
+        view=view,
         title=title,
         author=author,
         narrator=narrator,
@@ -243,27 +281,31 @@ def audible_page(
     response_class=HTMLResponse,
     dependencies=[Depends(rate_limit(_refresh_limiter, "audible-refresh")), Depends(require_csrf)],
 )
-async def refresh_audible(request: Request, db: Session = Depends(get_db)):
+async def refresh_audible(request: Request, view: str = Form("owned"), db: Session = Depends(get_db)):
     try:
         await audible_sync.refresh_audible_library(db)
     except audible_sync.NotConnectedError:
         pass
     except Exception:
         pass  # error already recorded on the credential row by refresh_audible_library
-    return templates.TemplateResponse(request, "audible/_content.html", _context(db))
-
-
-def _series_sort_key(sequence: str) -> tuple:
-    try:
-        return (0, float(sequence))
-    except (TypeError, ValueError):
-        return (1, sequence or "")
+    return templates.TemplateResponse(request, "audible/_content.html", _context(db, view=view))
 
 
 @router.get("/series/{series_asin}", response_class=HTMLResponse)
 def audible_series_detail(request: Request, series_asin: str, db: Session = Depends(get_db)):
     owned = db.query(AudibleBook).filter(AudibleBook.series_asin == series_asin).all()
-    missing = db.query(AudibleSeriesBook).filter(AudibleSeriesBook.series_asin == series_asin).all()
+    # Library-wide, not just this series' own owned rows: AudibleSeriesBook is
+    # supposed to only ever hold still-unowned siblings (see its own
+    # docstring), but a row goes stale the moment its book is bought after
+    # the last series refresh — exactly like _context()'s own missing_rows
+    # above, filtering at read time (not sync time) is what keeps a newly-
+    # bought book from showing up as both Owned and Missing in the same table.
+    owned_asins = {a for (a,) in db.query(AudibleBook.asin).all()}
+    missing = [
+        row
+        for row in db.query(AudibleSeriesBook).filter(AudibleSeriesBook.series_asin == series_asin).all()
+        if row.asin not in owned_asins
+    ]
     if not owned and not missing:
         return templates.TemplateResponse(
             request, "audible/series_not_found.html", {"series_asin": series_asin}, status_code=404
