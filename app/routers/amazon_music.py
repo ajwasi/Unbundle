@@ -225,6 +225,11 @@ def _context(db: Session, q: str = "", sort: str = "added", show_missing: bool =
         "new_cutoff": new_cutoff,
         "active_downloads": active_downloads,
         "active_download_ids": {a["download_id"] for a in active_downloads},
+        # Mirrors bundles.py's own per-item `status` — a plain "completed"/
+        # "failed"/... string per track, read straight from the DB (no live
+        # filesystem check here; that only happens when a download is
+        # actually dispatched — see downloader._is_completed_and_present).
+        "track_status": downloader.latest_statuses(db, [t.download_id for t in tracks]),
     }
 
 
@@ -257,11 +262,13 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
         like = f"%{q}%"
         query = query.filter(or_(AmazonMusicTrack.album.ilike(like), AmazonMusicTrack.artist.ilike(like)))
 
+    tracks = query.all()
     active_ids = {a["download_id"] for a in downloader.get_active_downloads(db)}
     # One query for every album's sync status, not one per album — this
     # function already loads every matching track in a single query for the
-    # same reason.
+    # same reason. track_status is the same idea, applied to download state.
     order_synced_asins = {row[0] for row in db.query(AmazonMusicAlbumCatalogSync.album_asin).all()}
+    track_status = downloader.latest_statuses(db, [t.download_id for t in tracks])
 
     groups: dict[str, dict] = {}
     # cover_url is a presigned, expiring S3 URL (see AmazonMusicTrack's own
@@ -271,7 +278,7 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
     # one. cover_refreshed_at tracks the winning pick's own timestamp per
     # album so a later, fresher track can still displace an earlier pick.
     cover_refreshed_at: dict[str, datetime] = {}
-    for t in query.all():
+    for t in tracks:
         key = _album_key(t.album_asin)
         g = groups.get(key)
         if g is None:
@@ -282,6 +289,7 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
                 "cover_url": "",
                 "track_count": 0,
                 "missing_count": 0,
+                "downloaded_count": 0,
                 "downloading": False,
                 "track_order_synced": key in order_synced_asins,
                 "first_seen_at": t.first_seen_at,
@@ -289,6 +297,8 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
         g["track_count"] += 1
         if t.missing_since:
             g["missing_count"] += 1
+        elif track_status.get(t.download_id) == downloader.STATUS_COMPLETED:
+            g["downloaded_count"] += 1
         if t.cover_url:
             refreshed = t.cover_url_refreshed_at or t.first_seen_at
             if not g["cover_url"] or refreshed > cover_refreshed_at[key]:
@@ -298,6 +308,14 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
             g["downloading"] = True
         if t.first_seen_at > g["first_seen_at"]:
             g["first_seen_at"] = t.first_seen_at
+    for g in groups.values():
+        # "Downloaded" (checkmark, no button) only once every currently-
+        # listed track in the album has a file on record — mirrors bundles'
+        # own g.summary == "downloaded" requiring every format variant, not
+        # just one. A no-longer-listed track doesn't block this; there's
+        # nothing left to download for it.
+        trackable = g["track_count"] - g["missing_count"]
+        g["all_downloaded"] = trackable > 0 and g["downloaded_count"] == trackable
     return list(groups.values())
 
 
@@ -311,17 +329,21 @@ def _single_album_row(db: Session, album_key: str) -> dict | None:
     if not rows:
         return None
     active_ids = {a["download_id"] for a in downloader.get_active_downloads(db)}
+    track_status = downloader.latest_statuses(db, [t.download_id for t in rows])
     synced = album_key != _NO_ALBUM_KEY and db.get(AmazonMusicAlbumCatalogSync, album_key) is not None
 
     cover_url = ""
     cover_refreshed_at = None
     track_count = 0
     missing_count = 0
+    downloaded_count = 0
     downloading = False
     for t in rows:
         track_count += 1
         if t.missing_since:
             missing_count += 1
+        elif track_status.get(t.download_id) == downloader.STATUS_COMPLETED:
+            downloaded_count += 1
         if t.cover_url:
             refreshed = t.cover_url_refreshed_at or t.first_seen_at
             if not cover_url or refreshed > cover_refreshed_at:
@@ -331,6 +353,7 @@ def _single_album_row(db: Session, album_key: str) -> dict | None:
             downloading = True
 
     row = rows[0]
+    trackable = track_count - missing_count
     return {
         "album_key": album_key,
         "album": row.album or "(Unknown album)",
@@ -338,6 +361,8 @@ def _single_album_row(db: Session, album_key: str) -> dict | None:
         "cover_url": cover_url,
         "track_count": track_count,
         "missing_count": missing_count,
+        "downloaded_count": downloaded_count,
+        "all_downloaded": trackable > 0 and downloaded_count == trackable,
         "downloading": downloading,
         "track_order_synced": synced,
     }

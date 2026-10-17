@@ -10,6 +10,7 @@ from app.connectors import amazon_music_connector as amc
 from app.connectors.amazon_music_connector import AmazonMusicAuthError
 from app.models.amazon_music_album_catalog_sync import AmazonMusicAlbumCatalogSync
 from app.models.amazon_music_destination import AmazonMusicDestination
+from app.models.amazon_music_download import AmazonMusicDownload
 from app.models.amazon_music_track import AmazonMusicTrack
 from app.routers import amazon_music as amazon_music_router
 from app.sync import amazon_music_sync as sync
@@ -652,6 +653,60 @@ def test_main_page_shows_a_downloading_badge_for_an_album_with_an_active_track(a
     # (replaced by a badge); the other, unrelated album's button is still there.
     assert "/amazon-music/albums/B074JM9JHY/download" not in resp.text
     assert "/amazon-music/albums/B076HBKJ6J/download" in resp.text
+
+
+def test_table_shows_a_downloaded_badge_and_hides_the_button_for_a_completed_track(authed_client, db):
+    _seed(db)
+    db.add(AmazonMusicDownload(download_id="c64eeeb1-e203-4c0a-9213-43ac6202c74a", status="completed"))
+    db.commit()
+
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+
+    assert "/amazon-music/downloads/c64eeeb1-e203-4c0a-9213-43ac6202c74a" not in resp.text
+    assert "Downloaded" in resp.text
+
+
+def test_album_grid_shows_a_downloaded_badge_once_its_only_track_is_complete(authed_client, db):
+    _seed(db)
+    db.add(AmazonMusicDownload(download_id="c64eeeb1-e203-4c0a-9213-43ac6202c74a", status="completed"))
+    db.commit()
+
+    resp = authed_client.get("/amazon-music")
+
+    assert "/amazon-music/albums/B074JM9JHY/download" not in resp.text
+    # The other album's only track was never downloaded — still a button.
+    assert "/amazon-music/albums/B076HBKJ6J/download" in resp.text
+
+
+def test_a_failed_download_still_shows_the_button_not_a_downloaded_badge(authed_client, db):
+    _seed(db)
+    db.add(AmazonMusicDownload(download_id="c64eeeb1-e203-4c0a-9213-43ac6202c74a", status="failed"))
+    db.commit()
+
+    resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
+
+    assert "/amazon-music/downloads/c64eeeb1-e203-4c0a-9213-43ac6202c74a" in resp.text
+
+
+def test_downloads_route_does_not_requeue_an_already_downloaded_track(authed_client, db, tmp_path):
+    _seed(db)
+    done_file = tmp_path / "already-here.mp3"
+    done_file.write_bytes(b"already downloaded")
+    db.add(
+        AmazonMusicDownload(
+            download_id="c64eeeb1-e203-4c0a-9213-43ac6202c74a", status="completed", downloaded_path=str(done_file)
+        )
+    )
+    db.commit()
+    before_count = db.query(AmazonMusicDownload).count()
+
+    # Real queue_many, not mocked — proves the skip happens underneath the route too.
+    resp = authed_client.post(
+        "/amazon-music/downloads", data={"download_id": ["c64eeeb1-e203-4c0a-9213-43ac6202c74a"]}
+    )
+
+    assert resp.status_code == 200
+    assert db.query(AmazonMusicDownload).count() == before_count
 
 
 # ---------------------------------------------------------- album downloads

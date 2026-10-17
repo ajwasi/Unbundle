@@ -21,6 +21,8 @@
   <td style="white-space: nowrap;">
     {% if a.downloading %}
     <span class="badge badge-pending">Downloading&hellip;</span>
+    {% elif a.all_downloaded %}
+    <span class="badge badge-ok" title="Downloaded">&check;</span>
     {% else %}
     <button type="button" class="secondary" style="padding: 0.15rem 0.5rem; font-size: 0.85em;"
             hx-post="/amazon-music/albums/{{ a.album_key }}/download" hx-target="closest tr" hx-swap="outerHTML"
