@@ -39,7 +39,7 @@ module-level state), just with one prompt instead of four.
 
 import queue
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import audible
@@ -100,6 +100,9 @@ class AudibleBookData:
     percent_complete: float = 0
     pdf_url: str = ""
     benefit_id: str = ""
+    # The individual names behind `author` (which is just these joined with
+    # ", ") — kept separately since a name can itself contain a comma.
+    author_names: list[str] = field(default_factory=list)
 
 
 def is_owned(benefit_id: str) -> bool:
@@ -301,7 +304,8 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
         asin = item.get("asin")
         if not asin:
             continue
-        authors = ", ".join(a["name"] for a in item.get("authors") or [] if a.get("name"))
+        author_names = [a["name"] for a in item.get("authors") or [] if a.get("name")]
+        authors = ", ".join(author_names)
         # Same "contributors" response_group as authors, parallel shape —
         # not yet confirmed against a real account (no raw_json stored on
         # AudibleBook to check it against), but well-established elsewhere
@@ -333,6 +337,7 @@ async def fetch_library(auth: audible.Authenticator) -> list[AudibleBookData]:
                 percent_complete=float(item.get("percent_complete") or 0),
                 pdf_url=item.get("pdf_url") or "",
                 benefit_id=str(item.get("benefit_id") or ""),
+                author_names=author_names,
             )
         )
     return books
@@ -558,3 +563,87 @@ def parse_series_book_item(item: dict, sequence: str) -> AudibleSeriesBookData |
         list_price=listed,
         currency=currency,
     )
+
+
+AUTHOR_RESPONSE_GROUPS = "series,price,product_desc,contributors,media"
+AUTHOR_PAGE_SIZE = 50
+# 250 titles per author — comfortably past any real author's back catalogue
+# (the catalogue's author search is by name, so a very common name can match
+# well beyond that, all of it filtered back down by name below anyway).
+AUTHOR_MAX_PAGES = 5
+
+
+@dataclass
+class AudibleAuthorBookData:
+    asin: str
+    title: str
+    authors: str
+    narrators: str
+    cover_url: str
+    series_title: str
+    series_sequence: str
+    release_date: str
+    current_price: float | None
+    list_price: float | None
+    currency: str
+
+
+def parse_author_book_item(item: dict, author_name: str) -> AudibleAuthorBookData | None:
+    """A catalogue product by `author_name`, or None if it has no asin or
+    isn't actually by that author. The catalogue's author search is a fuzzy
+    text match, so every result is re-checked against the exact name here
+    (case-insensitively) rather than trusting the query.
+    """
+    asin = item.get("asin")
+    if not asin:
+        return None
+    names = [a["name"] for a in item.get("authors") or [] if a.get("name")]
+    if author_name.casefold() not in {n.casefold() for n in names}:
+        return None
+    images = item.get("product_images") or {}
+    cover = images.get("500") or next(iter(images.values()), "")
+    current, listed, currency = _wishlist_prices(item)
+    series_title, series_sequence, _ = _parse_series(item)
+    return AudibleAuthorBookData(
+        asin=asin,
+        title=item.get("title") or asin,
+        authors=", ".join(names),
+        narrators=", ".join(n["name"] for n in item.get("narrators") or [] if n.get("name")),
+        cover_url=cover,
+        series_title=series_title,
+        series_sequence=series_sequence,
+        release_date=str(item.get("release_date") or "")[:10],
+        current_price=current,
+        list_price=listed,
+        currency=currency,
+    )
+
+
+async def fetch_author_books(auth: audible.Authenticator, author_name: str) -> list[AudibleAuthorBookData]:
+    """Every catalogue title by `author_name`, newest first. One paged
+    catalogue search per author — each result already carries full product
+    details, so unlike the series refresh there's no per-book follow-up call.
+    """
+    books: list[AudibleAuthorBookData] = []
+    seen: set[str] = set()
+    async with audible.AsyncClient(auth) as client:
+        for page in range(AUTHOR_MAX_PAGES):
+            resp = await client.get(
+                "catalog/products",
+                params={
+                    "author": author_name,
+                    "response_groups": AUTHOR_RESPONSE_GROUPS,
+                    "num_results": AUTHOR_PAGE_SIZE,
+                    "page": page,
+                    "products_sort_by": "-ReleaseDate",
+                },
+            )
+            raw = resp.get("products") or []
+            for entry in raw:
+                parsed = parse_author_book_item(entry, author_name)
+                if parsed and parsed.asin not in seen:
+                    seen.add(parsed.asin)
+                    books.append(parsed)
+            if len(raw) < AUTHOR_PAGE_SIZE:
+                break
+    return books

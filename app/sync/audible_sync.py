@@ -18,6 +18,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.connectors import audible_connector
+from app.models.audible_author_book import AudibleAuthorBook
 from app.models.audible_book import AudibleBook
 from app.models.audible_series_book import AudibleSeriesBook
 from app.models.audible_wishlist import AudibleWishlistItem, AudibleWishlistPrice
@@ -100,6 +101,17 @@ async def refresh_audible_library(db: Session) -> int:
             db.add(row)
         db.commit()
 
+    try:
+        author_rows = await _fetch_author_rows(auth, books)
+    except Exception as exc:
+        logger.warning("audible: author refresh failed, keeping previous author data: %s", exc)
+        author_rows = None
+    if author_rows is not None:
+        db.query(AudibleAuthorBook).delete()
+        for row in author_rows:
+            db.add(row)
+        db.commit()
+
     _set_credential_status(db, STATUS_OK, None)
     return len(books)
 
@@ -148,6 +160,50 @@ async def _fetch_series_rows(
                     narrators=parsed.narrators,
                     cover_url=parsed.cover_url,
                     sequence=parsed.sequence,
+                    current_price=parsed.current_price,
+                    list_price=parsed.list_price,
+                    currency=parsed.currency,
+                    fetched_at=now,
+                )
+            )
+    return rows
+
+
+async def _fetch_author_rows(
+    auth: audible.Authenticator, books: list[audible_connector.AudibleBookData]
+) -> list[AudibleAuthorBook]:
+    """One catalogue search per distinct owned author (matched
+    case-insensitively); anything already owned is dropped. An author whose
+    lookup fails is skipped rather than failing the whole refresh.
+    """
+    owned_asins = {b.asin for b in books}
+    authors: dict[str, str] = {}
+    for b in books:
+        for name in b.author_names:
+            authors.setdefault(name.casefold(), name)
+
+    rows: list[AudibleAuthorBook] = []
+    now = datetime.utcnow()
+    for author_name in authors.values():
+        try:
+            found = await audible_connector.fetch_author_books(auth, author_name)
+        except Exception as exc:
+            logger.warning("audible: author %s unavailable, skipping: %s", author_name, exc)
+            continue
+        for parsed in found:
+            if parsed.asin in owned_asins:
+                continue
+            rows.append(
+                AudibleAuthorBook(
+                    author_name=author_name,
+                    asin=parsed.asin,
+                    title=parsed.title,
+                    authors=parsed.authors,
+                    narrators=parsed.narrators,
+                    cover_url=parsed.cover_url,
+                    series_title=parsed.series_title,
+                    series_sequence=parsed.series_sequence,
+                    release_date=parsed.release_date,
                     current_price=parsed.current_price,
                     list_price=parsed.list_price,
                     currency=parsed.currency,

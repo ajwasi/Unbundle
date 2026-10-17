@@ -14,6 +14,7 @@ from app.list_views import (
     render_list_or_partial,
     sorted_query,
 )
+from app.models.audible_author_book import AudibleAuthorBook
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import STATUS_COMPLETED as BOOK_STATUS_COMPLETED
 from app.models.audible_book_download import STATUS_QUEUED as BOOK_STATUS_QUEUED
@@ -81,6 +82,22 @@ def _group_missing_by_series(rows: list[AudibleSeriesBook]) -> list[dict]:
         g["books"].append(row)
     for g in groups.values():
         g["books"].sort(key=lambda r: _series_sort_key(r.sequence))
+    return list(groups.values())
+
+
+def _group_missing_by_author(rows: list[AudibleAuthorBook]) -> list[dict]:
+    """rows must already be sorted by author_name (the query below does
+    this); each group's books are newest release first, then by title.
+    """
+    groups: dict[str, dict] = {}
+    for row in rows:
+        g = groups.get(row.author_name)
+        if g is None:
+            g = groups[row.author_name] = {"author_name": row.author_name, "books": []}
+        g["books"].append(row)
+    for g in groups.values():
+        g["books"].sort(key=lambda r: r.title)
+        g["books"].sort(key=lambda r: r.release_date, reverse=True)
     return list(groups.values())
 
 
@@ -173,14 +190,23 @@ def _context(
         if row.asin not in owned_asins
     ]
 
+    # Same read-time owned filter as missing_rows above, for the same reason.
+    author_missing_rows = [
+        row
+        for row in db.query(AudibleAuthorBook).order_by(AudibleAuthorBook.author_name).all()
+        if row.asin not in owned_asins
+    ]
+
     return {
         "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "audible_error": cred.last_error if cred else None,
         "books": books,
         "missing_count": len(missing_rows),
         "missing_series_groups": _group_missing_by_series(missing_rows),
+        "missing_author_count": len(author_missing_rows),
+        "missing_author_groups": _group_missing_by_author(author_missing_rows),
         "destinations": _destination_rows(db),
-        "view": view if view == "missing" else "owned",
+        "view": view if view in ("missing", "missing_authors") else "owned",
         "title": title,
         "author": author,
         "narrator": narrator,
