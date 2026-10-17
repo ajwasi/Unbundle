@@ -143,6 +143,110 @@ async def test_queue_many_skips_unknown_ids_and_reports_the_real_count(db, monke
     assert queued == 2
 
 
+# ------------------------------------------------------ already-downloaded
+
+
+def test_latest_statuses_returns_only_ids_ever_attempted(db):
+    from app.models.amazon_music_download import AmazonMusicDownload
+
+    _add_track(db, download_id="id-1")
+    _add_track(db, download_id="id-2", track_asin="B07BFJR1HC", title="The Dance")
+    db.add(AmazonMusicDownload(download_id="id-1", status=STATUS_COMPLETED))
+    db.commit()
+
+    statuses = downloader.latest_statuses(db, ["id-1", "id-2"])
+
+    assert statuses == {"id-1": STATUS_COMPLETED}
+
+
+def test_latest_statuses_reflects_the_most_recent_attempt(db):
+    from app.models.amazon_music_download import AmazonMusicDownload
+
+    _add_track(db, download_id="id-1")
+    db.add(AmazonMusicDownload(download_id="id-1", status=STATUS_FAILED))
+    db.add(AmazonMusicDownload(download_id="id-1", status=STATUS_COMPLETED))
+    db.commit()
+
+    assert downloader.latest_statuses(db, ["id-1"]) == {"id-1": STATUS_COMPLETED}
+
+
+@pytest.mark.asyncio
+async def test_start_download_skips_a_track_already_downloaded_and_present(db, tmp_path, monkeypatch):
+    from app.models.amazon_music_download import AmazonMusicDownload
+
+    _reset_module_state(monkeypatch)
+    _add_track(db)
+    existing_file = tmp_path / "already-here.mp3"
+    existing_file.write_bytes(b"real bytes")
+    existing = AmazonMusicDownload(
+        download_id="c64eeeb1-e203-4c0a-9213-43ac6202c74a", status=STATUS_COMPLETED, downloaded_path=str(existing_file)
+    )
+    db.add(existing)
+    db.commit()
+    db.refresh(existing)
+
+    # No Audible connection, no template, no mocked transport — if this made
+    # a real network call it would fail loudly, not silently succeed.
+    job = await downloader.start_download(db, "c64eeeb1-e203-4c0a-9213-43ac6202c74a")
+
+    assert job.id == existing.id
+    assert job.status == STATUS_COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_start_download_redownloads_when_the_completed_file_is_gone(db, tmp_path, monkeypatch):
+    from app.config import settings
+    from app.models.amazon_music_download import AmazonMusicDownload
+
+    _reset_module_state(monkeypatch)
+    monkeypatch.setattr(settings, "downloads_dir", tmp_path)
+    _connect_audible(db)
+    _save_template(db)
+    _add_track(db)
+    missing_file = tmp_path / "deleted-since.mp3"  # never actually created
+    db.add(
+        AmazonMusicDownload(
+            download_id="c64eeeb1-e203-4c0a-9213-43ac6202c74a", status=STATUS_COMPLETED, downloaded_path=str(missing_file)
+        )
+    )
+    db.commit()
+
+    _patch_async_client(monkeypatch, httpx.MockTransport(_handler_factory()))
+
+    with patch("audible.Authenticator", _Auth):
+        job = await downloader.start_download(db, "c64eeeb1-e203-4c0a-9213-43ac6202c74a")
+        assert await _await_until(
+            db,
+            lambda: downloader.latest_status(db, "c64eeeb1-e203-4c0a-9213-43ac6202c74a").status
+            in (STATUS_COMPLETED, STATUS_FAILED),
+        )
+
+    db.expire_all()
+    finished = downloader.latest_status(db, "c64eeeb1-e203-4c0a-9213-43ac6202c74a")
+    # A genuinely new job, not the stale row pointing at the deleted file.
+    assert finished.id != job.id or finished.downloaded_path != str(missing_file)
+    assert finished.status == STATUS_COMPLETED
+    assert Path(finished.downloaded_path).read_bytes() == b"FAKE MP3 BYTES"
+
+
+@pytest.mark.asyncio
+async def test_queue_many_does_not_requeue_already_downloaded_tracks(db, tmp_path, monkeypatch):
+    from app.models.amazon_music_download import AmazonMusicDownload
+
+    _reset_module_state(monkeypatch)
+    _add_track(db, download_id="id-1")
+    _add_track(db, download_id="id-2", track_asin="B07BFJR1HC", title="The Dance")
+    done_file = tmp_path / "done.mp3"
+    done_file.write_bytes(b"already downloaded")
+    db.add(AmazonMusicDownload(download_id="id-1", status=STATUS_COMPLETED, downloaded_path=str(done_file)))
+    db.commit()
+
+    # id-1 is skipped (already present); id-2 is the only one actually queued.
+    queued = await downloader.queue_many(db, ["id-1", "id-2"])
+
+    assert queued == 1
+
+
 # ------------------------------------------------------ destination paths
 
 def test_resolve_destination_root_falls_back_when_none_configured(db):

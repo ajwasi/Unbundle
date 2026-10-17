@@ -112,6 +112,48 @@ def latest_status(db: Session, download_id: str) -> AmazonMusicDownload | None:
     )
 
 
+def _latest_download_rows(db: Session, download_ids) -> dict[str, AmazonMusicDownload]:
+    """One batched query's worth of latest_status(), for every id in
+    download_ids at once — same shape as get_active_downloads's own query,
+    just keyed by id instead of filtered to running/queued."""
+    download_ids = list(download_ids)
+    if not download_ids:
+        return {}
+    rows = (
+        db.query(AmazonMusicDownload)
+        .filter(AmazonMusicDownload.download_id.in_(download_ids))
+        .order_by(AmazonMusicDownload.download_id, AmazonMusicDownload.id.desc())
+        .all()
+    )
+    latest: dict[str, AmazonMusicDownload] = {}
+    for row in rows:
+        latest.setdefault(row.download_id, row)
+    return latest
+
+
+def latest_statuses(db: Session, download_ids) -> dict[str, str]:
+    """download_id -> most recent download attempt's status, for ids that
+    have ever been attempted at all (an id with no row is just absent, same
+    convention as bundles.py's own `row.status if row else None`). Powers the
+    Downloaded badge on the track table and album grid, mirroring how those
+    pages already read bundles' own `g.summary`."""
+    return {download_id: row.status for download_id, row in _latest_download_rows(db, download_ids).items()}
+
+
+def _is_completed_and_present(row: AmazonMusicDownload | None) -> bool:
+    """Trusts the filesystem over a possibly-stale STATUS_COMPLETED row, the
+    same philosophy downloads/worker.py's own dispatch-time re-verify uses
+    (see its own long comment on why "non-empty + present" is the real
+    success signal) — a file deleted outside this app since the last
+    successful download should still re-download, not stay silently skipped
+    forever just because the DB row once said so.
+    """
+    if row is None or row.status != STATUS_COMPLETED or not row.downloaded_path:
+        return False
+    path = Path(row.downloaded_path)
+    return path.exists() and path.stat().st_size > 0
+
+
 def sweep_stale_downloads() -> None:
     """Call on app startup — a container restart mid-download would otherwise
     leave a row stuck 'running' forever (same reasoning as
@@ -233,9 +275,21 @@ async def start_download(db: Session, download_id: str) -> AmazonMusicDownload:
     same convention as downloads/worker.py's start_download; whether this
     runs immediately or waits behind others is try_dispatch_queued_downloads's
     call, made right after.
+
+    Skips re-fetching (and reports the existing completed job straight back)
+    when this track's own last attempt is still genuinely on disk — the same
+    thing bundles' own download dispatch does for every item it's asked to
+    download, not something new to this connector. Nothing calls this for an
+    already-complete track today (the table hides that button — see
+    router.py's track_status), but it stays correct standalone rather than
+    relying on the caller to have already checked.
     """
     if db.get(AmazonMusicTrack, download_id) is None:
         raise UnknownTrackError(f"No track on file for download_id {download_id!r}.")
+
+    existing = latest_status(db, download_id)
+    if _is_completed_and_present(existing):
+        return existing
 
     job = AmazonMusicDownload(download_id=download_id)
     db.add(job)
@@ -246,21 +300,29 @@ async def start_download(db: Session, download_id: str) -> AmazonMusicDownload:
 
 
 async def queue_many(db: Session, download_ids: list[str]) -> int:
-    """Queues every id that matches a real, known track — silently skipping
-    ones that don't (e.g. a stale checkbox from before a re-sync), the same
-    way a single unknown id would just never match anything rather than
-    erroring out a whole bulk request over one bad row. Returns how many were
-    actually queued.
+    """Queues every id that matches a real, known track and isn't already
+    downloaded and still sitting on disk — silently skipping ones that don't
+    match at all (e.g. a stale checkbox from before a re-sync) exactly as
+    before, and now also skipping ones that are already done, the same way
+    "Download All" on a Humble bundle re-verifies every item's file against
+    disk rather than blindly re-fetching it. A track whose file has since
+    been deleted outside this app is NOT skipped — _is_completed_and_present
+    checks the real filesystem, not just the stored status — so re-running
+    this (e.g. via "Download all" again) is exactly how a track recovers from
+    a stale completed row, same as bundles. Returns how many were actually
+    (re-)queued.
     """
     known = {
         row[0]
         for row in db.query(AmazonMusicTrack.download_id).filter(AmazonMusicTrack.download_id.in_(download_ids)).all()
     }
+    latest_rows = _latest_download_rows(db, known)
     queued = 0
     for download_id in download_ids:
-        if download_id in known:
-            db.add(AmazonMusicDownload(download_id=download_id))
-            queued += 1
+        if download_id not in known or _is_completed_and_present(latest_rows.get(download_id)):
+            continue
+        db.add(AmazonMusicDownload(download_id=download_id))
+        queued += 1
     db.commit()
     if queued:
         await try_dispatch_queued_downloads()

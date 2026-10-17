@@ -94,6 +94,8 @@
             <span class="badge badge-pending tip" title="This track was in a previous sync but Amazon no longer lists it. The row is kept, never deleted.">No longer listed</span>
             {% elif t.download_id in active_download_ids %}
             <span class="badge badge-pending">Downloading&hellip;</span>
+            {% elif track_status.get(t.download_id) == "completed" %}
+            <span class="badge badge-ok" title="Downloaded">&check;</span>
             {% else %}
             <button type="button" class="secondary" style="padding: 0.15rem 0.5rem; font-size: 0.85em;"
                     hx-post="/amazon-music/downloads/{{ t.download_id }}" hx-target="#amazon-music-table" hx-swap="outerHTML"
