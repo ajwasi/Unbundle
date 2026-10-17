@@ -159,7 +159,7 @@ async def test_a_book_with_no_series_is_skipped(db):
 # ----------------------------------------------------------------------- router
 
 
-def test_missing_series_section_lists_unowned_siblings(authed_client, db):
+def test_owned_tab_is_the_default_and_missing_tab_count_badge_shows_up(authed_client, db):
     now = datetime.utcnow()
     db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
     db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_asin="B01M1RDL6W"))
@@ -167,11 +167,56 @@ def test_missing_series_section_lists_unowned_siblings(authed_client, db):
     db.commit()
 
     resp = authed_client.get("/audible")
+    # Both tabs' labels/counts always render — it's the content underneath
+    # that's exclusive to whichever tab is active.
     assert "Missing from your series" in resp.text
+    assert "We Are Legion (We Are Bob)" in resp.text
+    assert "For We Are Many" not in resp.text
+
+
+def test_missing_series_tab_lists_unowned_siblings_grouped_under_their_series(authed_client, db):
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_asin="B01M1RDL6W"))
+    db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many", authors="Dennis E. Taylor", sequence="2", cover_url="https://example.com/bob.jpg", current_price=13.96, list_price=19.95, currency="USD", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible?view=missing")
+    assert resp.status_code == 200
     assert "For We Are Many" in resp.text
+    # The series title is the group heading (collapsible), with its cover
+    # pulled up to that level, not repeated per row.
+    assert "Bobiverse" in resp.text
+    assert 'src="https://example.com/bob.jpg"' in resp.text
+    assert 'class="disclosure series-group"' in resp.text
+    # The owned book from the same series doesn't also show up here.
+    assert "We Are Legion (We Are Bob)" not in resp.text
 
 
-def test_a_book_bought_since_the_last_series_refresh_drops_off_the_list(authed_client, db):
+def test_missing_series_tab_keeps_different_series_in_separate_groups(authed_client, db):
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_asin="B01M1RDL6W"))
+    db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many", authors="Dennis E. Taylor", sequence="2", fetched_at=now))
+    db.add(AudibleBook(asin="B01L082XXX", title="The Hunt for Red October", author="Tom Clancy", runtime_minutes=700, cover_url="", fetched_at=now, series_asin="B01JACKRYAN"))
+    db.add(AudibleSeriesBook(series_asin="B01JACKRYAN", asin="B01PATRIOT", series_title="A Jack Ryan Novel", title="Patriot Games", authors="Tom Clancy", sequence="2", fetched_at=now))
+    db.add(AudibleSeriesBook(series_asin="B01JACKRYAN", asin="B01CARDINAL", series_title="A Jack Ryan Novel", title="The Cardinal of the Kremlin", authors="Tom Clancy", sequence="3", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible?view=missing")
+
+    assert resp.status_code == 200
+    # Two separate collapsible groups, not one merged list.
+    assert resp.text.count('class="disclosure series-group"') == 2
+    assert "Bobiverse" in resp.text
+    assert "A Jack Ryan Novel" in resp.text
+    # The Jack Ryan series' own group shows both its missing books once each.
+    jack_ryan_section = resp.text.split("A Jack Ryan Novel")[1].split('class="disclosure series-group"')[0]
+    assert jack_ryan_section.count("Patriot Games") == 1
+    assert jack_ryan_section.count("The Cardinal of the Kremlin") == 1
+
+
+def test_a_book_bought_since_the_last_series_refresh_drops_off_the_missing_tab(authed_client, db):
     now = datetime.utcnow()
     db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
     db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_asin="B01M1RDL6W"))
@@ -180,8 +225,11 @@ def test_a_book_bought_since_the_last_series_refresh_drops_off_the_list(authed_c
     db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many", authors="Dennis E. Taylor", sequence="2", fetched_at=now))
     db.commit()
 
-    resp = authed_client.get("/audible")
-    assert "Missing from your series" not in resp.text
+    resp = authed_client.get("/audible?view=missing")
+    assert "Nothing missing" in resp.text
+    assert "For We Are Many" not in resp.text
+    # The tab badge itself reflects zero too, not just the empty-state copy.
+    assert ">0</span>" in resp.text.split("Missing from your series")[1][:200]
 
 
 def test_series_detail_page_lists_owned_and_missing_books_in_order(authed_client, db):
@@ -207,6 +255,35 @@ def test_series_detail_page_lists_owned_and_missing_books_in_order(authed_client
     assert resp.text.count("13.96") == 2
     assert 'src="https://example.com/bob1.jpg"' in resp.text
     assert 'src="https://example.com/bob2.jpg"' in resp.text
+
+
+def test_series_detail_page_does_not_double_list_a_book_bought_since_the_last_refresh(authed_client, db):
+    """Regression test: AudibleSeriesBook is supposed to only ever hold
+    still-unowned siblings (see that model's own docstring), but a row goes
+    stale the moment its book is bought after the last series refresh — the
+    exact scenario that produced the duplicate "Owned" + "Missing" rows for
+    the same title (same sequence number) reported against this page.
+    """
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596,
+                       cover_url="", fetched_at=now, series_title="Bobiverse", series_sequence="1", series_asin="B01M1RDL6W"))
+    # Bought since the last series refresh — still owned too, now under its
+    # own AudibleBook row — but the stale AudibleSeriesBook row for it hasn't
+    # been cleared out yet.
+    db.add(AudibleBook(asin="B01N17THEO", title="For We Are Many", author="Dennis E. Taylor", runtime_minutes=600,
+                       cover_url="", fetched_at=now, series_title="Bobiverse", series_sequence="2", series_asin="B01M1RDL6W"))
+    db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many",
+                             authors="Dennis E. Taylor", sequence="2", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible/series/B01M1RDL6W")
+
+    assert resp.status_code == 200
+    # Each title appears exactly once, as Owned — not once Owned and once Missing.
+    assert resp.text.count("For We Are Many") == 1
+    assert resp.text.count(">Owned<") == 2
+    assert resp.text.count(">Missing<") == 0
 
 
 def test_series_detail_page_404s_for_an_unknown_series(authed_client):
