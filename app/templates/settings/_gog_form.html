@@ -18,15 +18,16 @@
   {% endif %}
 </div>
 
-<div style="margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--border-color, #ddd);">
-  <p class="muted" style="margin-bottom: 0.4rem;">
-    Optional: paste a session cookie from gog.com to also show purchase price and date for games bought
-    directly on GOG (not Humble-redeemed keys, and not bundle purchases — see each game's own tooltip).
-    Separate from the connection above.
-  </p>
-  <p>
-    Order history:
+<div style="margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--border);">
+  <h4 style="margin: 0 0 0.3rem;">
+    Order history
     {% if gog_cookie_configured %}<span class="badge badge-ok">Configured</span>{% else %}<span class="badge badge-pending">Not configured</span>{% endif %}
+  </h4>
+  <p class="muted" style="margin-bottom: 0.4rem;">
+    Optional, and separate from the connection above — paste a session cookie from gog.com to also
+    show purchase price and date for games bought directly on GOG. Not Humble-redeemed keys, and not
+    bundle purchases (those show against the bundle's own title, not any single game's — see each
+    game's own tooltip).
   </p>
   {% if gog_cookie_error %}<p class="text-error">{{ gog_cookie_error }}</p>{% endif %}
   <form hx-post="/settings/gog/cookie" hx-target="#gog-card-body" hx-swap="innerHTML">
