@@ -25,6 +25,7 @@ import asyncio
 import json
 import time
 from datetime import datetime
+from pathlib import Path
 
 import audible
 from audible.aescipher import decrypt_voucher_from_licenserequest
@@ -44,6 +45,7 @@ from app.models.audible_book_download import (
     STATUS_RUNNING,
     AudibleBookDownload,
 )
+from app.models.audible_download_destination import AudibleDownloadDestination
 from app.sync.audible_sync import NotConnectedError, get_audible_credential, save_authenticator
 
 # Audible's own iOS app's User-Agent, per the `audible` package's official
@@ -63,13 +65,47 @@ class BookDownloadInProgressError(Exception):
     """Raised when a download for this asin is already running."""
 
 
-def start_download(db: Session, asin: str) -> AudibleBookDownload:
+def resolve_destination_root(db: Session) -> Path:
+    row = db.query(AudibleDownloadDestination).filter(AudibleDownloadDestination.is_default.is_(True)).first()
+    if row is not None:
+        return Path(row.path)
+    # Zero-config fallback, same convention pdf_downloader.py's own hardcoded
+    # "Audible" subfolder already uses — downloading works before anyone
+    # visits the destinations picker, it just lands somewhere less
+    # deliberately chosen. Deliberately not shared with pdf_downloader.py
+    # itself (see AudibleDownloadDestination's own docstring).
+    return settings.downloads_dir / "Audible"
+
+
+def start_download(db: Session, asin: str, force: bool = False) -> AudibleBookDownload:
     if asin in _active_asins:
         raise BookDownloadInProgressError(f"An audiobook download for {asin} is already in progress.")
 
     book = db.get(AudibleBook, asin)
     if book is None:
         raise NoAudiobookAvailableError(f"No Audible book found for {asin}.")
+
+    # A license request isn't free to redo (it burns an Audible-side download
+    # credit for some titles, per the module docstring) and running ffmpeg
+    # again on a file that's already right is pure waste — if the file this
+    # exact download would produce already exists, report it as already
+    # downloaded instead of repeating all of that. "Re-download" in the UI
+    # sets force=True specifically to bypass this and get a fresh copy.
+    existing_path = resolve_destination_root(db) / f"{sanitize_dir_name(book.title)}.m4b"
+    if not force and existing_path.exists() and existing_path.stat().st_size > 0:
+        job = AudibleBookDownload(
+            asin=asin,
+            status=STATUS_COMPLETED,
+            downloaded_path=str(existing_path),
+            expected_size_bytes=existing_path.stat().st_size,
+            progress_bytes=existing_path.stat().st_size,
+            started_at=datetime.utcnow(),
+            completed_at=datetime.utcnow(),
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        return job
 
     job = AudibleBookDownload(asin=asin, status=STATUS_QUEUED)
     db.add(job)
@@ -152,7 +188,7 @@ async def _run(job_id: int, asin: str, title: str) -> None:
         job.started_at = datetime.utcnow()
         db.commit()
 
-        dest_dir = settings.downloads_dir / "Audible"
+        dest_dir = resolve_destination_root(db)
         dest_dir.mkdir(parents=True, exist_ok=True)
         base_name = sanitize_dir_name(title)
         aaxc_path = dest_dir / f"{base_name}.aaxc"

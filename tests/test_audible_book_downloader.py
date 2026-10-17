@@ -9,6 +9,7 @@ import pytest
 from app.audible import book_downloader
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import STATUS_COMPLETED, STATUS_FAILED
+from app.models.audible_download_destination import AudibleDownloadDestination
 from app.models.credential import SOURCE_AUDIBLE, Credential
 from app.security import encrypt_json
 
@@ -242,3 +243,66 @@ async def test_remux_to_m4b_reports_a_nonzero_exit():
 
     assert ok is False
     assert "Unknown option audible_key" in message
+
+
+def test_resolve_destination_root_falls_back_to_the_zero_config_default(db, tmp_path, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "downloads_dir", tmp_path)
+    assert book_downloader.resolve_destination_root(db) == tmp_path / "Audible"
+
+
+def test_resolve_destination_root_prefers_the_configured_default(db, tmp_path):
+    db.add(AudibleDownloadDestination(name="NAS", path=str(tmp_path / "nas-audiobooks"), is_default=True))
+    db.add(AudibleDownloadDestination(name="Other", path=str(tmp_path / "unused"), is_default=False))
+    db.commit()
+    assert book_downloader.resolve_destination_root(db) == tmp_path / "nas-audiobooks"
+
+
+def test_start_download_reports_already_downloaded_without_a_new_license_request(db, tmp_path, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "downloads_dir", tmp_path)
+    _add_book(db)
+    dest_dir = tmp_path / "Audible"
+    dest_dir.mkdir(parents=True)
+    existing = dest_dir / "A Great Book.m4b"
+    existing.write_bytes(b"already here")
+
+    request_license = AsyncMock()
+    with patch("app.audible.book_downloader.audible_connector.request_license", new=request_license):
+        job = book_downloader.start_download(db, "B001")
+
+    assert job.status == STATUS_COMPLETED
+    assert job.downloaded_path == str(existing)
+    request_license.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_start_download_force_redownloads_even_when_a_file_already_exists(db, tmp_path, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "downloads_dir", tmp_path)
+    _add_book(db)
+    _connect(db)
+    dest_dir = tmp_path / "Audible"
+    dest_dir.mkdir(parents=True)
+    (dest_dir / "A Great Book.m4b").write_bytes(b"stale copy")
+    _patch_async_client(monkeypatch, httpx.MockTransport(_aaxc_handler))
+
+    async def fake_remux(aaxc_path, m4b_path, key, iv):
+        Path(m4b_path).write_bytes(b"fresh copy")
+        return True, ""
+
+    with (
+        patch.object(book_downloader.audible.Authenticator, "from_dict", return_value=_FakeAuth()),
+        patch("app.audible.book_downloader.audible_connector.request_license", new=AsyncMock(return_value=LICENSE_RESPONSE)),
+        patch("app.audible.book_downloader.decrypt_voucher_from_licenserequest", return_value={"key": "k", "iv": "i"}),
+        patch("app.audible.book_downloader._remux_to_m4b", new=fake_remux),
+    ):
+        book_downloader.start_download(db, "B001", force=True)
+        assert await _await_until(lambda: book_downloader.latest_status(db, "B001").status in (STATUS_COMPLETED, STATUS_FAILED))
+
+    job = book_downloader.latest_status(db, "B001")
+    assert job.status == STATUS_COMPLETED
+    assert Path(job.downloaded_path).read_bytes() == b"fresh copy"

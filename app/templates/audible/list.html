@@ -6,6 +6,13 @@
 {% if audible_status == "not_configured" %}
 <p class="muted">Audible isn't connected yet. Connect it in <a href="/settings">Settings</a>.</p>
 {% else %}
+<details class="disclosure" style="margin-bottom: 1rem;">
+  <summary>Audiobook download destinations</summary>
+  <div id="audible-destinations" style="margin-top: 0.75rem;">
+    {% include "audible/_destinations.html" %}
+  </div>
+</details>
+
 <div class="toolbar">
   {% set any_filter = title or author or narrator or series or owned or progress or runtime_min is not none or runtime_max is not none
                        or purchased_from or purchased_to or price_min is not none or price_max is not none
