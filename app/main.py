@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app import applog, backup, humble_key, version
 from app.amazon_music import downloader as amazon_music_downloader
+from app.audible import book_downloader as audible_book_downloader
 from app.config import settings
 from app.db import SessionLocal
 from app.deps import AuthMiddleware, SecurityHeadersMiddleware
@@ -94,6 +95,8 @@ async def lifespan(app: FastAPI):
     refresh.sweep_stale_runs()
     worker.sweep_stale_jobs()
     await worker.try_dispatch_queued_downloads()  # picks up any jobs left STATUS_QUEUED across a restart
+    audible_book_downloader.sweep_stale_downloads()
+    audible_book_downloader.try_dispatch_queued_downloads()  # same restart pickup as above, for audiobooks
     amazon_music_downloader.sweep_stale_downloads()
     await amazon_music_downloader.try_dispatch_queued_downloads()
 

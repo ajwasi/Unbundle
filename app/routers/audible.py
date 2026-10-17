@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy import func
@@ -17,9 +19,11 @@ from app.list_views import (
 from app.models.audible_author_book import AudibleAuthorBook
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import STATUS_COMPLETED as BOOK_STATUS_COMPLETED
+from app.models.audible_book_download import STATUS_FAILED as BOOK_STATUS_FAILED
 from app.models.audible_book_download import STATUS_QUEUED as BOOK_STATUS_QUEUED
 from app.models.audible_book_download import STATUS_RUNNING as BOOK_STATUS_RUNNING
 from app.models.audible_download_destination import AudibleDownloadDestination
+from app.models.audible_local_file import AudibleLocalFile
 from app.models.audible_pdf_download import STATUS_COMPLETED, STATUS_QUEUED, STATUS_RUNNING
 from app.models.audible_series_book import AudibleSeriesBook
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_AUDIBLE
@@ -197,10 +201,15 @@ def _context(
         if row.asin not in owned_asins
     ]
 
+    downloaded_asins = {a for (a,) in db.query(AudibleLocalFile.asin).all()}
+    active_asins = {job["asin"] for job in book_downloader.get_active_jobs(db)}
+
     return {
         "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "audible_error": cred.last_error if cred else None,
         "books": books,
+        "downloaded_asins": downloaded_asins,
+        "active_asins": active_asins,
         "missing_count": len(missing_rows),
         "missing_series_groups": _group_missing_by_series(missing_rows),
         "missing_author_count": len(author_missing_rows),
@@ -242,11 +251,18 @@ def _pdf_status_context(db: Session, asin: str) -> dict:
 
 def _book_status_context(db: Session, asin: str) -> dict:
     job = book_downloader.latest_status(db, asin)
+    local = db.get(AudibleLocalFile, asin)
+    failed = job is not None and job.status == BOOK_STATUS_FAILED
     return {
         "asin": asin,
         "book_job": job,
+        "book_queued": job is not None and job.status == BOOK_STATUS_QUEUED,
         "book_running": job is not None and job.status in (BOOK_STATUS_QUEUED, BOOK_STATUS_RUNNING),
-        "book_completed": job is not None and job.status == BOOK_STATUS_COMPLETED,
+        # A file this app knows about counts as downloaded even with no job
+        # for it — a folder scan records those. A newer failed attempt wins,
+        # so its error stays visible.
+        "book_completed": (job is not None and job.status == BOOK_STATUS_COMPLETED) or (local is not None and not failed),
+        "book_local": local,
     }
 
 
@@ -374,6 +390,14 @@ def audible_series_detail(request: Request, series_asin: str, db: Session = Depe
     )
 
 
+@router.post("/download", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+async def start_bulk_download(request: Request, asins: list[str] = Form(default=[]), db: Session = Depends(get_db)):
+    # async def for the same reason start_book_download below is: the queue's
+    # dispatch spawns background tasks, which need the running event loop.
+    outcome = book_downloader.queue_many(db, asins)
+    return templates.TemplateResponse(request, "audible/_bulk_result.html", {"outcome": outcome, "requested": len(asins)})
+
+
 @router.get("/{asin}", response_class=HTMLResponse)
 def audible_detail(request: Request, asin: str, db: Session = Depends(get_db)):
     book = db.get(AudibleBook, asin)
@@ -432,11 +456,15 @@ def book_download_status(request: Request, asin: str, db: Session = Depends(get_
 @router.get("/{asin}/book/file")
 def download_book_file(asin: str, db: Session = Depends(get_db)):
     job = book_downloader.latest_status(db, asin)
-    if job is None or job.status != BOOK_STATUS_COMPLETED or not job.downloaded_path:
+    path = job.downloaded_path if job is not None and job.status == BOOK_STATUS_COMPLETED else ""
+    if not path:
+        local = db.get(AudibleLocalFile, asin)
+        path = local.path if local is not None else ""
+    if not path or not Path(path).is_file():
         return HTMLResponse("No completed audiobook download found for this title.", status_code=404)
     book = db.get(AudibleBook, asin)
     filename = f"{book.title}.m4b" if book else f"{asin}.m4b"
-    return FileResponse(job.downloaded_path, filename=filename, media_type="audio/mp4")
+    return FileResponse(path, filename=filename, media_type="audio/mp4")
 
 
 @router.post("/destinations", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])

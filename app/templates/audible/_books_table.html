@@ -16,11 +16,21 @@
 
 <div id="audible-books-table">
   <p class="muted">Showing {{ books|length }} of {{ book_count }} book(s)</p>
+  <div class="toolbar">
+    <input type="hidden" class="audible-bulk" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="button" class="secondary" id="audible-bulk-btn" disabled
+            hx-post="/audible/download" hx-include=".audible-bulk" hx-target="#audible-bulk-result" hx-swap="innerHTML">
+      Download selected
+    </button>
+    <span id="audible-bulk-result" aria-live="polite"></span>
+  </div>
   <div class="table-scroll">
     <table>
       <thead>
-        <tr><th></th><th scope="col" style="min-width: 9rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 7rem;">Narrator</th><th scope="col" style="min-width: 6rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 6rem;">{{ sort_link('progress', 'Progress') }}</th><th></th></tr>
+        <tr><th class="table-lead-col"><input type="checkbox" class="audible-select-all" title="Select every book shown" aria-label="Select every book shown"
+            onclick="document.querySelectorAll('.audible-select').forEach(c => c.checked = this.checked); updateAudibleBulkButton();"></th><th></th><th scope="col" style="min-width: 9rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 7rem;">Narrator</th><th scope="col" style="min-width: 6rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 6rem;">{{ sort_link('progress', 'Progress') }}</th><th></th></tr>
         <tr>
+          <th></th>
           <th>
             <input type="hidden" name="sort" value="{{ sort }}" class="audible-filter">
             <input type="hidden" name="dir" value="{{ dir }}" class="audible-filter">
@@ -69,8 +79,13 @@
       <tbody>
         {% for b in books %}
         <tr class="{{ 'audible-row-credit' if not is_owned(b.benefit_id) }}">
+          <td class="table-lead-col"><input type="checkbox" class="audible-select audible-bulk" name="asins" value="{{ b.asin }}" aria-label="Select {{ b.title }}"></td>
           <td>{% if b.cover_url %}<img class="owned-item-icon" src="{{ b.cover_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
-          <td><a href="/audible/{{ b.asin }}">{{ b.title }}</a></td>
+          <td>
+            <a href="/audible/{{ b.asin }}">{{ b.title }}</a>
+            {% if b.asin in active_asins %}<span class="badge badge-pending">Downloading</span>
+            {% elif b.asin in downloaded_asins %}<span class="badge badge-ok" title="This audiobook is already on disk.">On disk</span>{% endif %}
+          </td>
           <td>{{ b.author }}</td>
           <td>{{ b.narrator }}</td>
           <td>
@@ -90,9 +105,16 @@
         {% set any_filter = title or author or narrator or series or owned or progress or runtime_min is not none or runtime_max is not none
                              or purchased_from or purchased_to or price_min is not none or price_max is not none
                              or rating_min is not none or rating_max is not none %}
-        <tr><td colspan="11" class="muted">{{ "No books match." if any_filter else "No books loaded yet — click Refresh." }}</td></tr>
+        <tr><td colspan="12" class="muted">{{ "No books match." if any_filter else "No books loaded yet — click Refresh." }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+<script>
+  function updateAudibleBulkButton() {
+    var btn = document.getElementById('audible-bulk-btn');
+    if (btn) btn.disabled = document.querySelectorAll('.audible-select:checked').length === 0;
+  }
+  document.getElementById('audible-books-table').addEventListener('change', updateAudibleBulkButton);
+</script>

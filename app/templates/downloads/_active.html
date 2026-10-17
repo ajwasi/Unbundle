@@ -2,12 +2,12 @@
 <div id="download-active" hx-get="/downloads/active" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML">
   <table>
     <thead>
-      <tr><th scope="col">Bundle</th><th scope="col">Status</th><th scope="col">Progress</th><th scope="col">Speed</th></tr>
+      <tr><th scope="col">Download</th><th scope="col">Status</th><th scope="col">Progress</th><th scope="col">Speed</th></tr>
     </thead>
     <tbody>
       {% for job in active_jobs %}
       <tr>
-        <td><a href="/bundles/{{ job.gamekey }}">{{ job.bundle_name }}</a></td>
+        <td><a href="{{ job.href }}">{{ job.label }}</a> <span class="muted" style="font-size: 0.85em;">{{ job.kind }}</span></td>
         <td>
           {% if job.status == "running" %}
           <span class="badge badge-pending">Running</span>

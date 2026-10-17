@@ -1,0 +1,12 @@
+{% set n_queued = outcome.queued|length %}
+{% if not requested %}
+<span class="muted">Select at least one book first.</span>
+{% else %}
+<span>
+  {% if n_queued %}<span class="badge badge-ok">Queued {{ n_queued }}</span>{% endif %}
+  {% if outcome.already_downloaded %}<span class="badge badge-not-configured">{{ outcome.already_downloaded|length }} already on disk</span>{% endif %}
+  {% if outcome.in_progress %}<span class="badge badge-pending">{{ outcome.in_progress|length }} already queued</span>{% endif %}
+  {% if outcome.unknown %}<span class="badge badge-error">{{ outcome.unknown|length }} not found</span>{% endif %}
+  {% if n_queued %}<a href="/downloads">View progress on the Downloads page</a>{% endif %}
+</span>
+{% endif %}
