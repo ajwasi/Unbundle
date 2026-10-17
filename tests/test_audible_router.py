@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
+from app.audible import book_downloader
 from app.models.audible_book import AudibleBook
+from app.models.audible_download_destination import AudibleDownloadDestination
 from app.models.credential import SOURCE_AUDIBLE, STATUS_OK, Credential
 from app.security import encrypt_json
 
@@ -391,6 +393,116 @@ def test_download_pdf_file_route_404s_without_a_completed_download(authed_client
 
     resp = authed_client.get("/audible/B001/pdf/file")
     assert resp.status_code == 404
+
+
+def test_audible_detail_always_shows_the_audiobook_section(authed_client, db):
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    resp = authed_client.get("/audible/B001")
+    assert "Audiobook" in resp.text
+    assert "Download audiobook" in resp.text
+
+
+def test_start_book_download_route(authed_client, db):
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    resp = authed_client.post("/audible/B001/book/download")
+    assert resp.status_code == 200
+
+
+def test_start_book_download_route_handles_missing_book_gracefully(authed_client):
+    resp = authed_client.post("/audible/NONEXISTENT/book/download")
+    assert resp.status_code == 200
+
+
+def test_book_download_status_route(authed_client, db):
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    resp = authed_client.get("/audible/B001/book/status")
+    assert resp.status_code == 200
+
+
+def test_download_book_file_route_404s_without_a_completed_download(authed_client, db):
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    resp = authed_client.get("/audible/B001/book/file")
+    assert resp.status_code == 404
+
+
+def test_start_book_download_route_passes_force_through(authed_client, db, monkeypatch):
+    db.add(AudibleBook(asin="B001", title="Some Book"))
+    db.commit()
+
+    captured = {}
+
+    def fake_start_download(db, asin, force=False):
+        captured["force"] = force
+        raise book_downloader.NoAudiobookAvailableError("doesn't matter, just checking the arg")
+
+    monkeypatch.setattr(book_downloader, "start_download", fake_start_download)
+
+    resp = authed_client.post("/audible/B001/book/download", data={"force": "true"})
+    assert resp.status_code == 200
+    assert captured["force"] is True
+
+
+# ------------------------------------------------------------ destinations
+
+
+def test_create_audible_destination_adds_a_row_and_becomes_default_if_first(authed_client, db):
+    resp = authed_client.post("/audible/destinations", data={"name": "NAS Audiobooks", "path": "/mnt/audiobooks"})
+    assert resp.status_code == 200
+    assert "NAS Audiobooks" in resp.text
+    assert "/mnt/audiobooks" in resp.text
+
+    row = db.query(AudibleDownloadDestination).one()
+    assert row.is_default is True
+
+
+def test_a_second_audible_destination_does_not_become_default_automatically(authed_client, db):
+    db.add(AudibleDownloadDestination(name="First", path="/mnt/first", is_default=True))
+    db.commit()
+
+    authed_client.post("/audible/destinations", data={"name": "Second", "path": "/mnt/second"})
+
+    second = db.query(AudibleDownloadDestination).filter(AudibleDownloadDestination.name == "Second").one()
+    assert second.is_default is False
+
+
+def test_blank_audible_destination_name_or_path_is_ignored(authed_client, db):
+    authed_client.post("/audible/destinations", data={"name": "", "path": "/mnt/audiobooks"})
+    authed_client.post("/audible/destinations", data={"name": "NAS", "path": ""})
+    assert db.query(AudibleDownloadDestination).count() == 0
+
+
+def test_set_default_audible_destination_switches_the_flag(authed_client, db):
+    a = AudibleDownloadDestination(name="A", path="/mnt/a", is_default=True)
+    b = AudibleDownloadDestination(name="B", path="/mnt/b", is_default=False)
+    db.add_all([a, b])
+    db.commit()
+
+    resp = authed_client.post(f"/audible/destinations/{b.id}/set-default")
+    assert resp.status_code == 200
+
+    db.refresh(a)
+    db.refresh(b)
+    assert a.is_default is False
+    assert b.is_default is True
+
+
+def test_delete_audible_destination_removes_it(authed_client, db):
+    dest = AudibleDownloadDestination(name="A", path="/mnt/a")
+    db.add(dest)
+    db.commit()
+    dest_id = dest.id
+
+    resp = authed_client.post(f"/audible/destinations/{dest_id}/delete")
+    assert resp.status_code == 200
+    assert db.get(AudibleDownloadDestination, dest_id) is None
 
 
 def test_plus_catalog_badge_explains_itself_in_a_tooltip(authed_client, db):

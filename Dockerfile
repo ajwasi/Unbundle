@@ -62,8 +62,14 @@ ARG HUMBLE_CLI_SHA256_ARM64=870b5fad2376a4a58b69b1cd55776a159a9a66b559dea5c252cb
 # gosu (not su/sudo — both need a PAM/TTY setup this minimal image doesn't
 # have, and su in particular re-execs a full login shell) is what
 # docker-entrypoint.sh uses to drop from root to appuser for the real process.
+#
+# ffmpeg is here for exactly one thing: app/audible/book_downloader.py remuxes
+# a downloaded .aaxc into a plain, DRM-free .m4b via its built-in AAXC demuxer
+# (-audible_key/-audible_iv, merged upstream in ffmpeg 4.4+) — a real codec
+# copy, not a re-encode, so this is cheap even though the package itself
+# isn't tiny.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl gosu \
+    && apt-get install -y --no-install-recommends ca-certificates curl gosu ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # curl is kept in the final image on purpose: build-time binary fetch AND a future
