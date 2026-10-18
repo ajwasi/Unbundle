@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 from app.connectors import audible_connector
 from app.models.audible_author_book import AudibleAuthorBook
 from app.models.audible_book import AudibleBook
+from app.models.audible_book_download import AudibleBookDownload
+from app.models.audible_pdf_download import AudiblePdfDownload
 from app.models.audible_series_book import AudibleSeriesBook
 from app.models.audible_wishlist import AudibleWishlistItem, AudibleWishlistPrice
 from app.models.credential import SOURCE_AUDIBLE, STATUS_ERROR, STATUS_OK, Credential
@@ -62,32 +64,51 @@ async def refresh_audible_library(db: Session) -> int:
         _set_credential_status(db, STATUS_ERROR, str(exc))
         raise
 
-    db.query(AudibleBook).delete()
+    # An upsert, not the delete-everything-then-reinsert this used to be:
+    # AudibleBookDownload and AudiblePdfDownload both carry a foreign key to
+    # audible_book.asin, and on Postgres (unlike this app's own SQLite,
+    # which never turns on PRAGMA foreign_keys) that FK is enforced
+    # immediately — deleting every book row, even ones still owned, failed
+    # outright the moment any book had a completed download. Updating
+    # still-owned rows in place means that delete never happens for the
+    # common case (the same books, refreshed); only a book that's actually
+    # left the account gets its row deleted at all.
+    existing_books = {b.asin: b for b in db.query(AudibleBook).all()}
     now = datetime.utcnow()
     for b in books:
-        db.add(
-            AudibleBook(
-                asin=b.asin,
-                title=b.title,
-                author=b.author,
-                narrator=b.narrator,
-                runtime_minutes=b.runtime_minutes,
-                cover_url=b.cover_url,
-                fetched_at=now,
-                purchase_date=b.purchase_date,
-                price_amount=b.price_amount,
-                price_currency=b.price_currency,
-                series_title=b.series_title,
-                series_sequence=b.series_sequence,
-                series_asin=b.series_asin,
-                rating_average=b.rating_average,
-                description=b.description,
-                is_finished=b.is_finished,
-                percent_complete=b.percent_complete,
-                pdf_url=b.pdf_url,
-                benefit_id=b.benefit_id,
-            )
-        )
+        row = existing_books.get(b.asin)
+        if row is None:
+            row = AudibleBook(asin=b.asin)
+            db.add(row)
+        row.title = b.title
+        row.author = b.author
+        row.narrator = b.narrator
+        row.runtime_minutes = b.runtime_minutes
+        row.cover_url = b.cover_url
+        row.fetched_at = now
+        row.purchase_date = b.purchase_date
+        row.price_amount = b.price_amount
+        row.price_currency = b.price_currency
+        row.series_title = b.series_title
+        row.series_sequence = b.series_sequence
+        row.series_asin = b.series_asin
+        row.rating_average = b.rating_average
+        row.description = b.description
+        row.is_finished = b.is_finished
+        row.percent_complete = b.percent_complete
+        row.pdf_url = b.pdf_url
+        row.benefit_id = b.benefit_id
+
+    removed_asins = set(existing_books) - {b.asin for b in books}
+    if removed_asins:
+        # A book that's actually gone (returned, etc.) may still have
+        # download-job history referencing it — deleted explicitly here
+        # rather than relied on the database's own FK cascade (which
+        # Postgres would need ondelete="CASCADE" for, and SQLite wouldn't
+        # enforce at all), so this stays correct on both backends.
+        db.query(AudibleBookDownload).filter(AudibleBookDownload.asin.in_(removed_asins)).delete(synchronize_session=False)
+        db.query(AudiblePdfDownload).filter(AudiblePdfDownload.asin.in_(removed_asins)).delete(synchronize_session=False)
+        db.query(AudibleBook).filter(AudibleBook.asin.in_(removed_asins)).delete(synchronize_session=False)
     db.commit()
 
     try:
