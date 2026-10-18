@@ -418,6 +418,27 @@ def test_scan_rejects_a_folder_outside_the_configured_roots(authed_client, tmp_p
     assert "is not a directory this app can see" in resp.text
 
 
+def test_scan_allows_a_subpath_typed_with_a_leading_slash(authed_client, db, tmp_path, monkeypatch):
+    """Regression test for a real bug report: the account's scan root was
+    mounted at E:/, and the folder actually wanted was E:/Audio Books by
+    Auth/ — typing "/Audio Books by Auth" (the natural way to express "this
+    root's own subfolder") hit Path.__truediv__'s own quirk where a
+    right-hand operand that looks absolute silently discards the left side:
+    root / "/x" is just "/x", not "root/x" — so the configured root was
+    dropped entirely and the resulting path never existed.
+    """
+    _add_books(db, "Dune")
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    subdir = tmp_path / "Audio Books by Auth"
+    subdir.mkdir()
+    _touch(subdir / "Dune.m4b")
+
+    resp = authed_client.post("/downloads/scan/audible", data={"folder": "/Audio Books by Auth"})
+
+    assert "is not a directory this app can see" not in resp.text
+    assert "Dune" in resp.text
+
+
 def test_a_completed_download_is_remembered_as_a_local_file(db, tmp_path):
     _add_books(db, "Done")
     m4b = _touch(tmp_path / "Done.m4b", size=9)

@@ -247,7 +247,14 @@ def _resolve_scan_folder(root_index: int, folder: str) -> Path | None:
     roots = settings.scan_root_list()
     if not (0 <= root_index < len(roots)):
         return None
-    folder = folder.strip()
+    # A leading slash (or backslash) reads as "the root's own subfolder" to
+    # a user typing one in — e.g. "/Audio Books by Auth" for a mount's own
+    # "Audio Books by Auth" subdirectory — but Path.__truediv__ treats a
+    # right-hand operand that looks absolute as a brand new anchor and
+    # silently DISCARDS the left side entirely: root / "/x" is just "/x",
+    # not "root/x". Stripped here so the join always lands inside root,
+    # confirmed via a real path (Windows and POSIX both do this).
+    folder = folder.strip().lstrip("/\\")
     root = roots[root_index].resolve()
     try:
         candidate = (root / folder).resolve() if folder else root
