@@ -12,6 +12,7 @@ persist whatever came back" philosophy gog_sync.py already applies to its
 own refresh_token.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -271,34 +272,54 @@ async def _fetch_author_rows(
     return rows
 
 
-async def _fetch_author_profiles(author_rows: list[AudibleAuthorBook]) -> list[AudibleAuthorProfile]:
-    """One Audnexus lookup per distinct author appearing in author_rows (see
-    AudibleAuthorProfile's own docstring for why Audnexus and not Audible
-    itself). A profile that fails to load, or an author row with no captured
-    asin at all, is just skipped — same "never fail the whole refresh over
-    one bad lookup" posture as every other per-item fetch in this module.
-    """
-    author_asins = {row.author_asin for row in author_rows if row.author_asin}
-    rows: list[AudibleAuthorProfile] = []
-    now = datetime.utcnow()
-    for author_asin in author_asins:
+# Audnexus (api.audnex.us) is a free, public, third-party API with no
+# personal-account risk — unlike every *other* per-item fetch in this
+# module (series siblings, author catalogue search), which stay strictly
+# sequential because they hit Audible's own undocumented, reverse-
+# engineered, personal-account API, where hammering it concurrently could
+# plausibly trigger rate-limiting or an account flag (same reasoning
+# AmazonMusicDownload's own docstring gives for its sequential download
+# queue). A handful of concurrent requests to a public community API
+# carries none of that risk, and meaningfully speeds up sync for an
+# account with many distinct authors.
+_AUDNEXUS_CONCURRENCY = 4
+
+
+async def _fetch_one_author_profile(
+    semaphore: asyncio.Semaphore, author_asin: str, fetched_at: datetime
+) -> AudibleAuthorProfile | None:
+    async with semaphore:
         try:
             profile = await audible_connector.fetch_author_profile(author_asin)
         except Exception as exc:
             logger.warning("audible: author profile %s unavailable, skipping: %s", author_asin, exc)
-            continue
-        if profile is None:
-            continue
-        rows.append(
-            AudibleAuthorProfile(
-                author_asin=profile.author_asin,
-                name=profile.name,
-                image_url=profile.image_url,
-                bio=profile.bio,
-                fetched_at=now,
-            )
-        )
-    return rows
+            return None
+    if profile is None:
+        return None
+    return AudibleAuthorProfile(
+        author_asin=profile.author_asin,
+        name=profile.name,
+        image_url=profile.image_url,
+        bio=profile.bio,
+        fetched_at=fetched_at,
+    )
+
+
+async def _fetch_author_profiles(author_rows: list[AudibleAuthorBook]) -> list[AudibleAuthorProfile]:
+    """One Audnexus lookup per distinct author appearing in author_rows (see
+    AudibleAuthorProfile's own docstring for why Audnexus and not Audible
+    itself), up to _AUDNEXUS_CONCURRENCY at once. A profile that fails to
+    load, or an author row with no captured asin at all, is just skipped —
+    same "never fail the whole refresh over one bad lookup" posture as
+    every other per-item fetch in this module.
+    """
+    author_asins = {row.author_asin for row in author_rows if row.author_asin}
+    if not author_asins:
+        return []
+    semaphore = asyncio.Semaphore(_AUDNEXUS_CONCURRENCY)
+    now = datetime.utcnow()
+    results = await asyncio.gather(*(_fetch_one_author_profile(semaphore, asin, now) for asin in author_asins))
+    return [row for row in results if row is not None]
 
 
 def _set_credential_status(db: Session, status: str, error: str | None) -> None:

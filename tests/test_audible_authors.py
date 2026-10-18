@@ -239,6 +239,30 @@ async def test_fetch_author_profiles_deduplicates_by_author_asin():
     fetch.assert_awaited_once_with("B010ETTBJC")
 
 
+async def test_fetch_author_profiles_fetches_distinct_authors_concurrently_and_tolerates_one_failure():
+    """Author profiles are fetched with bounded concurrency (asyncio.gather),
+    not one at a time — a single author's lookup failing must not cancel or
+    drop the others, same "never fail the whole refresh over one bad lookup"
+    posture as the strictly-sequential fetches elsewhere in this module.
+    """
+    now = datetime.utcnow()
+    rows = [
+        AudibleAuthorBook(author_name="A", asin="B2", author_asin="AASIN", fetched_at=now),
+        AudibleAuthorBook(author_name="B", asin="B3", author_asin="BASIN", fetched_at=now),
+        AudibleAuthorBook(author_name="C", asin="B4", author_asin="CASIN", fetched_at=now),
+    ]
+
+    async def fake_fetch(author_asin):
+        if author_asin == "BASIN":
+            raise RuntimeError("boom")
+        return audible_connector.AudibleAuthorProfileData(author_asin=author_asin, name=author_asin, image_url="", bio="")
+
+    with patch("app.sync.audible_sync.audible_connector.fetch_author_profile", new=AsyncMock(side_effect=fake_fetch)):
+        result = await audible_sync._fetch_author_profiles(rows)
+
+    assert {r.author_asin for r in result} == {"AASIN", "CASIN"}
+
+
 async def test_fetch_author_profiles_skips_rows_with_no_captured_asin():
     now = datetime.utcnow()
     rows = [AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", author_asin="", fetched_at=now)]
