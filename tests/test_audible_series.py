@@ -79,6 +79,25 @@ def test_parse_series_book_item_without_an_asin_is_dropped():
     assert audible_connector.parse_series_book_item({"title": "No asin"}, sequence="1") is None
 
 
+def test_parse_series_book_item_drops_a_non_english_edition():
+    """Regression test: a real account's series siblings came back with
+    German/Spanish/French/Portuguese editions mixed in with the real
+    English gaps — the catalogue search isn't scoped to one language."""
+    foreign = dict(BOOK_PRODUCT["product"], language="german")
+    assert audible_connector.parse_series_book_item(foreign, sequence="1") is None
+
+
+def test_parse_series_book_item_keeps_an_explicit_english_edition():
+    english = dict(BOOK_PRODUCT["product"], language="english")
+    assert audible_connector.parse_series_book_item(english, sequence="1") is not None
+
+
+def test_parse_series_book_item_keeps_an_item_with_no_language_field_at_all():
+    # BOOK_PRODUCT itself has no "language" key — an absent field reads as
+    # English rather than being excluded (see _is_english's own docstring).
+    assert audible_connector.parse_series_book_item(BOOK_PRODUCT["product"], sequence="1") is not None
+
+
 # ------------------------------------------------------------------------- sync
 
 
@@ -216,6 +235,50 @@ def test_missing_series_tab_keeps_different_series_in_separate_groups(authed_cli
     assert jack_ryan_section.count("The Cardinal of the Kremlin") == 1
 
 
+def test_missing_series_search_box_filters_groups_but_tab_count_stays_stable(authed_client, db):
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_asin="B01M1RDL6W"))
+    db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many", authors="Dennis E. Taylor", sequence="2", fetched_at=now))
+    db.add(AudibleBook(asin="B01L082XXX", title="The Hunt for Red October", author="Tom Clancy", runtime_minutes=700, cover_url="", fetched_at=now, series_asin="B01JACKRYAN"))
+    db.add(AudibleSeriesBook(series_asin="B01JACKRYAN", asin="B01PATRIOT", series_title="A Jack Ryan Novel", title="Patriot Games", authors="Tom Clancy", sequence="2", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible", params={"view": "missing", "series_q": "bobiverse"})
+    assert "Bobiverse" in resp.text
+    assert "A Jack Ryan Novel" not in resp.text
+    # The tab badge is unaffected by the search box's own filter — it keeps
+    # reflecting the library-wide total, not the narrowed-down result.
+    assert ">2/2</span>" in resp.text.split("Missing from your series")[1][:200]
+    # The box itself echoes the submitted query back as its value.
+    assert 'value="bobiverse"' in resp.text
+
+
+def test_missing_series_search_box_with_no_match_shows_an_empty_state(authed_client, db):
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_asin="B01M1RDL6W"))
+    db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many", authors="Dennis E. Taylor", sequence="2", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible", params={"view": "missing", "series_q": "nonexistent"})
+    assert 'No series match "nonexistent".' in resp.text
+    assert "For We Are Many" not in resp.text
+
+
+def test_missing_series_hx_request_returns_just_that_fragment(authed_client, db):
+    now = datetime.utcnow()
+    db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
+    db.add(AudibleBook(asin="B01L082HJ2", title="We Are Legion (We Are Bob)", author="Dennis E. Taylor", runtime_minutes=596, cover_url="", fetched_at=now, series_asin="B01M1RDL6W"))
+    db.add(AudibleSeriesBook(series_asin="B01M1RDL6W", asin="B01N17THEO", series_title="Bobiverse", title="For We Are Many", authors="Dennis E. Taylor", sequence="2", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible?view=missing", headers={"HX-Request": "true"})
+    assert 'id="audible-missing-series"' in resp.text
+    assert "For We Are Many" in resp.text
+    assert "<h1>Audible Library</h1>" not in resp.text
+
+
 def test_a_book_bought_since_the_last_series_refresh_drops_off_the_missing_tab(authed_client, db):
     now = datetime.utcnow()
     db.add(Credential(source=SOURCE_AUDIBLE, status=STATUS_OK, encrypted_payload=encrypt_json({})))
@@ -229,7 +292,7 @@ def test_a_book_bought_since_the_last_series_refresh_drops_off_the_missing_tab(a
     assert "Nothing missing" in resp.text
     assert "For We Are Many" not in resp.text
     # The tab badge itself reflects zero too, not just the empty-state copy.
-    assert ">0</span>" in resp.text.split("Missing from your series")[1][:200]
+    assert ">0/0</span>" in resp.text.split("Missing from your series")[1][:200]
 
 
 def test_series_detail_page_lists_owned_and_missing_books_in_order(authed_client, db):

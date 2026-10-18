@@ -542,12 +542,32 @@ class AudibleSeriesBookData:
     currency: str
 
 
+def _is_english(item: dict) -> bool:
+    """Both the series-siblings lookup and the author catalogue search
+    return every edition in every language a prolific author/series has
+    — confirmed against a real account: Brandon Sanderson's German,
+    Spanish, French and Portuguese editions all showing up as "missing"
+    alongside the real English gaps. The item's own "language" field
+    (present whenever product_desc is requested, which both callers
+    already do for other fields) is the one reliable signal to filter on.
+    Treated as English when the field is simply absent rather than
+    excluding it — an unset field is more likely a response-shape quirk
+    than a non-English book, and the failure mode of wrongly hiding a
+    real missing book is worse than occasionally keeping one with no
+    language set at all.
+    """
+    language = str(item.get("language") or "").strip().casefold()
+    return language in ("", "english")
+
+
 def parse_series_book_item(item: dict, sequence: str) -> AudibleSeriesBookData | None:
     """Same product shape parse_wishlist_item already reads — a catalogue
     product (owned or not) carries the same authors/narrators/price/cover
     fields either way."""
     asin = item.get("asin")
     if not asin:
+        return None
+    if not _is_english(item):
         return None
     images = item.get("product_images") or {}
     cover = images.get("500") or next(iter(images.values()), "")
@@ -596,6 +616,8 @@ def parse_author_book_item(item: dict, author_name: str) -> AudibleAuthorBookDat
     """
     asin = item.get("asin")
     if not asin:
+        return None
+    if not _is_english(item):
         return None
     names = [a["name"] for a in item.get("authors") or [] if a.get("name")]
     if author_name.casefold() not in {n.casefold() for n in names}:
