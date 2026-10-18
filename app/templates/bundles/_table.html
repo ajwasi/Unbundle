@@ -13,7 +13,7 @@
     {%- if q %} matching "{{ q }}"{% endif -%}
     {%- if category %} in category "{{ category | format_category }}"{% endif -%}
     {%- if min_items %} with at least {{ min_items }} item(s){% endif -%}
-    {%- if redeemed == "unredeemed" %} with unredeemed keys{% elif redeemed == "redeemed" %} fully redeemed{% endif -%}
+    {%- if redeemed == "unredeemed" %} with unredeemed keys{% elif redeemed == "redeemed" %} fully redeemed{% elif redeemed == "giftable" %} with giftable keys{% endif -%}
     &mdash; ${{ "%.2f"|format(filtered_total_spent) }} spent{% if q or category or min_items or redeemed %} (this view){% endif %}
   </p>
   <div class="toolbar">
@@ -35,7 +35,8 @@
         <th>Downloaded</th>
         <th>{{ sort_link('category', 'Category') }}</th>
         <th>Keys</th>
-        <th><span class="tip" title="This bundle granted a store key that has never been redeemed — it is still sitting unused on Humble.">Unredeemed</span></th>
+        <th><span class="tip" title="This bundle granted a store key that isn't confirmed owned on Steam or GOG yet.">Unredeemed</span></th>
+        <th><span class="tip" title="This bundle granted a key that's never been redeemed on Humble, but you already own the game another way — free to give to a friend.">Giftable</span></th>
         <th>{{ sort_link('purchased', 'Purchased') }}</th>
         <th>{{ sort_link('price', 'Price') }}</th>
         <th>Tags</th>
@@ -65,6 +66,13 @@
           <span class="muted">&mdash;</span>
           {% endif %}
         </td>
+        <td>
+          {% if b.gamekey in giftable_gamekeys %}
+          <span class="badge badge-pending">Owned, key unused</span>
+          {% else %}
+          <span class="muted">&mdash;</span>
+          {% endif %}
+        </td>
         <td>{{ (b.purchased_at.strftime("%Y-%m-%d") if b.purchased_at else "&mdash;") | safe }}</td>
         <td>${{ "%.2f"|format(b.amount_spent) }}</td>
         <td>
@@ -77,13 +85,13 @@
       </tr>
       {% else %}
       {% set any_filter = q or category or min_items or tag_id or redeemed %}
-      <tr><td colspan="10" class="muted">{{ "No bundles match." if any_filter else 'No bundles yet — click "Refresh from Humble" above to sync your library.' }}</td></tr>
+      <tr><td colspan="11" class="muted">{{ "No bundles match." if any_filter else 'No bundles yet — click "Refresh from Humble" above to sync your library.' }}</td></tr>
       {% endfor %}
     </tbody>
     {% if bundles %}
     <tfoot>
       <tr style="font-weight: 600; border-top: 2px solid var(--border);">
-        <td colspan="8">TOTAL ({{ bundles|length }} bundle{{ "s" if bundles|length != 1 else "" }} shown)</td>
+        <td colspan="9">TOTAL ({{ bundles|length }} bundle{{ "s" if bundles|length != 1 else "" }} shown)</td>
         <td>${{ "%.2f"|format(filtered_total_spent) }}</td>
         <td></td>
       </tr>

@@ -285,6 +285,65 @@ def test_list_bundles_redeemed_filter_blank_shows_both(authed_client, make_bundl
     assert "Clean Bundle" in resp.text
 
 
+def test_list_bundles_shows_giftable_badge_for_an_owned_but_unredeemed_key(authed_client, make_bundle, db):
+    """A key never redeemed on Humble but already confirmed owned elsewhere
+    (bought directly, gifted, granted by a different bundle) is the opposite
+    situation from the Unredeemed column — it's surplus, not missing — so it
+    gets its own distinct "Giftable" badge rather than being lumped in with
+    (or omitted from) the Unredeemed one.
+    """
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    bundle = make_bundle(gamekey="GK1")
+    db.add(BundleEntitlement(
+        gamekey=bundle.gamekey, machine_name="m", keyindex=0, key_name="Already Owned Game",
+        steam_app_id="220", steam_owned=True, redeemed_on_humble=False,
+    ))
+    db.commit()
+
+    resp = authed_client.get("/bundles")
+    assert "Owned, key unused" in resp.text
+    assert "Never redeemed" not in resp.text
+
+
+def test_list_bundles_omits_giftable_badge_once_a_key_is_redeemed(authed_client, make_bundle, db):
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    bundle = make_bundle(gamekey="GK1")
+    db.add(BundleEntitlement(
+        gamekey=bundle.gamekey, machine_name="m", keyindex=0, key_name="Redeemed Game",
+        steam_app_id="220", steam_owned=True, redeemed_on_humble=True,
+    ))
+    db.commit()
+
+    resp = authed_client.get("/bundles")
+    assert "Owned, key unused" not in resp.text
+
+
+def test_list_bundles_redeemed_filter_giftable_shows_only_giftable_bundles(authed_client, make_bundle, db):
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    giftable = make_bundle(gamekey="GIFTABLE", order=make_order(name="Giftable Bundle"))
+    db.add(BundleEntitlement(
+        gamekey=giftable.gamekey, machine_name="m", keyindex=0, key_name="Already Owned Game",
+        steam_app_id="220", steam_owned=True, redeemed_on_humble=False,
+    ))
+    # Fully resolved — redeemed AND owned — unlike _seed_unredeemed_and_clean_bundles's
+    # own "clean" bundle below, which (redeemed_on_humble defaulting False) is
+    # itself a giftable example, not a useful "definitely not giftable" control.
+    normal = make_bundle(gamekey="NORMAL", order=make_order(name="Normal Bundle"))
+    db.add(BundleEntitlement(
+        gamekey=normal.gamekey, machine_name="m", keyindex=0, key_name="Normal Game",
+        steam_app_id="221", steam_owned=True, redeemed_on_humble=True,
+    ))
+    unredeemed, clean = _seed_unredeemed_and_clean_bundles(db, make_bundle)
+
+    resp = authed_client.get("/bundles?redeemed=giftable")
+    assert "Giftable Bundle" in resp.text
+    assert "Unredeemed Bundle" not in resp.text
+    assert "Normal Bundle" not in resp.text
+
+
 def test_list_bundles_sort_by_price_desc(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(name="Cheap", amount_spent=1.0))
     make_bundle(gamekey="GK2", order=make_order(name="Pricey", amount_spent=99.0))
@@ -546,7 +605,7 @@ def test_bundle_detail_shows_gog_ownership_alongside_steam(authed_client, make_b
     db.add(
         BundleEntitlement(
             gamekey="GK1", machine_name="m", keyindex=0, key_name="Owned Game - GOG",
-            gog_id="1207660413", gog_owned=True, raw_json=json.dumps({"key_type": "gog"}),
+            gog_id="1207660413", gog_owned=True, redeemed_on_humble=True, raw_json=json.dumps({"key_type": "gog"}),
         )
     )
     db.commit()
@@ -554,6 +613,53 @@ def test_bundle_detail_shows_gog_ownership_alongside_steam(authed_client, make_b
     resp = authed_client.get("/bundles/GK1")
     assert "Owned Game - GOG" in resp.text
     assert "GOG: Yes" in resp.text
+
+
+def test_bundle_detail_shows_giftable_badge_for_an_owned_but_unredeemed_key(authed_client, make_bundle, db):
+    import json
+
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    make_bundle(gamekey="GK1")
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Already Owned Game - Steam",
+            steam_app_id="220", steam_owned=True, redeemed_on_humble=False,
+            raw_json=json.dumps({"key_type": "steam"}),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/bundles/GK1")
+    assert "Owned, key unused" in resp.text
+    assert "Steam: Yes" not in resp.text
+    assert "Never redeemed" not in resp.text
+
+
+def test_bundle_detail_distinguishes_redeemed_but_not_showing_as_owned(authed_client, make_bundle, db):
+    """The mirror case of the giftable one above: the key WAS revealed on
+    Humble, but isn't (yet, or ever) reflected as owned on Steam — worth
+    its own distinct label too, rather than the flatly inaccurate "Never
+    redeemed" the old code used for every owned=False row regardless of
+    redemption status.
+    """
+    import json
+
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    make_bundle(gamekey="GK1")
+    db.add(
+        BundleEntitlement(
+            gamekey="GK1", machine_name="m", keyindex=0, key_name="Revealed Game - Steam",
+            steam_app_id="220", steam_owned=False, redeemed_on_humble=True,
+            raw_json=json.dumps({"key_type": "steam"}),
+        )
+    )
+    db.commit()
+
+    resp = authed_client.get("/bundles/GK1")
+    assert "Not showing as owned" in resp.text
+    assert "Never redeemed" not in resp.text
 
 
 def test_bundle_detail_shows_unknown_for_unmatched_steam_keys(authed_client, make_bundle, db):
@@ -670,7 +776,7 @@ def test_bundle_detail_expiry_badge_not_yellow_for_steam_keys(authed_client, mak
     db.add(
         BundleEntitlement(
             gamekey="GK1", machine_name="m", keyindex=0, key_name="Steam Game",
-            steam_app_id="220", steam_owned=True,
+            steam_app_id="220", steam_owned=True, redeemed_on_humble=True,
             raw_json=json.dumps({"key_type": "steam", "expiration_date": future}),
         )
     )
@@ -772,7 +878,7 @@ def test_refresh_status_shows_failure_message(authed_client, db):
 
 def test_unredeemed_column_header_carries_an_explanatory_tooltip(authed_client):
     resp = authed_client.get("/bundles")
-    assert "still sitting unused on Humble" in resp.text
+    assert "isn't confirmed owned on Steam or GOG yet" in resp.text
 
 
 # -------------------------------------------------------- bulk download
