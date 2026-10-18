@@ -12,6 +12,7 @@
   {% endif %}
   <form hx-post="/steam/refresh" hx-target="#steam-content" hx-swap="outerHTML" style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <input type="hidden" name="view" value="{{ view }}">
     <button type="submit" class="secondary">Refresh</button>
   </form>
   <span class="muted" id="steam-last-synced">

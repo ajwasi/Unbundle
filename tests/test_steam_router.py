@@ -78,12 +78,13 @@ def test_steam_page_shows_never_redeemed_section(authed_client, db):
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert "Unredeemed Game - Steam" in resp.text
     assert "Some Bundle" in resp.text
-    assert "Never Redeemed on Steam (1)" in resp.text
     assert 'href="https://www.humblebundle.com/downloads?key=GK1"' in resp.text
     assert 'target="_blank"' in resp.text
+    # The tab badge itself reflects the count too, not just the row content.
+    assert ">1</span>" in resp.text.split("Never Redeemed on Steam")[1][:100]
 
 
 def test_steam_page_excludes_owned_entitlements_from_never_redeemed(authed_client, db):
@@ -92,9 +93,9 @@ def test_steam_page_excludes_owned_entitlements_from_never_redeemed(authed_clien
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Owned Game - Steam", steam_app_id="220", steam_owned=True))
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert "Owned Game - Steam" not in resp.text
-    assert "Never Redeemed on Steam (0)" in resp.text
+    assert ">0</span>" in resp.text.split("Never Redeemed on Steam")[1][:100]
 
 
 def test_steam_page_excludes_unmatched_entitlements_from_never_redeemed(authed_client, db):
@@ -104,9 +105,9 @@ def test_steam_page_excludes_unmatched_entitlements_from_never_redeemed(authed_c
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Combo Key", steam_app_id=None, steam_owned=None))
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert "Combo Key" not in resp.text
-    assert "Never Redeemed on Steam (0)" in resp.text
+    assert ">0</span>" in resp.text.split("Never Redeemed on Steam")[1][:100]
 
 
 def test_steam_page_flags_a_key_owned_under_a_different_steam_listing(authed_client, db):
@@ -119,7 +120,7 @@ def test_steam_page_flags_a_key_owned_under_a_different_steam_listing(authed_cli
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert "Steam (different listing)" in resp.text
 
 
@@ -132,7 +133,7 @@ def test_steam_page_flags_a_key_owned_on_gog(authed_client, db):
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert 'class="badge badge-pending">GOG<' in resp.text
 
 
@@ -142,7 +143,7 @@ def test_steam_page_shows_no_ownership_hint_when_not_owned_anywhere(authed_clien
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert "badge-pending" not in resp.text
 
 
@@ -161,7 +162,7 @@ def test_steam_page_shows_expiration_date_and_highlights_expired_row(authed_clie
     )
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert "(expired)" in resp.text
     assert 'class="row-expired"' in resp.text
 
@@ -181,7 +182,7 @@ def test_steam_page_shows_days_remaining_for_future_expiration(authed_client, db
     )
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert "in 9d" in resp.text or "in 10d" in resp.text
     assert 'class="row-expired"' not in resp.text
 
@@ -192,7 +193,7 @@ def test_steam_page_shows_dash_when_no_expiration_data(authed_client, db):
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert 'class="row-expired"' not in resp.text
 
 
@@ -298,12 +299,27 @@ def test_steam_page_hx_request_returns_just_the_table(authed_client, db):
     assert "<h1>Steam Library</h1>" not in resp.text
 
 
+def test_owned_tab_is_the_default_and_unredeemed_tab_content_is_hidden(authed_client, db):
+    _connect_steam(db)
+    db.add(SteamGame(appid=220, name="Half-Life 2", playtime_forever_minutes=0, img_icon_url=""))
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam", steam_app_id="220", steam_owned=False))
+    db.commit()
+
+    resp = authed_client.get("/steam")
+    # Both tabs' labels/counts always render — it's the content underneath
+    # that's exclusive to whichever tab is active.
+    assert "Never Redeemed on Steam" in resp.text
+    assert "Half-Life 2" in resp.text
+    assert "Unredeemed Game - Steam" not in resp.text
+
+
 def test_unredeemed_table_headers_carry_explanatory_tooltips(authed_client, db):
     _connect_steam(db)
     db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
     db.add(BundleEntitlement(gamekey="GK1", machine_name="m", keyindex=0, key_name="A Key", steam_app_id="220", steam_owned=False))
     db.commit()
 
-    resp = authed_client.get("/steam")
+    resp = authed_client.get("/steam?view=unredeemed")
     assert "A revealed key may still be unredeemed." in resp.text
     assert "redeeming the key may be redundant" in resp.text

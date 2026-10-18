@@ -9,8 +9,17 @@
     {{ checked_entitlement_count }} bundle key(s) checked against this library.
   </p>
 
+  <div class="store-tabs">
+    <a class="store-tab {{ 'active' if view != 'unredeemed' else '' }}" href="/steam?view=owned">
+      Owned Games <span class="store-tab-count">{{ game_count }}</span>
+    </a>
+    <a class="store-tab {{ 'active' if view == 'unredeemed' else '' }}" href="/steam?view=unredeemed">
+      Never Redeemed on Steam <span class="store-tab-count">{{ unredeemed|length }}</span>
+    </a>
+  </div>
+
+  {% if view == "unredeemed" %}
   <div class="card">
-    <h2>Never Redeemed on Steam ({{ unredeemed|length }})</h2>
     <p class="muted">Steam keys granted by your bundles that don't match anything in your Steam library.</p>
     {% if unredeemed %}
     <div class="table-scroll">
@@ -45,10 +54,10 @@
     <p class="muted">{{ "Every checked Steam key is already in your library — nothing to redeem." if game_count else "No games loaded yet — click Refresh." }}</p>
     {% endif %}
   </div>
-
+  {% else %}
   <div class="card">
-    <h2>Owned Games ({{ game_count }})</h2>
     {% include "steam/_games_table.html" %}
   </div>
+  {% endif %}
   {% endif %}
 </div>
