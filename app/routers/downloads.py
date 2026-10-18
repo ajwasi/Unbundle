@@ -242,7 +242,12 @@ def _resolve_scan_folder(root_index: int, folder: str) -> Path | None:
     the same is_relative_to() check) so the containment check sits in the
     same function as its own use — a call to a separate helper function
     left CodeQL's path-injection query still flagging the result as
-    tainted, even though the helper is unconditionally safe.
+    tainted, even though the helper is unconditionally safe. For the same
+    reason, `folder` is reduced to a plain, root-relative subpath by string
+    manipulation alone BEFORE any Path is ever built from it — a bare
+    Path(folder) with no trusted prefix joined in first is exactly the
+    shape that query flags, even once this function's own containment
+    check would have caught anything unsafe in it.
     """
     roots = settings.scan_root_list()
     if not (0 <= root_index < len(roots)):
@@ -252,37 +257,32 @@ def _resolve_scan_folder(root_index: int, folder: str) -> Path | None:
     if not folder:
         return root if root.is_dir() else None
 
-    # Two different things can show up here, and only one needs special
-    # handling: a full absolute path (e.g. copy-pasted from a file manager,
-    # or — just as real — the exact string this app's own predicted-path
-    # tests submit) resolves fine on its own merit below. But a leading
-    # slash/backslash on an otherwise-relative subpath — "/Audio Books by
-    # Auth" for a mount's own "Audio Books by Auth" subdirectory, the
-    # natural way to type "this root's own subfolder" — hits a
-    # Path.__truediv__ quirk: a right-hand operand that looks absolute is
-    # treated as a brand new anchor, silently discarding the left side
-    # entirely (root / "/x" is just "/x", not "root/x"). Confirmed via a
-    # real path, and the reason this tries BOTH readings rather than
-    # guessing from the string alone: stripping unconditionally before
-    # joining breaks the first case (a genuine absolute path starting with
-    # "/" becomes a bogus "root/tmp/..." on POSIX once its own leading
-    # slash is gone), so each interpretation gets its own attempt instead.
-    attempts = []
-    try:
-        attempts.append(Path(folder).resolve())
-    except (OSError, ValueError):
-        pass
-    stripped = folder.lstrip("/\\")
-    if stripped:
-        try:
-            attempts.append((root / stripped).resolve())
-        except (OSError, ValueError):
-            pass
+    # `folder` can arrive three ways: a bare subpath ("Audio Books by
+    # Auth"), that same subpath with a leading slash (the natural way to
+    # type "this root's own subfolder" — "/Audio Books by Auth" — which a
+    # real bug report confirmed breaks without this, since
+    # Path.__truediv__ treats a right-hand operand that looks absolute as
+    # a brand new anchor and silently discards the left side entirely:
+    # root / "/x" is just "/x", not "root/x"), or the directory's own full
+    # absolute path (e.g. copy-pasted from a file manager, or — just as
+    # real — what some of this file's own tests submit, predicting a path
+    # that happens to already start with root's own). All three are
+    # normalized to the same thing — root joined with whatever comes after
+    # root's own prefix, if any, else the whole (now de-anchored) string —
+    # entirely through string slicing, so the only Path ever constructed
+    # from `folder` is already anchored to root.
+    root_str = str(root)
+    if folder == root_str or folder.startswith(root_str + "/") or folder.startswith(root_str + "\\"):
+        folder = folder[len(root_str) :]
+    subpath = folder.lstrip("/\\")
 
-    for candidate in attempts:
-        if candidate.is_relative_to(root) and candidate.is_dir():
-            return candidate
-    return None
+    try:
+        candidate = (root / subpath).resolve() if subpath else root
+    except (OSError, ValueError):
+        return None
+    if not candidate.is_relative_to(root):
+        return None
+    return candidate if candidate.is_dir() else None
 
 
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
