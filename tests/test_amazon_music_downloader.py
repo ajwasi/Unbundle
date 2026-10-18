@@ -122,6 +122,72 @@ def _reset_module_state(monkeypatch):
     monkeypatch.setattr(downloader, "_current_job_id", None)
 
 
+# ------------------------------------------------- stale-cookie auto-retry
+
+
+class _RetryAuth:
+    """Starts with stale website cookies and only returns real ones once
+    set_website_cookies_for_country is actually called — i.e. once
+    cookies_from_audible_credential is asked to refresh=True."""
+
+    def __init__(self):
+        self.website_cookies = {"at-main": "stale"}
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls()
+
+    def set_website_cookies_for_country(self, country):
+        self.website_cookies = {"at-main": "fresh"}
+
+    def to_dict(self):
+        return {"website_cookies": self.website_cookies}
+
+
+@pytest.mark.asyncio
+async def test_build_session_retries_once_with_freshly_minted_cookies(db, monkeypatch):
+    _reset_module_state(monkeypatch)
+    _connect_audible(db)
+    _save_template(db)
+
+    calls = {"config_requests": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("config.json"):
+            calls["config_requests"] += 1
+            if calls["config_requests"] == 1:
+                return httpx.Response(200, json={})  # stale cookies: no token
+            return httpx.Response(200, json={"accessToken": "Atna|NEW", "deviceId": "D", "deviceType": "T", "sessionId": "S", "montanaCsrf": "C"})
+        return httpx.Response(404)
+
+    _patch_async_client(monkeypatch, httpx.MockTransport(handler))
+
+    with patch("audible.Authenticator", _RetryAuth):
+        client, headers_field, user_hash = await downloader._build_session(db)
+
+    assert calls["config_requests"] == 2
+    assert headers_field
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_build_session_gives_up_after_one_retry(db, monkeypatch):
+    _reset_module_state(monkeypatch)
+    _connect_audible(db)
+    _save_template(db)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("config.json"):
+            return httpx.Response(200, json={})  # never returns a token
+        return httpx.Response(404)
+
+    _patch_async_client(monkeypatch, httpx.MockTransport(handler))
+
+    with patch("audible.Authenticator", _RetryAuth):
+        with pytest.raises(amc.AmazonMusicAuthError, match="may have expired"):
+            await downloader._build_session(db)
+
+
 # --------------------------------------------------------------- queueing
 
 def test_start_download_raises_for_an_unknown_download_id(db):

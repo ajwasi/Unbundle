@@ -208,7 +208,7 @@ def _guess_extension(delivery_url: str) -> str:
     return suffix or ".mp3"
 
 
-async def _build_session(db: Session) -> tuple[httpx.AsyncClient, str, str]:
+async def _build_session(db: Session, _retried: bool = False) -> tuple[httpx.AsyncClient, str, str]:
     """Returns (client, headers_field, user_hash). Caller owns the client and
     must close it. Async, unlike amazon_music_sync's own session setup,
     because downloads run as background asyncio tasks rather than inside a
@@ -216,9 +216,17 @@ async def _build_session(db: Session) -> tuple[httpx.AsyncClient, str, str]:
     docstring for why the whole captured template is replayed instead of
     headers assembled from scratch, and why the access token alone isn't
     enough.
+
+    The derived Amazon website cookies are minted once from the stored
+    Audible refresh token and reused indefinitely — they go stale on their
+    own schedule, independent of the underlying Audible login still being
+    perfectly valid, since nothing ever re-mints them. A stale set surfaces
+    as AmazonMusicAuthError below; re-minting fresh cookies and retrying
+    exactly once (mirroring amazon_music_sync.py's own
+    _open_authenticated_client) covers that ordinary case automatically.
     """
     try:
-        cookies = await asyncio.to_thread(probe.cookies_from_audible_credential, db)
+        cookies = await asyncio.to_thread(probe.cookies_from_audible_credential, db, refresh=_retried)
     except _ProbeNotConnectedError as exc:
         raise NotConnectedError("Audible isn't connected, so there's no Amazon login to download with.") from exc
 
@@ -243,6 +251,11 @@ async def _build_session(db: Session) -> tuple[httpx.AsyncClient, str, str]:
             )
         headers_field = tmpl.with_fresh_session(template.headers_field, token, probe.session_fields_from_config(config))
         return client, headers_field, template.user_hash
+    except amc.AmazonMusicAuthError:
+        await client.aclose()
+        if _retried:
+            raise
+        return await _build_session(db, _retried=True)
     except Exception:
         await client.aclose()
         raise
