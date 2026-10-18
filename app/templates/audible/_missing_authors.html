@@ -9,6 +9,7 @@
   {% for g in missing_author_groups %}
   <details class="disclosure series-group">
     <summary>
+      {% if g.author_image_url %}<img src="{{ g.author_image_url }}" alt="" class="series-cover" loading="lazy" onerror="this.remove()">{% endif %}
       <a href="/audible/author/{{ g.author_name | urlencode }}" onclick="event.stopPropagation()">{{ g.author_name }}</a>
       <span class="store-tab-count">{{ g.books|length }}</span>
     </summary>

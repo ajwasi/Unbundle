@@ -44,6 +44,7 @@ from app.models import (  # noqa: E402,F401
     amazon_music_track,
     api_token,
     audible_author_book,
+    audible_author_profile,
     audible_book,
     audible_book_download,
     audible_download_destination,

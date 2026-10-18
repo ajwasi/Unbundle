@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.connectors import audible_connector
 from app.models.audible_author_book import AudibleAuthorBook
+from app.models.audible_author_profile import AudibleAuthorProfile
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import AudibleBookDownload
 from app.models.audible_pdf_download import AudiblePdfDownload
@@ -133,6 +134,17 @@ async def refresh_audible_library(db: Session) -> int:
             db.add(row)
         db.commit()
 
+        try:
+            profile_rows = await _fetch_author_profiles(author_rows)
+        except Exception as exc:
+            logger.warning("audible: author profile refresh failed, keeping previous profile data: %s", exc)
+            profile_rows = None
+        if profile_rows is not None:
+            db.query(AudibleAuthorProfile).delete()
+            for row in profile_rows:
+                db.add(row)
+            db.commit()
+
     _set_credential_status(db, STATUS_OK, None)
     return len(books)
 
@@ -242,6 +254,7 @@ async def _fetch_author_rows(
                 AudibleAuthorBook(
                     author_name=author_name,
                     asin=parsed.asin,
+                    author_asin=parsed.author_asin,
                     title=parsed.title,
                     authors=parsed.authors,
                     narrators=parsed.narrators,
@@ -255,6 +268,36 @@ async def _fetch_author_rows(
                     fetched_at=now,
                 )
             )
+    return rows
+
+
+async def _fetch_author_profiles(author_rows: list[AudibleAuthorBook]) -> list[AudibleAuthorProfile]:
+    """One Audnexus lookup per distinct author appearing in author_rows (see
+    AudibleAuthorProfile's own docstring for why Audnexus and not Audible
+    itself). A profile that fails to load, or an author row with no captured
+    asin at all, is just skipped — same "never fail the whole refresh over
+    one bad lookup" posture as every other per-item fetch in this module.
+    """
+    author_asins = {row.author_asin for row in author_rows if row.author_asin}
+    rows: list[AudibleAuthorProfile] = []
+    now = datetime.utcnow()
+    for author_asin in author_asins:
+        try:
+            profile = await audible_connector.fetch_author_profile(author_asin)
+        except Exception as exc:
+            logger.warning("audible: author profile %s unavailable, skipping: %s", author_asin, exc)
+            continue
+        if profile is None:
+            continue
+        rows.append(
+            AudibleAuthorProfile(
+                author_asin=profile.author_asin,
+                name=profile.name,
+                image_url=profile.image_url,
+                bio=profile.bio,
+                fetched_at=now,
+            )
+        )
     return rows
 
 

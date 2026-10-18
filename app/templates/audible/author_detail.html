@@ -2,8 +2,25 @@
 {% block title %}{{ author_name }} — Unbundle{% endblock %}
 {% block content %}
 <p><a href="/audible">&larr; Back to library</a></p>
+
+{% if author_image_url or author_bio %}
+<div class="card">
+  <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+    {% if author_image_url %}
+    <img src="{{ author_image_url }}" alt="" loading="lazy" onerror="this.remove()" style="max-width: 160px; border-radius: 4px;">
+    {% endif %}
+    <div style="flex: 1; min-width: 240px;">
+      <h1 style="margin-top: 0;">{{ author_name }}</h1>
+      <p class="muted" style="margin: 0 0 0.5rem;">{{ owned_count }} owned &mdash; {{ missing_count }} missing</p>
+      {% if author_bio %}<p style="margin-top: 1rem;">{{ author_bio }}</p>{% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
 <h1>{{ author_name }}</h1>
 <p class="muted">{{ owned_count }} owned &mdash; {{ missing_count }} missing</p>
+{% endif %}
+
 <div class="card">
   <div class="table-scroll">
   <table>

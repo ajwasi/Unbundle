@@ -1,11 +1,13 @@
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 from app.connectors import audible_connector
 from app.connectors.audible_connector import AudibleBookData
 from app.models.audible_author_book import AudibleAuthorBook
+from app.models.audible_author_profile import AudibleAuthorProfile
 from app.models.audible_book import AudibleBook
 from app.models.credential import SOURCE_AUDIBLE, STATUS_OK, Credential
 from app.security import encrypt_json
@@ -67,6 +69,50 @@ def test_parse_author_book_item_keeps_an_item_with_no_language_field_at_all():
     # _product's own default shape has no "language" key — absent reads as
     # English rather than being excluded (see _is_english's own docstring).
     assert audible_connector.parse_author_book_item(_product("B1", "X"), "Dennis E. Taylor") is not None
+
+
+def test_parse_author_book_item_captures_the_matching_authors_own_asin():
+    item = _product("B1", "X")
+    item["authors"] = [{"name": "Someone Else", "asin": "OTHER"}, {"name": "Dennis E. Taylor", "asin": "B010ETTBJC"}]
+    parsed = audible_connector.parse_author_book_item(item, "Dennis E. Taylor")
+    assert parsed.author_asin == "B010ETTBJC"
+
+
+def test_parse_author_book_item_leaves_author_asin_blank_when_the_credit_has_none():
+    # _product's own author entries never carry an asin — confirms this
+    # doesn't crash and just defaults to "" rather than raising.
+    parsed = audible_connector.parse_author_book_item(_product("B1", "X"), "Dennis E. Taylor")
+    assert parsed.author_asin == ""
+
+
+def _audnexus_response(status=200, **body):
+    return httpx.Response(status, json=body, request=httpx.Request("GET", "https://api.audnex.us/authors/X"))
+
+
+async def test_fetch_author_profile_reads_name_image_and_bio():
+    resp = _audnexus_response(asin="B010ETTBJC", name="Dennis E. Taylor", image="https://example.com/a.jpg", description="A bio.")
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
+        profile = await audible_connector.fetch_author_profile("B010ETTBJC")
+
+    assert profile.author_asin == "B010ETTBJC"
+    assert profile.name == "Dennis E. Taylor"
+    assert profile.image_url == "https://example.com/a.jpg"
+    assert profile.bio == "A bio."
+
+
+async def test_fetch_author_profile_strips_html_from_the_bio():
+    resp = _audnexus_response(asin="B1", name="X", image="", description="<p>Bio <b>text</b>.</p>")
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
+        profile = await audible_connector.fetch_author_profile("B1")
+    assert profile.bio == "Bio text."
+
+
+async def test_fetch_author_profile_returns_none_for_a_malformed_asin():
+    # A malformed asin reliably 400s on the real API (confirmed live) rather
+    # than ever 404ing — treated as "no profile" either way.
+    resp = _audnexus_response(status=400, error={"code": "BAD_REQUEST", "message": "Bad ASIN"})
+    with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
+        assert await audible_connector.fetch_author_profile("ZZZZZZZZZZ") is None
 
 
 async def test_fetch_author_books_pages_until_a_short_page():
@@ -132,6 +178,75 @@ async def test_an_author_that_fails_to_load_does_not_fail_the_refresh(db):
 
     assert count == 1
     assert db.query(AudibleAuthorBook).count() == 0
+
+
+def _author_book_item_with_asin(asin, title, author_asin="B010ETTBJC"):
+    item = _product(asin, title)
+    item["authors"] = [{"name": "Dennis E. Taylor", "asin": author_asin}]
+    return item
+
+
+async def test_refresh_stores_author_profiles_from_audnexus(db):
+    _connect_audible(db)
+    found = [audible_connector.parse_author_book_item(_author_book_item_with_asin("B2", "Outland"), "Dennis E. Taylor")]
+    profile = audible_connector.AudibleAuthorProfileData(
+        author_asin="B010ETTBJC", name="Dennis E. Taylor", image_url="https://example.com/a.jpg", bio="A bio."
+    )
+
+    with (
+        patch("app.sync.audible_sync.audible.Authenticator.from_dict", return_value=_FakeAuth()),
+        patch("app.sync.audible_sync.audible_connector.fetch_library", new=AsyncMock(return_value=[_owned()])),
+        patch("app.sync.audible_sync.audible_connector.fetch_author_books", new=AsyncMock(return_value=found)),
+        patch("app.sync.audible_sync.audible_connector.fetch_author_profile", new=AsyncMock(return_value=profile)),
+    ):
+        await audible_sync.refresh_audible_library(db)
+
+    row = db.query(AudibleAuthorProfile).one()
+    assert row.author_asin == "B010ETTBJC"
+    assert row.image_url == "https://example.com/a.jpg"
+    assert row.bio == "A bio."
+
+
+async def test_an_author_profile_that_fails_to_load_does_not_fail_the_refresh(db):
+    _connect_audible(db)
+    found = [audible_connector.parse_author_book_item(_author_book_item_with_asin("B2", "Outland"), "Dennis E. Taylor")]
+
+    with (
+        patch("app.sync.audible_sync.audible.Authenticator.from_dict", return_value=_FakeAuth()),
+        patch("app.sync.audible_sync.audible_connector.fetch_library", new=AsyncMock(return_value=[_owned()])),
+        patch("app.sync.audible_sync.audible_connector.fetch_author_books", new=AsyncMock(return_value=found)),
+        patch("app.sync.audible_sync.audible_connector.fetch_author_profile", new=AsyncMock(side_effect=RuntimeError("boom"))),
+    ):
+        count = await audible_sync.refresh_audible_library(db)
+
+    assert count == 1
+    assert db.query(AudibleAuthorBook).count() == 1  # the author-books refresh itself still succeeded
+    assert db.query(AudibleAuthorProfile).count() == 0
+
+
+async def test_fetch_author_profiles_deduplicates_by_author_asin():
+    """Two missing books by the same author share one author_asin — only
+    one Audnexus lookup should fire for it, not one per missing book.
+    """
+    now = datetime.utcnow()
+    rows = [
+        AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", author_asin="B010ETTBJC", fetched_at=now),
+        AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B3", author_asin="B010ETTBJC", fetched_at=now),
+    ]
+    fetch = AsyncMock(return_value=None)
+    with patch("app.sync.audible_sync.audible_connector.fetch_author_profile", new=fetch):
+        await audible_sync._fetch_author_profiles(rows)
+    fetch.assert_awaited_once_with("B010ETTBJC")
+
+
+async def test_fetch_author_profiles_skips_rows_with_no_captured_asin():
+    now = datetime.utcnow()
+    rows = [AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", author_asin="", fetched_at=now)]
+    fetch = AsyncMock(return_value=None)
+    with patch("app.sync.audible_sync.audible_connector.fetch_author_profile", new=fetch):
+        result = await audible_sync._fetch_author_profiles(rows)
+    fetch.assert_not_awaited()
+    assert result == []
 
 
 def test_is_contributor_credit_flags_a_role_suffixed_name():
@@ -280,6 +395,39 @@ def test_missing_authors_tab_author_name_links_to_the_author_page(authed_client,
     assert 'href="/audible/author/Dennis%20E.%20Taylor"' in resp.text
 
 
+def test_missing_authors_tab_shows_a_thumbnail_when_a_profile_is_cached(authed_client, db):
+    now = _seed(db)
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", author_asin="B010ETTBJC", title="Outland", fetched_at=now))
+    db.add(AudibleAuthorProfile(author_asin="B010ETTBJC", name="Dennis E. Taylor", image_url="https://example.com/a.jpg", bio="A bio.", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible?view=missing_authors")
+
+    assert 'src="https://example.com/a.jpg"' in resp.text
+
+
+def test_missing_authors_tab_shows_no_thumbnail_without_a_cached_profile(authed_client, db):
+    now = _seed(db)
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", author_asin="B010ETTBJC", title="Outland", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible?view=missing_authors")
+
+    assert "<img" not in resp.text
+
+
+def test_author_detail_page_shows_photo_and_bio_when_a_profile_is_cached(authed_client, db):
+    now = _seed(db)
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", author_asin="B010ETTBJC", title="Outland", fetched_at=now))
+    db.add(AudibleAuthorProfile(author_asin="B010ETTBJC", name="Dennis E. Taylor", image_url="https://example.com/a.jpg", bio="A real bio.", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible/author/Dennis E. Taylor")
+
+    assert 'src="https://example.com/a.jpg"' in resp.text
+    assert "A real bio." in resp.text
+
+
 def test_author_detail_page_lists_owned_and_missing_books(authed_client, db):
     now = _seed(db)
     db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", title="For We Are Many", series_title="Bobiverse", series_sequence="2", current_price=13.96, list_price=19.95, currency="USD", fetched_at=now))
@@ -298,6 +446,7 @@ def test_author_detail_page_lists_owned_and_missing_books(authed_client, db):
     assert "Bobiverse #2" in resp.text
     assert "1 owned" in resp.text
     assert "1 missing" in resp.text
+    assert "<img" not in resp.text  # no author_asin captured on this row, so no profile lookup at all
 
 
 def test_author_detail_page_does_not_match_a_different_author_with_a_similar_name(authed_client, db):

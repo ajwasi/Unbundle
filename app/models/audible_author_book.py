@@ -23,6 +23,12 @@ class AudibleAuthorBook(Base):
 
     author_name: Mapped[str] = mapped_column(String(300), primary_key=True)
     asin: Mapped[str] = mapped_column(String(20), primary_key=True)
+    # The author's OWN asin (not this row's book asin, above) — Audible's
+    # catalogue credits each author with {asin, name} on every book, and this
+    # is what keys AudibleAuthorProfile's Audnexus lookup. Blank on the rare
+    # row where the matching credit's own asin couldn't be found (see
+    # parse_author_book_item), never on a database that predates this column.
+    author_asin: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     authors: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     narrators: Mapped[str] = mapped_column(String(300), nullable=False, default="")

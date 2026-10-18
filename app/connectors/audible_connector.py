@@ -606,6 +606,7 @@ class AudibleAuthorBookData:
     current_price: float | None
     list_price: float | None
     currency: str
+    author_asin: str = ""
 
 
 def parse_author_book_item(item: dict, author_name: str) -> AudibleAuthorBookData | None:
@@ -619,9 +620,16 @@ def parse_author_book_item(item: dict, author_name: str) -> AudibleAuthorBookDat
         return None
     if not _is_english(item):
         return None
-    names = [a["name"] for a in item.get("authors") or [] if a.get("name")]
-    if author_name.casefold() not in {n.casefold() for n in names}:
+    credited = item.get("authors") or []
+    if author_name.casefold() not in {(a.get("name") or "").casefold() for a in credited if a.get("name")}:
         return None
+    # The matching credit's own asin — not this book's asin above — is what
+    # keys an Audnexus author lookup (see AudibleAuthorProfile). Every credit
+    # sharing this exact name is assumed to be the same real author, so the
+    # first match's asin is as good as any.
+    author_asin = next(
+        (a.get("asin") or "" for a in credited if (a.get("name") or "").casefold() == author_name.casefold()), ""
+    )
     images = item.get("product_images") or {}
     cover = images.get("500") or next(iter(images.values()), "")
     current, listed, currency = _wishlist_prices(item)
@@ -629,7 +637,7 @@ def parse_author_book_item(item: dict, author_name: str) -> AudibleAuthorBookDat
     return AudibleAuthorBookData(
         asin=asin,
         title=item.get("title") or asin,
-        authors=", ".join(names),
+        authors=", ".join(a["name"] for a in credited if a.get("name")),
         narrators=", ".join(n["name"] for n in item.get("narrators") or [] if n.get("name")),
         cover_url=cover,
         series_title=series_title,
@@ -638,6 +646,44 @@ def parse_author_book_item(item: dict, author_name: str) -> AudibleAuthorBookDat
         current_price=current,
         list_price=listed,
         currency=currency,
+        author_asin=author_asin,
+    )
+
+
+AUDNEXUS_BASE_URL = "https://api.audnex.us"
+
+
+@dataclass
+class AudibleAuthorProfileData:
+    author_asin: str
+    name: str
+    image_url: str
+    bio: str
+
+
+async def fetch_author_profile(author_asin: str) -> AudibleAuthorProfileData | None:
+    """One author's bio + photo from Audnexus — see AudibleAuthorProfile's
+    own docstring for why this (and not Audible itself) is the source.
+    Returns None for anything short of a clean 200 (a malformed asin
+    reliably 400s; confirmed live) rather than raising, so a single author
+    Audnexus doesn't recognize degrades to "no photo/bio" instead of an
+    error — the caller still logs+skips on a genuine network failure, same
+    as every other per-item fetch in this module.
+    """
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(f"{AUDNEXUS_BASE_URL}/authors/{author_asin}")
+    if resp.status_code != 200:
+        return None
+    data = resp.json()
+    return AudibleAuthorProfileData(
+        author_asin=author_asin,
+        name=data.get("name") or "",
+        image_url=data.get("image") or "",
+        # Audible's other free-text fields (e.g. a book's publisher_summary,
+        # parsed above) are confirmed to carry raw HTML — stripped the same
+        # way here on the assumption an author bio sourced from the same
+        # underlying data can too, even though no real capture has shown it.
+        bio=nh3.clean(data.get("description") or "", tags=set()),
     )
 
 
