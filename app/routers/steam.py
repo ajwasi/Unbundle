@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -24,7 +24,13 @@ _SORT_COLUMNS = {
 
 
 def _context(
-    db: Session, name: str = "", playtime_min: str = "", playtime_max: str = "", sort: str = "name", dir: str = "asc"
+    db: Session,
+    view: str = "owned",
+    name: str = "",
+    playtime_min: str = "",
+    playtime_max: str = "",
+    sort: str = "name",
+    dir: str = "asc",
 ) -> dict:
     cred = Credential.get(db, SOURCE_STEAM)
     query = db.query(SteamGame)
@@ -49,9 +55,11 @@ def _context(
         func.count(SteamGame.appid), func.coalesce(func.sum(SteamGame.playtime_forever_minutes), 0)
     ).one()
     checked_count = db.query(BundleEntitlement).filter(BundleEntitlement.steam_app_id.isnot(None)).count()
+    unredeemed = unredeemed_rows(db, "steam")
     return {
         "steam_status": cred.status if cred else STATUS_NOT_CONFIGURED,
         "steam_error": cred.last_error if cred else None,
+        "view": view if view == "unredeemed" else "owned",
         "games": games,
         "name": name,
         "playtime_min": playtime_min_hours,
@@ -61,7 +69,7 @@ def _context(
         "game_count": total_game_count,
         "total_playtime_hours": round(total_playtime_minutes / 60, 1),
         "checked_entitlement_count": checked_count,
-        "unredeemed": unredeemed_rows(db, "steam"),
+        "unredeemed": unredeemed,
         "last_synced": db.query(func.max(SteamGame.fetched_at)).scalar(),
     }
 
@@ -69,6 +77,7 @@ def _context(
 @router.get("", response_class=HTMLResponse)
 def steam_page(
     request: Request,
+    view: str = "owned",
     name: str = "",
     playtime_min: str = "",
     playtime_max: str = "",
@@ -76,16 +85,16 @@ def steam_page(
     dir: str = "asc",
     db: Session = Depends(get_db),
 ):
-    context = _context(db, name, playtime_min, playtime_max, sort, dir)
+    context = _context(db, view, name, playtime_min, playtime_max, sort, dir)
     return render_list_or_partial(request, templates, "steam/list.html", "steam/_games_table.html", context)
 
 
 @router.post("/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "steam-refresh")), Depends(require_csrf)])
-async def refresh_steam(request: Request, db: Session = Depends(get_db)):
+async def refresh_steam(request: Request, view: str = Form("owned"), db: Session = Depends(get_db)):
     try:
         await steam_sync.refresh_steam_library(db)
     except steam_sync.NotConnectedError:
         pass  # nothing to fetch — the page already shows a "not configured" state
     except Exception:
         pass  # error already recorded on the credential row by refresh_steam_library
-    return templates.TemplateResponse(request, "steam/_content.html", _context(db))
+    return templates.TemplateResponse(request, "steam/_content.html", _context(db, view=view))
