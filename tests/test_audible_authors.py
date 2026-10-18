@@ -48,6 +48,27 @@ def test_parse_author_book_item_matches_case_insensitively():
     assert audible_connector.parse_author_book_item(_product("B1", "X"), "dennis e. taylor") is not None
 
 
+def test_parse_author_book_item_drops_a_non_english_edition():
+    """Regression test for a real account: Brandon Sanderson's German,
+    Spanish, French and Portuguese editions all showed up as "missing"
+    alongside the real English gaps — the author catalogue search isn't
+    scoped to one language.
+    """
+    item = _product("B1", "Legion – Die vielen Leben des Stephen Leeds", language="german")
+    assert audible_connector.parse_author_book_item(item, "Dennis E. Taylor") is None
+
+
+def test_parse_author_book_item_keeps_an_explicit_english_edition():
+    item = _product("B1", "X", language="english")
+    assert audible_connector.parse_author_book_item(item, "Dennis E. Taylor") is not None
+
+
+def test_parse_author_book_item_keeps_an_item_with_no_language_field_at_all():
+    # _product's own default shape has no "language" key — absent reads as
+    # English rather than being excluded (see _is_english's own docstring).
+    assert audible_connector.parse_author_book_item(_product("B1", "X"), "Dennis E. Taylor") is not None
+
+
 async def test_fetch_author_books_pages_until_a_short_page():
     full = [_product(f"B{i}", f"Book {i}") for i in range(audible_connector.AUTHOR_PAGE_SIZE)]
     pages = [{"products": full}, {"products": [_product("LAST", "Last")]}]
@@ -211,7 +232,42 @@ def test_missing_authors_tab_count_is_distinct_authors_not_book_count(authed_cli
 
     resp = authed_client.get("/audible")
 
-    assert ">1</span>" in resp.text.split("Missing by author")[1][:100]
+    assert ">1/2</span>" in resp.text.split("Missing by author")[1][:100]
+
+
+def test_missing_authors_search_box_filters_groups_but_tab_count_stays_stable(authed_client, db):
+    now = _seed(db)
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", title="Outland", fetched_at=now))
+    db.add(AudibleAuthorBook(author_name="Someone Else", asin="B4", title="Other Author Book", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible", params={"view": "missing_authors", "author_q": "taylor"})
+    assert "Dennis E. Taylor" in resp.text
+    assert "Someone Else" not in resp.text
+    # The tab badge is unaffected by the search box's own filter.
+    assert ">2/2</span>" in resp.text.split("Missing by author")[1][:200]
+    assert 'value="taylor"' in resp.text
+
+
+def test_missing_authors_search_box_with_no_match_shows_an_empty_state(authed_client, db):
+    now = _seed(db)
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", title="Outland", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible", params={"view": "missing_authors", "author_q": "nonexistent"})
+    assert 'No authors match "nonexistent".' in resp.text
+    assert "Outland" not in resp.text
+
+
+def test_missing_authors_hx_request_returns_just_that_fragment(authed_client, db):
+    now = _seed(db)
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", title="Outland", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible?view=missing_authors", headers={"HX-Request": "true"})
+    assert 'id="audible-missing-authors"' in resp.text
+    assert "Outland" in resp.text
+    assert "<h1>Audible Library</h1>" not in resp.text
 
 
 def test_missing_authors_tab_author_name_links_to_the_author_page(authed_client, db):
@@ -284,4 +340,4 @@ def test_a_book_bought_since_the_last_refresh_drops_off_the_missing_authors_tab(
     resp = authed_client.get("/audible?view=missing_authors")
 
     assert "Nothing missing" in resp.text
-    assert ">0</span>" in resp.text.split("Missing by author")[1][:200]
+    assert ">0/0</span>" in resp.text.split("Missing by author")[1][:200]

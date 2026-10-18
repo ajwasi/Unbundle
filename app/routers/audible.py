@@ -13,7 +13,6 @@ from app.list_views import (
     apply_range_filter,
     parse_optional_date,
     parse_optional_float,
-    render_list_or_partial,
     sorted_query,
 )
 from app.models.audible_author_book import AudibleAuthorBook
@@ -124,6 +123,8 @@ def _context(
     progress: str = "",
     sort: str = "title",
     dir: str = "asc",
+    series_q: str = "",
+    author_q: str = "",
 ) -> dict:
     cred = Credential.get(db, SOURCE_AUDIBLE)
     query = db.query(AudibleBook)
@@ -201,6 +202,22 @@ def _context(
         if row.asin not in owned_asins
     ]
     missing_author_groups = _group_missing_by_author(author_missing_rows)
+    missing_series_groups = _group_missing_by_series(missing_rows)
+    # Captured before the search filter below (which reassigns these same
+    # names) so the tab badges stay the stable, library-wide counts — same
+    # "unaffected by the current filter" convention book_count already uses
+    # for the Owned tab.
+    missing_series_count = len(missing_series_groups)
+    missing_author_count = len(missing_author_groups)
+
+    # Search filters the GROUPS by name — whole series/author, not individual
+    # books within one — matching what the search box sits next to.
+    series_q = series_q.strip()
+    if series_q:
+        missing_series_groups = [g for g in missing_series_groups if series_q.casefold() in g["series_title"].casefold()]
+    author_q = author_q.strip()
+    if author_q:
+        missing_author_groups = [g for g in missing_author_groups if author_q.casefold() in g["author_name"].casefold()]
 
     downloaded_asins = {a for (a,) in db.query(AudibleLocalFile.asin).all()}
     active_asins = {job["asin"] for job in book_downloader.get_active_jobs(db)}
@@ -211,14 +228,19 @@ def _context(
         "books": books,
         "downloaded_asins": downloaded_asins,
         "active_asins": active_asins,
+        # Each tab's badge shows "groups/books" — distinct series or authors,
+        # then the total missing books across all of them — computed before
+        # the search filter above, so it's the stable library-wide total,
+        # same "book_count isn't affected by the Owned tab's own filters"
+        # convention.
         "missing_count": len(missing_rows),
-        "missing_series_groups": _group_missing_by_series(missing_rows),
-        # The number of distinct authors with at least one missing book —
-        # not the number of missing books — matching the tab's own label
-        # ("Missing by author"); each group's own book count is still shown
-        # per-author in the disclosure summary below.
-        "missing_author_count": len(missing_author_groups),
+        "missing_series_count": missing_series_count,
+        "missing_series_groups": missing_series_groups,
+        "series_q": series_q,
+        "missing_author_count": missing_author_count,
+        "missing_author_book_count": len(author_missing_rows),
         "missing_author_groups": missing_author_groups,
+        "author_q": author_q,
         "destinations": _destination_rows(db),
         "view": view if view in ("missing", "missing_authors") else "owned",
         "title": title,
@@ -298,6 +320,8 @@ def audible_page(
     progress: str = "",
     sort: str = "title",
     dir: str = "asc",
+    series_q: str = "",
+    author_q: str = "",
     db: Session = Depends(get_db),
 ):
     context = _context(
@@ -319,8 +343,21 @@ def audible_page(
         progress=progress,
         sort=sort,
         dir=dir,
+        series_q=series_q,
+        author_q=author_q,
     )
-    return render_list_or_partial(request, templates, "audible/list.html", "audible/_books_table.html", context)
+    # Each tab's own search box re-requests just that tab's content, not the
+    # owned-books table _books_table.html serves for every other htmx hit on
+    # this route — same render_list_or_partial idea (full page on a plain
+    # load, a scoped fragment on an htmx one), just view-dependent since
+    # there are now three different fragments instead of one.
+    if request.headers.get("HX-Request") == "true":
+        if view == "missing":
+            return templates.TemplateResponse(request, "audible/_missing_series.html", context)
+        if view == "missing_authors":
+            return templates.TemplateResponse(request, "audible/_missing_authors.html", context)
+        return templates.TemplateResponse(request, "audible/_books_table.html", context)
+    return templates.TemplateResponse(request, "audible/list.html", context)
 
 
 @router.post(
@@ -328,14 +365,22 @@ def audible_page(
     response_class=HTMLResponse,
     dependencies=[Depends(rate_limit(_refresh_limiter, "audible-refresh")), Depends(require_csrf)],
 )
-async def refresh_audible(request: Request, view: str = Form("owned"), db: Session = Depends(get_db)):
+async def refresh_audible(
+    request: Request,
+    view: str = Form("owned"),
+    series_q: str = Form(""),
+    author_q: str = Form(""),
+    db: Session = Depends(get_db),
+):
     try:
         await audible_sync.refresh_audible_library(db)
     except audible_sync.NotConnectedError:
         pass
     except Exception:
         pass  # error already recorded on the credential row by refresh_audible_library
-    return templates.TemplateResponse(request, "audible/_content.html", _context(db, view=view))
+    return templates.TemplateResponse(
+        request, "audible/_content.html", _context(db, view=view, series_q=series_q, author_q=author_q)
+    )
 
 
 @router.get("/series/{series_asin}", response_class=HTMLResponse)

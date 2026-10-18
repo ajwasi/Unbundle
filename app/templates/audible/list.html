@@ -23,6 +23,8 @@
   <form hx-post="/audible/refresh" hx-target="#audible-content" hx-swap="outerHTML" style="margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <input type="hidden" name="view" value="{{ view }}">
+    <input type="hidden" name="series_q" value="{{ series_q }}">
+    <input type="hidden" name="author_q" value="{{ author_q }}">
     <button type="submit" class="secondary">Refresh</button>
   </form>
   <span class="muted">
