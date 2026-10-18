@@ -190,17 +190,41 @@ async def _fetch_series_rows(
     return rows
 
 
+def _is_contributor_credit(name: str) -> bool:
+    """True for a non-author credit Audible's own `authors` array still
+    carries, with the role appended straight into the name string — e.g.
+    "Richard Howard - translator" — rather than a separate field. Confirmed
+    from a real catalog/products response (2026-10-18) captured while
+    debugging the Missing by Author tab coming back empty: searching
+    Audible's catalogue by a name like that only ever turns up the small
+    handful of editions sharing that exact translator credit, which are
+    usually the very book this app already owns — so every such search
+    came back with nothing new, not because nothing was missing but because
+    the "author" being searched for was never a real author to begin with.
+    A real name is never going to contain " - " followed by more text this
+    way (hyphenated names don't have spaces around the hyphen), so this is
+    a safe, non-guessing way to tell the two apart using Audible's own
+    consistent formatting rather than a hardcoded role word-list.
+    """
+    return " - " in name
+
+
 async def _fetch_author_rows(
     auth: audible.Authenticator, books: list[audible_connector.AudibleBookData]
 ) -> list[AudibleAuthorBook]:
     """One catalogue search per distinct owned author (matched
-    case-insensitively); anything already owned is dropped. An author whose
-    lookup fails is skipped rather than failing the whole refresh.
+    case-insensitively); anything already owned is dropped, and a
+    non-author contributor credit (translator, foreword, etc. — see
+    _is_contributor_credit) is never searched for in the first place. An
+    author whose lookup fails is skipped rather than failing the whole
+    refresh.
     """
     owned_asins = {b.asin for b in books}
     authors: dict[str, str] = {}
     for b in books:
         for name in b.author_names:
+            if _is_contributor_credit(name):
+                continue
             authors.setdefault(name.casefold(), name)
 
     rows: list[AudibleAuthorBook] = []
