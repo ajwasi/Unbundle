@@ -16,6 +16,7 @@ from app.list_views import (
     sorted_query,
 )
 from app.models.audible_author_book import AudibleAuthorBook
+from app.models.audible_author_profile import AudibleAuthorProfile
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import STATUS_COMPLETED as BOOK_STATUS_COMPLETED
 from app.models.audible_book_download import STATUS_FAILED as BOOK_STATUS_FAILED
@@ -96,7 +97,14 @@ def _group_missing_by_author(rows: list[AudibleAuthorBook]) -> list[dict]:
     for row in rows:
         g = groups.get(row.author_name)
         if g is None:
-            g = groups[row.author_name] = {"author_name": row.author_name, "books": []}
+            g = groups[row.author_name] = {
+                "author_name": row.author_name,
+                "author_asin": row.author_asin,
+                "author_image_url": "",
+                "books": [],
+            }
+        if not g["author_asin"] and row.author_asin:
+            g["author_asin"] = row.author_asin
         g["books"].append(row)
     for g in groups.values():
         g["books"].sort(key=lambda r: r.title)
@@ -203,6 +211,21 @@ def _context(
     ]
     missing_author_groups = _group_missing_by_author(author_missing_rows)
     missing_series_groups = _group_missing_by_series(missing_rows)
+
+    # Thumbnail for the "Missing by author" listing — a separate lookup
+    # rather than a join, since AudibleAuthorProfile is cached independently
+    # (see its own docstring) and most groups share the same handful of
+    # author_asins across many missing books.
+    author_asins = {g["author_asin"] for g in missing_author_groups if g["author_asin"]}
+    if author_asins:
+        profiles_by_asin = {
+            p.author_asin: p
+            for p in db.query(AudibleAuthorProfile).filter(AudibleAuthorProfile.author_asin.in_(author_asins)).all()
+        }
+        for g in missing_author_groups:
+            profile = profiles_by_asin.get(g["author_asin"])
+            if profile is not None:
+                g["author_image_url"] = profile.image_url
     # Captured before the search filter below (which reassigns these same
     # names) so the tab badges stay the stable, library-wide counts — same
     # "unaffected by the current filter" convention book_count already uses
@@ -455,6 +478,13 @@ def audible_author_detail(request: Request, author_name: str, db: Session = Depe
         if author_name.casefold() in {n.strip().casefold() for n in (b.author or "").split(",")}
     ]
     missing = db.query(AudibleAuthorBook).filter(AudibleAuthorBook.author_name == author_name).all()
+    # Captured before the owned-filter below (which can empty `missing`
+    # entirely) — the author's own asin is the same regardless of which rows
+    # survive that filter, and it's only ever known via a missing-book row
+    # (see parse_author_book_item) — an author with everything already owned
+    # has no row to find it on at all, so this page shows no photo/bio for
+    # them rather than expanding the owned-books path to capture it too.
+    author_asin = missing[0].author_asin if missing else ""
     # Same read-time owned filter as everywhere else in this file — a book
     # bought since the last refresh shouldn't show up as both.
     owned_asins = {b.asin for b in owned}
@@ -463,6 +493,8 @@ def audible_author_detail(request: Request, author_name: str, db: Session = Depe
         return templates.TemplateResponse(
             request, "audible/author_not_found.html", {"author_name": author_name}, status_code=404
         )
+
+    profile = db.get(AudibleAuthorProfile, author_asin) if author_asin else None
 
     rows = [
         {
@@ -507,6 +539,8 @@ def audible_author_detail(request: Request, author_name: str, db: Session = Depe
             "owned_count": len(owned),
             "missing_count": len(missing),
             "rows": rows,
+            "author_image_url": profile.image_url if profile else "",
+            "author_bio": profile.bio if profile else "",
         },
     )
 
