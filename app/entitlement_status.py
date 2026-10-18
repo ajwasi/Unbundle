@@ -94,6 +94,7 @@ def unredeemed_rows(db: Session, platform: str) -> list[dict]:
             raw = {}
         expires_at = parse_expiration(raw)
         title = ent.key_name.strip().casefold()
+        owned_elsewhere = title in self_titles or title in other_titles
         result.append(
             {
                 "key_name": ent.key_name,
@@ -103,6 +104,17 @@ def unredeemed_rows(db: Session, platform: str) -> list[dict]:
                 "redeem_url": order_page_url(ent.gamekey),
                 f"owned_as_different_{platform}_listing": title in self_titles,
                 f"owned_on_{other_platform}": title in other_titles,
+                # Never redeemed on Humble, but the title hint above suggests
+                # it's already owned some other way — same "surplus, safe to
+                # give away" signal bundles.py's own Ownership column badges
+                # as "Owned, key unused", via a softer name-matched hint here
+                # rather than an exact platform-id match (this function has
+                # no such exact match to work with — every row here is
+                # already confirmed NOT owned on `platform` by its own
+                # query). Still gated on redeemed_on_humble: a key that WAS
+                # redeemed and also looks owned elsewhere is a duplicate
+                # worth knowing about, not a spare one to give away.
+                "giftable": not ent.redeemed_on_humble and owned_elsewhere,
                 "expires_at": expires_at,
                 "days_until_expired": (expires_at - datetime.now(timezone.utc)).days if expires_at else None,
                 "is_expired": expires_at is not None and expires_at < datetime.now(timezone.utc),

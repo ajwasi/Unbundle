@@ -137,6 +137,42 @@ def test_steam_page_flags_a_key_owned_on_gog(authed_client, db):
     assert 'class="badge badge-pending">GOG<' in resp.text
 
 
+def test_steam_page_flags_a_never_redeemed_but_owned_key_as_giftable(authed_client, db):
+    from app.models.gog_game import GogGame
+
+    _connect_steam(db)
+    db.add(GogGame(product_id=1, title="Unredeemed Game - Steam", image_url="", content_type="game"))
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(
+        gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam",
+        steam_app_id="220", steam_owned=False, redeemed_on_humble=False,
+    ))
+    db.commit()
+
+    resp = authed_client.get("/steam?view=unredeemed")
+    assert "Owned, key unused" in resp.text
+
+
+def test_steam_page_does_not_flag_a_redeemed_key_as_giftable(authed_client, db):
+    # Already redeemed on Humble AND separately looks owned elsewhere — a
+    # duplicate worth noting (the GOG badge still fires), but not a spare
+    # key to hand to a friend, since this one's already been used.
+    from app.models.gog_game import GogGame
+
+    _connect_steam(db)
+    db.add(GogGame(product_id=1, title="Unredeemed Game - Steam", image_url="", content_type="game"))
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(
+        gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed Game - Steam",
+        steam_app_id="220", steam_owned=False, redeemed_on_humble=True,
+    ))
+    db.commit()
+
+    resp = authed_client.get("/steam?view=unredeemed")
+    assert "Owned, key unused" not in resp.text
+    assert 'class="badge badge-pending">GOG<' in resp.text
+
+
 def test_steam_page_shows_no_ownership_hint_when_not_owned_anywhere(authed_client, db):
     _connect_steam(db)
     db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
