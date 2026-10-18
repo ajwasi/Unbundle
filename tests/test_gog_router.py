@@ -118,6 +118,39 @@ def test_gog_page_flags_a_key_owned_on_steam(authed_client, db):
     assert 'class="badge badge-pending">Steam<' in resp.text
 
 
+def test_gog_page_flags_a_never_redeemed_but_owned_key_as_giftable(authed_client, db):
+    from app.models.steam_game import SteamGame
+
+    _connect_gog(db)
+    db.add(SteamGame(appid=220, name="Unredeemed - GOG", playtime_forever_minutes=0, img_icon_url=""))
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(
+        gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed - GOG",
+        gog_id=None, gog_owned=False, redeemed_on_humble=False,
+    ))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "Owned, key unused" in resp.text
+
+
+def test_gog_page_does_not_flag_a_redeemed_key_as_giftable(authed_client, db):
+    from app.models.steam_game import SteamGame
+
+    _connect_gog(db)
+    db.add(SteamGame(appid=220, name="Unredeemed - GOG", playtime_forever_minutes=0, img_icon_url=""))
+    db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))
+    db.add(BundleEntitlement(
+        gamekey="GK1", machine_name="m", keyindex=0, key_name="Unredeemed - GOG",
+        gog_id=None, gog_owned=False, redeemed_on_humble=True,
+    ))
+    db.commit()
+
+    resp = authed_client.get("/gog")
+    assert "Owned, key unused" not in resp.text
+    assert 'class="badge badge-pending">Steam<' in resp.text
+
+
 def test_gog_page_shows_no_ownership_hint_when_not_owned_anywhere(authed_client, db):
     _connect_gog(db)
     db.add(Bundle(gamekey="GK1", name="Some Bundle", raw_json="{}"))

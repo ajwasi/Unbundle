@@ -32,6 +32,7 @@
           <td>
             {% if row.owned_as_different_gog_listing %}<span class="badge badge-pending">GOG (different listing)</span>{% endif %}
             {% if row.owned_on_steam %}<span class="badge badge-pending">Steam</span>{% endif %}
+            {% if row.giftable %}<span class="badge badge-pending tip" title="Never redeemed on Humble, and already owned another way — safe to give this key to a friend.">Owned, key unused</span>{% endif %}
             {% if not row.owned_as_different_gog_listing and not row.owned_on_steam %}<span class="muted">&mdash;</span>{% endif %}
           </td>
           <td><a href="{{ row.redeem_url }}" target="_blank" rel="noopener">Redeem on Humble Bundle &rarr;</a></td>
