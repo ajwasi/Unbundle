@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, make_url
+from sqlalchemy import create_engine, event, make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
@@ -26,6 +26,18 @@ elif _backend == "postgresql":
 
 engine = create_engine(settings.database_url, connect_args=connect_args, **engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+if _backend == "sqlite":
+    # Default (rollback journal) mode takes an exclusive lock on the whole
+    # file for the duration of any write transaction, blocking every reader
+    # until it commits — a long sync's many writes could otherwise stall a
+    # page load that just wants to read. WAL lets readers proceed against
+    # the last-committed snapshot while a writer is active. Set per-
+    # connection (SQLite has no durable "set once" for this that survives a
+    # fresh connect) — cheap enough to run on every checkout.
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_wal(dbapi_connection, connection_record):
+        dbapi_connection.execute("PRAGMA journal_mode=WAL")
 
 
 class Base(DeclarativeBase):
