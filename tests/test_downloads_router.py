@@ -1,3 +1,10 @@
+from datetime import datetime
+
+from app.models.amazon_music_download import STATUS_COMPLETED as AM_STATUS_COMPLETED
+from app.models.amazon_music_download import STATUS_QUEUED as AM_STATUS_QUEUED
+from app.models.amazon_music_download import STATUS_RUNNING as AM_STATUS_RUNNING
+from app.models.amazon_music_download import AmazonMusicDownload
+from app.models.amazon_music_track import AmazonMusicTrack
 from app.models.download import STATUS_COMPLETED, STATUS_FAILED, Download
 from app.models.download_destination import DownloadDestination
 from app.models.tag import Tag
@@ -18,6 +25,20 @@ def _make_download(db, make_bundle, gamekey="GK1", bundle_name="My Bundle", **ov
     db.add(row)
     db.commit()
     return row
+
+
+def _add_amazon_music_track(db, download_id="dl-1", **overrides):
+    defaults = dict(
+        download_id=download_id,
+        track_asin="B076HFF4Q3",
+        title="Every Breath You Take",
+        artist="The Police",
+        album_asin="ALBUM1",
+        first_seen_at=datetime.utcnow(),
+        last_seen_at=datetime.utcnow(),
+    )
+    defaults.update(overrides)
+    db.add(AmazonMusicTrack(**defaults))
 
 
 def test_downloads_page_requires_auth(client):
@@ -128,6 +149,106 @@ def test_active_reflects_a_queued_job_distinctly_from_running(authed_client, db,
     resp = authed_client.get("/downloads/active")
     assert "Waiting Bundle" in resp.text
     assert "Queued" in resp.text
+
+
+def test_active_reflects_a_running_amazon_music_track_with_renamed_progress_fields(authed_client, db):
+    # Amazon Music's own page speaks progress_bytes/expected_size_bytes; this
+    # shared page's template reads bytes_done/bytes_total — _active_jobs must
+    # rename at the merge site, not pass the Amazon Music shape straight through.
+    _add_amazon_music_track(db)
+    db.add(AmazonMusicDownload(download_id="dl-1", status=AM_STATUS_RUNNING, progress_bytes=512, expected_size_bytes=1024))
+    db.commit()
+
+    resp = authed_client.get("/downloads/active")
+    assert "The Police — Every Breath You Take" in resp.text
+    assert 'href="/amazon-music/albums/ALBUM1"' in resp.text
+    assert "Amazon Music" in resp.text
+    assert "Running" in resp.text
+    assert '<progress value="512" max="1024"' in resp.text
+
+
+def test_active_reflects_a_queued_amazon_music_track(authed_client, db):
+    _add_amazon_music_track(db)
+    db.add(AmazonMusicDownload(download_id="dl-1", status=AM_STATUS_QUEUED))
+    db.commit()
+
+    resp = authed_client.get("/downloads/active")
+    assert "The Police — Every Breath You Take" in resp.text
+    assert "Queued" in resp.text
+
+
+def test_active_amazon_music_track_with_no_artist_falls_back_to_bare_title(authed_client, db):
+    _add_amazon_music_track(db, artist="")
+    db.add(AmazonMusicDownload(download_id="dl-1", status=AM_STATUS_QUEUED))
+    db.commit()
+
+    resp = authed_client.get("/downloads/active")
+    assert ">Every Breath You Take<" in resp.text
+    assert "— Every Breath You Take" not in resp.text
+
+
+def test_active_amazon_music_track_with_no_album_links_to_the_none_album(authed_client, db):
+    _add_amazon_music_track(db, album_asin="")
+    db.add(AmazonMusicDownload(download_id="dl-1", status=AM_STATUS_QUEUED))
+    db.commit()
+
+    resp = authed_client.get("/downloads/active")
+    assert 'href="/amazon-music/albums/none"' in resp.text
+
+
+def test_history_lists_a_completed_amazon_music_track_and_derives_its_format_from_disk(authed_client, db):
+    _add_amazon_music_track(db)
+    db.add(AmazonMusicDownload(
+        download_id="dl-1",
+        status=AM_STATUS_COMPLETED,
+        downloaded_path="/music/The Police/Every Breath You Take.mp3",
+        expected_size_bytes=2048,
+        completed_at=datetime.utcnow(),
+    ))
+    db.commit()
+
+    resp = authed_client.get("/downloads/history")
+    assert "The Police — Every Breath You Take" in resp.text
+    assert "/music/The Police/Every Breath You Take.mp3" in resp.text
+    assert "mp3" in resp.text
+    assert 'href="/amazon-music/albums/ALBUM1"' in resp.text
+
+
+def test_history_filters_amazon_music_tracks_by_status_format_and_query(authed_client, db):
+    _add_amazon_music_track(db, download_id="dl-done", title="Finished Track")
+    db.add(AmazonMusicDownload(
+        download_id="dl-done", status=AM_STATUS_COMPLETED,
+        downloaded_path="/music/Finished Track.mp3", completed_at=datetime.utcnow(),
+    ))
+    _add_amazon_music_track(db, download_id="dl-failed", track_asin="B076HFF4Q4", title="Failed Track")
+    db.add(AmazonMusicDownload(download_id="dl-failed", status="failed", error_message="boom"))
+    db.commit()
+
+    failed_only = authed_client.get("/downloads/history", params={"status": "failed"})
+    assert "Failed Track" in failed_only.text
+    assert "Finished Track" not in failed_only.text
+
+    by_title = authed_client.get("/downloads/history", params={"q": "Finished"})
+    assert "Finished Track" in by_title.text
+    assert "Failed Track" not in by_title.text
+
+    mp3_only = authed_client.get("/downloads/history", params={"file_format": "mp3"})
+    assert "Finished Track" in mp3_only.text
+
+    other_format = authed_client.get("/downloads/history", params={"file_format": "flac"})
+    assert "Finished Track" not in other_format.text
+
+
+def test_history_all_formats_includes_real_amazon_music_extensions(authed_client, db):
+    _add_amazon_music_track(db)
+    db.add(AmazonMusicDownload(
+        download_id="dl-1", status=AM_STATUS_COMPLETED,
+        downloaded_path="/music/Every Breath You Take.flac", completed_at=datetime.utcnow(),
+    ))
+    db.commit()
+
+    resp = authed_client.get("/downloads")
+    assert '<option value="flac" >flac</option>' in resp.text
 
 
 def test_history_filters_by_status(authed_client, db, make_bundle):

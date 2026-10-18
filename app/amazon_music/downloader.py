@@ -95,6 +95,7 @@ def get_active_downloads(db: Session) -> list[dict]:
             "download_id": job.download_id,
             "title": track.title,
             "artist": track.artist,
+            "album_asin": track.album_asin,
             "status": job.status,
             "progress_bytes": job.progress_bytes,
             "expected_size_bytes": job.expected_size_bytes,

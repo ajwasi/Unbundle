@@ -12,12 +12,15 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
+from app.amazon_music import downloader as amazon_music_downloader
 from app.audible import book_downloader, scan as audible_scan
 from app.config import settings
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.downloads import worker
 from app.downloads.scan import build_completed_keys, build_expected_index, commit_matches, scan_folder
+from app.models.amazon_music_download import AmazonMusicDownload
+from app.models.amazon_music_track import AmazonMusicTrack
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import AudibleBookDownload
 from app.models.bundle import Bundle
@@ -64,9 +67,9 @@ def _concurrency_context(db: Session) -> dict:
 
 def _active_jobs(db: Session) -> list[dict]:
     """Running and queued downloads from every source, in the order they were
-    queued within each source — Humble bundles first, then Audible books.
-    Each row carries its own label/href so the template doesn't need to know
-    which source it came from.
+    queued within each source — Humble bundles first, then Audible books,
+    then Amazon Music tracks. Each row carries its own label/href so the
+    template doesn't need to know which source it came from.
     """
     jobs = [
         {**job, "label": job["bundle_name"], "href": f"/bundles/{job['gamekey']}", "kind": "Humble"}
@@ -75,6 +78,26 @@ def _active_jobs(db: Session) -> list[dict]:
     jobs += [
         {**job, "label": job["title"], "href": f"/audible/{job['asin']}", "kind": "Audible"}
         for job in book_downloader.get_active_jobs(db)
+    ]
+    jobs += [
+        {
+            # Amazon Music's own page uses progress_bytes/expected_size_bytes
+            # for its own _active_downloads.html (predates this shared page's
+            # bytes_done/bytes_total/bytes_per_sec convention — Audible's own
+            # get_active_jobs already speaks it directly, this one doesn't),
+            # so the rename happens here rather than changing a shape its own
+            # page already depends on. No per-track speed is tracked, unlike
+            # bundles/audiobooks, which poll the filesystem for it.
+            "id": job["id"],
+            "status": job["status"],
+            "bytes_done": job["progress_bytes"],
+            "bytes_total": job["expected_size_bytes"] or 0,
+            "bytes_per_sec": 0.0,
+            "label": f"{job['artist']} — {job['title']}" if job["artist"] else job["title"],
+            "href": f"/amazon-music/albums/{job['album_asin'] or 'none'}",
+            "kind": "Amazon Music",
+        }
+        for job in amazon_music_downloader.get_active_downloads(db)
     ]
     return jobs
 
@@ -130,11 +153,46 @@ def _history_context(db: Session, status: str, file_format: str, q: str) -> dict
             }
             for j, title in book_query.all()
         ]
+
+    track_query = db.query(AmazonMusicDownload, AmazonMusicTrack).join(
+        AmazonMusicTrack, AmazonMusicTrack.download_id == AmazonMusicDownload.download_id
+    )
+    if status:
+        track_query = track_query.filter(AmazonMusicDownload.status == status)
+    if q:
+        track_query = track_query.filter(AmazonMusicTrack.title.ilike(f"%{q}%"))
+    for j, track in track_query.all():
+        # Trusts the real file on disk over an assumed extension — every
+        # capture on file so far has been .mp3 (see downloader.py's own
+        # _guess_extension), but nothing here promises that's the only one.
+        fmt = Path(j.downloaded_path).suffix.lstrip(".").lower() if j.downloaded_path else ""
+        if file_format and fmt != file_format:
+            continue
+        rows.append(
+            {
+                "kind": "Amazon Music",
+                "href": f"/amazon-music/albums/{track.album_asin or 'none'}",
+                "name": "Amazon Music",
+                "item": f"{track.artist} — {track.title}" if track.artist else track.title,
+                "file_format": fmt,
+                "status": j.status,
+                "error_message": j.error_message,
+                "size_bytes": j.expected_size_bytes or j.progress_bytes,
+                "location": j.downloaded_path,
+                "completed_at": j.completed_at,
+                "queued_at": j.queued_at,
+            }
+        )
     rows.sort(key=lambda r: r["queued_at"], reverse=True)
 
     all_formats = {fmt for (fmt,) in db.query(Download.file_format).distinct().all() if fmt}
     if db.query(AudibleBookDownload.id).first() is not None:
         all_formats.add("m4b")
+    all_formats |= {
+        fmt
+        for (path,) in db.query(AmazonMusicDownload.downloaded_path).filter(AmazonMusicDownload.downloaded_path != "").all()
+        if (fmt := Path(path).suffix.lstrip(".").lower())
+    }
     return {"rows": rows, "status": status, "file_format": file_format, "q": q, "all_formats": sorted(all_formats)}
 
 
