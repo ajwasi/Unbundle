@@ -5,6 +5,8 @@ import pytest
 
 from app.connectors.audible_connector import AudibleBookData
 from app.models.audible_book import AudibleBook
+from app.models.audible_book_download import AudibleBookDownload
+from app.models.audible_pdf_download import AudiblePdfDownload
 from app.models.credential import SOURCE_AUDIBLE, STATUS_ERROR, STATUS_OK, Credential
 from app.security import decrypt_json, encrypt_json
 from app.sync import audible_sync
@@ -110,6 +112,65 @@ async def test_refresh_audible_library_full_replace_on_each_refresh(db):
 
     assert db.get(AudibleBook, "STALE") is None
     assert db.get(AudibleBook, "B001") is not None
+
+
+@pytest.mark.asyncio
+async def test_refresh_preserves_a_still_owned_books_download_history(db):
+    """Regression test: AudibleBookDownload/AudiblePdfDownload both carry a
+    foreign key to audible_book.asin with no ondelete behavior. The old
+    refresh logic deleted every AudibleBook row and reinserted them fresh on
+    every single refresh — harmless on this project's own SQLite (which
+    never enables FK enforcement) but an immediate FOREIGN KEY violation on
+    Postgres the moment any owned book had a completed download, since that
+    FK is enforced there by default. Refreshing must update a still-owned
+    book in place, never delete-then-reinsert it, so a download row survives
+    untouched (same id) across every refresh.
+    """
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Old Title", fetched_at=datetime.utcnow()))
+    db.commit()
+    db.add(AudibleBookDownload(asin="B001", status="completed", downloaded_path="/x/book.m4b"))
+    db.add(AudiblePdfDownload(asin="B001", status="completed", downloaded_path="/x/book.pdf"))
+    db.commit()
+    book_download_id = db.query(AudibleBookDownload).one().id
+    pdf_download_id = db.query(AudiblePdfDownload).one().id
+
+    books = [AudibleBookData(asin="B001", title="New Title", author="Jane Author", runtime_minutes=605, cover_url="")]
+    with patch("app.sync.audible_sync.audible.Authenticator.from_dict", return_value=_FakeAuth()):
+        with patch("app.sync.audible_sync.audible_connector.fetch_library", new=AsyncMock(return_value=books)):
+            await audible_sync.refresh_audible_library(db)
+
+    assert db.get(AudibleBook, "B001").title == "New Title"
+    # Same row, same id — never deleted and reinserted.
+    saved_book_download = db.get(AudibleBookDownload, book_download_id)
+    saved_pdf_download = db.get(AudiblePdfDownload, pdf_download_id)
+    assert saved_book_download is not None
+    assert saved_book_download.downloaded_path == "/x/book.m4b"
+    assert saved_pdf_download is not None
+    assert saved_pdf_download.downloaded_path == "/x/book.pdf"
+
+
+@pytest.mark.asyncio
+async def test_refresh_cleans_up_download_history_for_a_book_no_longer_owned(db):
+    """The other half of the same bug: a book that genuinely leaves the
+    account (returned, etc.) still needs its own row deleted — and if it has
+    download history, that history is cleaned up explicitly first rather
+    than relying on the database's own FK cascade (which would need
+    ondelete="CASCADE" on Postgres, and wouldn't fire at all on this
+    project's own SQLite), so the delete itself never raises either way.
+    """
+    _connect_audible(db)
+    db.add(AudibleBook(asin="GONE", title="No Longer Owned", fetched_at=datetime.utcnow()))
+    db.commit()
+    db.add(AudibleBookDownload(asin="GONE", status="completed", downloaded_path="/x/gone.m4b"))
+    db.commit()
+
+    with patch("app.sync.audible_sync.audible.Authenticator.from_dict", return_value=_FakeAuth()):
+        with patch("app.sync.audible_sync.audible_connector.fetch_library", new=AsyncMock(return_value=[])):
+            await audible_sync.refresh_audible_library(db)
+
+    assert db.get(AudibleBook, "GONE") is None
+    assert db.query(AudibleBookDownload).filter(AudibleBookDownload.asin == "GONE").count() == 0
 
 
 @pytest.mark.asyncio
