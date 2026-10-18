@@ -110,6 +110,80 @@ def test_refresh_requires_a_stored_audible_login(db):
         sync.refresh_purchased_tracks(db)
 
 
+# ------------------------------------------------- stale-cookie auto-retry
+
+
+class _RetryAuth:
+    """Starts with stale website cookies (an empty config.json response
+    simulates Amazon no longer honoring them) and only returns real ones
+    once set_website_cookies_for_country is actually called — i.e. once
+    cookies_from_audible_credential is asked to refresh=True."""
+
+    def __init__(self):
+        self.website_cookies = {"at-main": "stale"}
+        self.remint_calls = 0
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls()
+
+    def set_website_cookies_for_country(self, country):
+        self.remint_calls += 1
+        self.website_cookies = {"at-main": "fresh"}
+
+    def to_dict(self):
+        return {"website_cookies": self.website_cookies}
+
+
+def _empty_token_response():
+    return httpx.Response(200, json={}, request=httpx.Request("GET", "https://music.amazon.com/config.json"))
+
+
+def test_open_authenticated_client_retries_once_with_freshly_minted_cookies(db):
+    _connect_audible_for_sync(db)
+    _save_template_for_order(db)
+
+    responses = [_empty_token_response(), _config_response()]
+
+    with (
+        patch("audible.Authenticator", _RetryAuth),
+        patch("httpx.Client.get", side_effect=lambda *a, **k: responses.pop(0)),
+    ):
+        client, headers_field, template = sync._open_authenticated_client(db)
+
+    assert headers_field  # the second attempt's real token made it through
+    assert template is not None
+    client.close()
+
+
+def test_open_authenticated_client_gives_up_after_one_retry(db):
+    """A second consecutive failure (even after re-minting) is surfaced,
+    not retried forever — something beyond ordinary staleness is wrong."""
+    _connect_audible_for_sync(db)
+    _save_template_for_order(db)
+
+    with (
+        patch("audible.Authenticator", _RetryAuth),
+        patch("httpx.Client.get", return_value=_empty_token_response()),
+    ):
+        with pytest.raises(amc.AmazonMusicAuthError, match="may have expired"):
+            sync._open_authenticated_client(db)
+
+
+def test_open_authenticated_client_does_not_retry_when_the_first_attempt_succeeds(db):
+    _connect_audible_for_sync(db)
+    _save_template_for_order(db)
+
+    with (
+        patch("audible.Authenticator", _RetryAuth),
+        patch("httpx.Client.get", return_value=_config_response()),
+    ):
+        client, headers_field, _template = sync._open_authenticated_client(db)
+
+    assert headers_field
+    client.close()
+
+
 # ------------------------------------- request shape (the 400 investigation)
 
 def test_page_request_is_json_sent_under_a_text_plain_content_type():

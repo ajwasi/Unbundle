@@ -190,14 +190,14 @@ def _diagnose_empty_page(payload: dict) -> dict:
     }
 
 
-def _authenticate(db: Session) -> tuple[dict, tmpl.SyncTemplate]:
+def _authenticate(db: Session, refresh: bool = False) -> tuple[dict, tmpl.SyncTemplate]:
     """Cookies plus the captured request template — the two prerequisites
     every call into Amazon Music's API needs, shared by the purchased-library
     sync and the on-demand per-album track-order fetch alike. Raises
     NotConnectedError/NoTemplateError, which both callers handle identically.
     """
     try:
-        cookies = cookies_from_audible_credential(db)
+        cookies = cookies_from_audible_credential(db, refresh=refresh)
     except _ProbeNotConnectedError as exc:
         # Re-raised under this module's own name so routers import one symbol
         # for "nothing to sync with" rather than reaching into the probe.
@@ -225,6 +225,38 @@ def _fresh_headers_field(client, template: tmpl.SyncTemplate) -> str:
     # that don't — see with_fresh_session()'s docstring for why refreshing
     # only the token was not enough.
     return tmpl.with_fresh_session(template.headers_field, token, probe.session_fields_from_config(config))
+
+
+def _open_authenticated_client(db: Session, _retried: bool = False) -> tuple[object, str, tmpl.SyncTemplate]:
+    """Returns (client, headers_field, template) — caller owns the client
+    (use it as a context manager or call .close()).
+
+    The derived Amazon website cookies (cookies_from_audible_credential)
+    are minted once from the stored Audible refresh token and then reused
+    indefinitely — they go stale on their own schedule, independent of the
+    underlying Audible login still being perfectly valid, since nothing
+    ever re-mints them. A stale set surfaces as AmazonMusicAuthError here
+    (no token in an otherwise-200 config response, or an outright 401/403)
+    — re-minting fresh cookies and retrying exactly once covers that
+    ordinary case automatically, the same "tokens may rotate, don't treat
+    staleness as disconnection" philosophy this module's own docstring
+    already describes for Audible's own OAuth token. A second failure means
+    something more than ordinary staleness, so it's surfaced rather than
+    retried forever.
+    """
+    cookies, template = _authenticate(db, refresh=_retried)
+    client = httpx.Client(cookies=cookies, headers=BASE_HEADERS, timeout=30.0, follow_redirects=True)
+    try:
+        headers_field = _fresh_headers_field(client, template)
+        return client, headers_field, template
+    except amc.AmazonMusicAuthError:
+        client.close()
+        if _retried:
+            raise
+        return _open_authenticated_client(db, _retried=True)
+    except Exception:
+        client.close()
+        raise
 
 
 def _page_through(client, headers_field: str, user_hash: str, sort_by: str, db: Session, started: datetime) -> dict:
@@ -297,12 +329,10 @@ def refresh_purchased_tracks(db: Session) -> dict:
     no Audible login to derive cookies from, and AmazonMusicAuthError when
     Amazon rejects what it derives — neither is a 500.
     """
-    cookies, template = _authenticate(db)
     started = datetime.utcnow()
+    client, headers_field, template = _open_authenticated_client(db)
 
-    with httpx.Client(cookies=cookies, headers=BASE_HEADERS, timeout=30.0, follow_redirects=True) as client:
-        headers_field = _fresh_headers_field(client, template)
-
+    with client:
         first = _page_through(client, headers_field, template.user_hash, amc.SORT_RECENTLY_ADDED, db, started)
         second = _page_through(client, headers_field, template.user_hash, amc.SORT_NONE, db, started)
 
@@ -365,11 +395,9 @@ def sync_album_track_order(db: Session, album_asin: str) -> dict:
     (cleared first, so a track dropped from a reissue's listing doesn't keep
     a stale number from a previous, different fetch).
     """
-    cookies, template = _authenticate(db)
+    client, headers_field, _template = _open_authenticated_client(db)
 
-    with httpx.Client(cookies=cookies, headers=BASE_HEADERS, timeout=30.0, follow_redirects=True) as client:
-        headers_field = _fresh_headers_field(client, template)
-
+    with client:
         deeplink_field = json.dumps(
             {"interface": "DeeplinkInterface.v1_0.DeeplinkClientInformation", "deeplink": f"/albums/{album_asin}"}
         )
