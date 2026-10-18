@@ -247,22 +247,42 @@ def _resolve_scan_folder(root_index: int, folder: str) -> Path | None:
     roots = settings.scan_root_list()
     if not (0 <= root_index < len(roots)):
         return None
-    # A leading slash (or backslash) reads as "the root's own subfolder" to
-    # a user typing one in — e.g. "/Audio Books by Auth" for a mount's own
-    # "Audio Books by Auth" subdirectory — but Path.__truediv__ treats a
-    # right-hand operand that looks absolute as a brand new anchor and
-    # silently DISCARDS the left side entirely: root / "/x" is just "/x",
-    # not "root/x". Stripped here so the join always lands inside root,
-    # confirmed via a real path (Windows and POSIX both do this).
-    folder = folder.strip().lstrip("/\\")
+    folder = folder.strip()
     root = roots[root_index].resolve()
+    if not folder:
+        return root if root.is_dir() else None
+
+    # Two different things can show up here, and only one needs special
+    # handling: a full absolute path (e.g. copy-pasted from a file manager,
+    # or — just as real — the exact string this app's own predicted-path
+    # tests submit) resolves fine on its own merit below. But a leading
+    # slash/backslash on an otherwise-relative subpath — "/Audio Books by
+    # Auth" for a mount's own "Audio Books by Auth" subdirectory, the
+    # natural way to type "this root's own subfolder" — hits a
+    # Path.__truediv__ quirk: a right-hand operand that looks absolute is
+    # treated as a brand new anchor, silently discarding the left side
+    # entirely (root / "/x" is just "/x", not "root/x"). Confirmed via a
+    # real path, and the reason this tries BOTH readings rather than
+    # guessing from the string alone: stripping unconditionally before
+    # joining breaks the first case (a genuine absolute path starting with
+    # "/" becomes a bogus "root/tmp/..." on POSIX once its own leading
+    # slash is gone), so each interpretation gets its own attempt instead.
+    attempts = []
     try:
-        candidate = (root / folder).resolve() if folder else root
+        attempts.append(Path(folder).resolve())
     except (OSError, ValueError):
-        return None
-    if not candidate.is_relative_to(root):
-        return None
-    return candidate if candidate.is_dir() else None
+        pass
+    stripped = folder.lstrip("/\\")
+    if stripped:
+        try:
+            attempts.append((root / stripped).resolve())
+        except (OSError, ValueError):
+            pass
+
+    for candidate in attempts:
+        if candidate.is_relative_to(root) and candidate.is_dir():
+            return candidate
+    return None
 
 
 @router.post("/scan", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
