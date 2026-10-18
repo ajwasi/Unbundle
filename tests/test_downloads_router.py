@@ -313,6 +313,29 @@ def test_scan_allows_a_subdirectory_of_the_configured_root(authed_client, db, ma
     assert "book.epub" in resp.text
 
 
+def test_scan_allows_a_subpath_typed_with_a_leading_slash(authed_client, db, make_bundle, tmp_path, monkeypatch):
+    """Regression test: a user picking a root from the dropdown naturally
+    types just its own subfolder, often with a leading slash ("/my-library")
+    — but Path.__truediv__ treats a right-hand operand that looks absolute
+    as a brand new anchor and silently discards the left side entirely:
+    root / "/x" evaluates to "/x", not "root/x". The existing subdirectory
+    test above never caught this because it submits the subdirectory's own
+    *full* absolute path, which happens to equal root/subdir anyway once
+    the root is discarded — this one submits only the subpath a user
+    actually types, the way the real bug report did.
+    """
+    monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
+    subdir = tmp_path / "my-library"
+    subdir.mkdir()
+    (subdir / "book.epub").write_bytes(b"x" * 5)
+
+    resp = authed_client.post("/downloads/scan", data={"folder": "/my-library"})
+    assert resp.status_code == 200
+    assert "not a directory" not in resp.text
+    assert "book.epub" in resp.text
+
+
 def test_scan_with_blank_folder_scans_the_whole_root(authed_client, db, make_bundle, tmp_path, monkeypatch):
     monkeypatch.setattr("app.config.settings.scan_root_dir", tmp_path)
     make_bundle(gamekey="GK1", order=make_order(subproducts=[{"human_name": "Cool Book", "machine_name": "coolbook", "downloads": [{"download_struct": [{"name": "EPUB", "file_size": 5, "url": {"web": "https://dl.humble.com/book.epub"}}]}]}]))
