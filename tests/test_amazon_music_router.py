@@ -1009,6 +1009,26 @@ def test_albums_page_omits_the_sentinel_when_everything_fits(authed_client, db):
     assert 'id="amazon-music-albums-sentinel"' not in resp.text
 
 
+def test_sentinel_row_targets_itself_not_the_surrounding_download_form(authed_client, db):
+    """Regression test: the sentinel row lives inside
+    #music-albums-download-form, which sets its own hx-target="#amazon-music-table"
+    for its Download selected/all buttons. Without hx-target="this" on the
+    sentinel itself, htmx attribute inheritance means the sentinel's own
+    "load more" request would replace that ENTIRE div (losing the sync
+    button, toolbar, and every already-loaded row) instead of just appending
+    the next batch in its place — reproduced against a real browser and
+    confirmed exactly this: the toolbar disappeared and the first 100 rows
+    were replaced by just the newly loaded ones.
+    """
+    _add_n_albums(db, amazon_music_router._ALBUMS_PAGE_SIZE + 1)
+
+    resp = authed_client.get("/amazon-music")
+
+    assert 'id="amazon-music-albums-sentinel"' in resp.text
+    sentinel_tag = resp.text.split('id="amazon-music-albums-sentinel"')[1].split(">")[0]
+    assert 'hx-target="this"' in sentinel_tag
+
+
 def test_albums_rows_route_serves_the_next_batch(authed_client, db):
     _add_n_albums(db, amazon_music_router._ALBUMS_PAGE_SIZE + 20)
 
