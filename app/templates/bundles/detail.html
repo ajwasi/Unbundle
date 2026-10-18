@@ -63,8 +63,12 @@
           <span class="muted">n/a</span>
           {% elif e.owned is none %}
           <span class="badge badge-not-configured">{{ e.ownership_platform }}: unknown</span>
+          {% elif e.giftable %}
+          <span class="badge badge-pending tip" title="You already own this on {{ e.ownership_platform }} through another route — this key has never been redeemed, so it's free to give away.">{{ e.ownership_platform }}: Owned, key unused</span>
           {% elif e.owned %}
           <span class="badge badge-ok">{{ e.ownership_platform }}: Yes</span>
+          {% elif e.redeemed_on_humble %}
+          <span class="badge badge-not-configured tip" title="Revealed on Humble but not showing as owned on {{ e.ownership_platform }} — may need activating there, or a re-sync.">{{ e.ownership_platform }}: Not showing as owned</span>
           {% else %}
           <span class="badge badge-error">{{ e.ownership_platform }}: Never redeemed</span>
           {% endif %}

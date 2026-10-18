@@ -64,6 +64,17 @@ def _apply_filters(query, q: str, category: str, min_items: int | None, tag_id: 
             or_(BundleEntitlement.steam_owned.is_(False), BundleEntitlement.gog_owned.is_(False)),
         )
         query = query.filter(has_unredeemed_key if redeemed == "unredeemed" else ~has_unredeemed_key)
+    elif redeemed == "giftable":
+        # Same signal as _bundles_with_giftable_keys/the detail page's own
+        # "Owned, key unused" badge — kept as a third value on this same
+        # param rather than a whole new one, since it's still filtering the
+        # same per-key redeemed/owned data the other two values already do.
+        has_giftable_key = exists().where(
+            BundleEntitlement.gamekey == Bundle.gamekey,
+            BundleEntitlement.redeemed_on_humble.is_(False),
+            or_(BundleEntitlement.steam_owned.is_(True), BundleEntitlement.gog_owned.is_(True)),
+        )
+        query = query.filter(has_giftable_key)
     return query
 
 
@@ -98,6 +109,31 @@ def _bundles_with_unredeemed(db: Session, gamekeys: list[str]) -> set[str]:
         .filter(
             BundleEntitlement.gamekey.in_(gamekeys),
             or_(BundleEntitlement.steam_owned.is_(False), BundleEntitlement.gog_owned.is_(False)),
+        )
+        .distinct()
+        .all()
+    )
+    return {gamekey for (gamekey,) in rows}
+
+
+def _bundles_with_giftable_keys(db: Session, gamekeys: list[str]) -> set[str]:
+    """gamekeys (of the ones given) that have at least one entitlement never
+    redeemed on Humble (redeemed_on_humble is False) but already confirmed
+    owned on Steam or GOG through some other route — bought directly,
+    gifted, or granted by a different bundle entirely. That key was never
+    touched and isn't needed, so it's a real candidate to hand to a friend
+    who doesn't already own the game, unlike the Unredeemed column above
+    (which flags the opposite situation: not confirmed owned anywhere,
+    i.e. the key that probably still needs using).
+    """
+    if not gamekeys:
+        return set()
+    rows = (
+        db.query(BundleEntitlement.gamekey)
+        .filter(
+            BundleEntitlement.gamekey.in_(gamekeys),
+            BundleEntitlement.redeemed_on_humble.is_(False),
+            or_(BundleEntitlement.steam_owned.is_(True), BundleEntitlement.gog_owned.is_(True)),
         )
         .distinct()
         .all()
@@ -169,6 +205,7 @@ def list_bundles(
         "all_tags": db.query(Tag).order_by(Tag.name).all(),
         "tags_by_gamekey": _bundle_tags(db, [b.gamekey for b in bundles]),
         "unredeemed_gamekeys": _bundles_with_unredeemed(db, [b.gamekey for b in bundles]),
+        "giftable_gamekeys": _bundles_with_giftable_keys(db, [b.gamekey for b in bundles]),
         # func.count(...) rather than db.query(Bundle).count() — the latter wraps
         # the *entire* entity query (every column, raw_json included) in a
         # `SELECT count(*) FROM (SELECT ... FROM bundle)` subquery; selecting
@@ -377,6 +414,11 @@ def _entitlement_rows(gamekey: str, entitlements: list[BundleEntitlement]) -> li
                 "redeemed_on_humble": e.redeemed_on_humble,
                 "ownership_platform": ownership_platform,
                 "owned": owned,
+                # Never redeemed on Humble, but already owned another way —
+                # the key is surplus and safe to give away (see
+                # _bundles_with_giftable_keys's own docstring for the full
+                # reasoning).
+                "giftable": bool(owned) and not e.redeemed_on_humble,
                 "redeem_url": order_page_url(gamekey),
                 "external_redeem_url": _extract_redeem_link(raw) if e.redeemed_on_humble else None,
                 "days_until_expired": (expires_at - datetime.now(timezone.utc)).days if expires_at else None,
