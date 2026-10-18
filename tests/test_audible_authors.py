@@ -199,6 +199,82 @@ def test_missing_authors_tab_count_badge_renders_on_every_view(authed_client, db
     assert "Outland" not in resp.text
 
 
+def test_missing_authors_tab_count_is_distinct_authors_not_book_count(authed_client, db):
+    """Regression test: the badge must count authors with something
+    missing, not the missing books themselves — two missing books by the
+    same author is still "1" author, not "2".
+    """
+    now = _seed(db)
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", title="Outland", fetched_at=now))
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B3", title="For We Are Many", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible")
+
+    assert ">1</span>" in resp.text.split("Missing by author")[1][:100]
+
+
+def test_missing_authors_tab_author_name_links_to_the_author_page(authed_client, db):
+    now = _seed(db)
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", title="Outland", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible?view=missing_authors")
+
+    assert 'href="/audible/author/Dennis%20E.%20Taylor"' in resp.text
+
+
+def test_author_detail_page_lists_owned_and_missing_books(authed_client, db):
+    now = _seed(db)
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B2", title="For We Are Many", series_title="Bobiverse", series_sequence="2", current_price=13.96, list_price=19.95, currency="USD", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible/author/Dennis E. Taylor")
+
+    assert resp.status_code == 200
+    assert "Dennis E. Taylor" in resp.text
+    assert "We Are Legion" in resp.text
+    assert "For We Are Many" in resp.text
+    assert resp.text.count(">Owned<") == 1
+    assert resp.text.count(">Missing<") == 1
+    assert 'href="/audible/B01L082HJ2"' in resp.text
+    assert 'href="https://www.audible.com/pd/B2"' in resp.text
+    assert "Bobiverse #2" in resp.text
+    assert "1 owned" in resp.text
+    assert "1 missing" in resp.text
+
+
+def test_author_detail_page_does_not_match_a_different_author_with_a_similar_name(authed_client, db):
+    # "Ann" must not match "Annette" — exact, casefolded membership only.
+    now = _seed(db)
+    db.add(AudibleBook(asin="B9", title="Unrelated", author="Annette Someone", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible/author/Ann")
+
+    assert resp.status_code == 404
+
+
+def test_author_detail_page_404s_for_an_unknown_author(authed_client):
+    resp = authed_client.get("/audible/author/Nobody%20At%20All")
+    assert resp.status_code == 404
+
+
+def test_author_detail_page_does_not_double_list_a_book_bought_since_the_last_refresh(authed_client, db):
+    now = _seed(db)
+    # "We Are Legion" is already owned (seeded above) — a stale
+    # AudibleAuthorBook row for it (as if bought after the last author
+    # refresh) must not also show it as Missing.
+    db.add(AudibleAuthorBook(author_name="Dennis E. Taylor", asin="B01L082HJ2", title="We Are Legion", fetched_at=now))
+    db.commit()
+
+    resp = authed_client.get("/audible/author/Dennis E. Taylor")
+
+    assert resp.text.count("We Are Legion") == 1
+    assert resp.text.count(">Owned<") == 1
+    assert resp.text.count(">Missing<") == 0
+
+
 def test_a_book_bought_since_the_last_refresh_drops_off_the_missing_authors_tab(authed_client, db):
     now = _seed(db)
     db.add(AudibleBook(asin="B2", title="Outland", author="Dennis E. Taylor", runtime_minutes=1, cover_url="", fetched_at=now))

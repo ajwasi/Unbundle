@@ -67,7 +67,7 @@
     {% for g in missing_author_groups %}
     <details class="disclosure series-group">
       <summary>
-        <span>{{ g.author_name }}</span>
+        <a href="/audible/author/{{ g.author_name | urlencode }}" onclick="event.stopPropagation()">{{ g.author_name }}</a>
         <span class="store-tab-count">{{ g.books|length }}</span>
       </summary>
       <div class="table-scroll">
