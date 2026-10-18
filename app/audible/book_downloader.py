@@ -19,6 +19,13 @@ chosen outright (see the Settings-page discussion this was built from), so
 a conversion problem never loses the one thing that's expensive to re-fetch
 (the license is single-use-ish and re-requesting one burns an Audible-side
 download credit for some titles).
+
+Queued exactly like downloads/worker.py queues Humble bundles: any number can
+be requested, up to the configured concurrency limit (the same Downloads-page
+setting) run at once, the rest wait as STATUS_QUEUED. Where a finished file
+lives is also remembered in AudibleLocalFile (as is anything a folder scan
+finds — see audible/scan.py), so a book already on disk is never fetched
+again.
 """
 
 import asyncio
@@ -36,6 +43,7 @@ from app.asyncio_utils import spawn_background_task
 from app.config import settings
 from app.connectors import audible_connector
 from app.db import SessionLocal
+from app.downloads import worker
 from app.downloads.paths import sanitize_dir_name
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import (
@@ -46,6 +54,7 @@ from app.models.audible_book_download import (
     AudibleBookDownload,
 )
 from app.models.audible_download_destination import AudibleDownloadDestination
+from app.models.audible_local_file import SOURCE_DOWNLOAD, AudibleLocalFile
 from app.sync.audible_sync import NotConnectedError, get_audible_credential, save_authenticator
 
 # Audible's own iOS app's User-Agent, per the `audible` package's official
@@ -54,7 +63,14 @@ from app.sync.audible_sync import NotConnectedError, get_audible_credential, sav
 # sends it.
 _DOWNLOAD_USER_AGENT = "Audible/671 CFNetwork/1240.0.4 Darwin/20.6.0"
 
-_active_asins: set[str] = set()
+# Job ids currently executing — bounded by the configured concurrency limit;
+# everything else waits in the DB as STATUS_QUEUED. Plain module state, not
+# persisted, for the same single-process reason as downloads/worker.py.
+_running_job_ids: set[int] = set()
+# job_id -> {"bytes_per_sec"} for whatever's downloading right now. Byte
+# counts themselves live on the job row (progress_bytes), already committed
+# about once a second by _download_aaxc.
+_progress: dict[int, dict] = {}
 
 
 class NoAudiobookAvailableError(Exception):
@@ -62,7 +78,7 @@ class NoAudiobookAvailableError(Exception):
 
 
 class BookDownloadInProgressError(Exception):
-    """Raised when a download for this asin is already running."""
+    """Raised when a download for this asin is already queued or running."""
 
 
 def resolve_destination_root(db: Session) -> Path:
@@ -77,22 +93,76 @@ def resolve_destination_root(db: Session) -> Path:
     return settings.downloads_dir / "Audible"
 
 
+def _is_present(path: Path) -> bool:
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def record_local_file(db: Session, asin: str, path: Path, source: str = SOURCE_DOWNLOAD) -> None:
+    """Upserts where this book's file lives. Commits."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        size = 0
+    row = db.get(AudibleLocalFile, asin)
+    if row is None:
+        row = AudibleLocalFile(asin=asin)
+        db.add(row)
+    row.path = str(path)
+    row.size_bytes = size
+    row.source = source
+    row.recorded_at = datetime.utcnow()
+    db.commit()
+
+
+def existing_file(db: Session, book: AudibleBook) -> Path | None:
+    """The file this book already has on disk, if any. Trusts the filesystem
+    over the stored record, same philosophy as the Humble worker's re-verify
+    and the Amazon Music downloader's _is_completed_and_present: a file
+    deleted outside this app since it was recorded should download again,
+    not stay silently skipped forever. Checks the remembered location first
+    (a scan can find a book anywhere), then where this exact download would
+    land.
+    """
+    local = db.get(AudibleLocalFile, book.asin)
+    if local is not None and _is_present(Path(local.path)):
+        return Path(local.path)
+    expected = resolve_destination_root(db) / f"{sanitize_dir_name(book.title)}.m4b"
+    return expected if _is_present(expected) else None
+
+
+def _is_in_progress(db: Session, asin: str) -> bool:
+    return (
+        db.query(AudibleBookDownload.id)
+        .filter(AudibleBookDownload.asin == asin, AudibleBookDownload.status.in_((STATUS_QUEUED, STATUS_RUNNING)))
+        .first()
+        is not None
+    )
+
+
 def start_download(db: Session, asin: str, force: bool = False) -> AudibleBookDownload:
-    if asin in _active_asins:
+    """Queues one title. Never raises for "the queue is busy" — whether this
+    runs now or waits behind others is try_dispatch_queued_downloads's call,
+    made right after (same convention as downloads/worker.py).
+
+    A license request isn't free to redo (it burns an Audible-side download
+    credit for some titles, per the module docstring) and running ffmpeg
+    again on a file that's already right is pure waste — if this book is
+    already on disk, report it as already downloaded instead of repeating
+    all of that. "Re-download" in the UI sets force=True specifically to
+    bypass this and get a fresh copy.
+    """
+    if _is_in_progress(db, asin):
         raise BookDownloadInProgressError(f"An audiobook download for {asin} is already in progress.")
 
     book = db.get(AudibleBook, asin)
     if book is None:
         raise NoAudiobookAvailableError(f"No Audible book found for {asin}.")
 
-    # A license request isn't free to redo (it burns an Audible-side download
-    # credit for some titles, per the module docstring) and running ffmpeg
-    # again on a file that's already right is pure waste — if the file this
-    # exact download would produce already exists, report it as already
-    # downloaded instead of repeating all of that. "Re-download" in the UI
-    # sets force=True specifically to bypass this and get a fresh copy.
-    existing_path = resolve_destination_root(db) / f"{sanitize_dir_name(book.title)}.m4b"
-    if not force and existing_path.exists() and existing_path.stat().st_size > 0:
+    existing_path = None if force else existing_file(db, book)
+    if existing_path is not None:
         job = AudibleBookDownload(
             asin=asin,
             status=STATUS_COMPLETED,
@@ -111,10 +181,34 @@ def start_download(db: Session, asin: str, force: bool = False) -> AudibleBookDo
     db.add(job)
     db.commit()
     db.refresh(job)
-
-    _active_asins.add(asin)
-    spawn_background_task(_run(job.id, asin, book.title))
+    try_dispatch_queued_downloads()
     return job
+
+
+def queue_many(db: Session, asins: list[str], force: bool = False) -> dict[str, list[str]]:
+    """Queues every title that exists, isn't already queued/running, and
+    isn't already on disk (unless force). Returns the asins by outcome:
+    queued / already_downloaded / in_progress / unknown — "Download selected"
+    reports these back instead of silently dropping anything.
+    """
+    outcome: dict[str, list[str]] = {"queued": [], "already_downloaded": [], "in_progress": [], "unknown": []}
+    books = {b.asin: b for b in db.query(AudibleBook).filter(AudibleBook.asin.in_(asins)).all()}
+    for asin in dict.fromkeys(asins):
+        book = books.get(asin)
+        if book is None:
+            outcome["unknown"].append(asin)
+        elif _is_in_progress(db, asin):
+            outcome["in_progress"].append(asin)
+        elif not force and existing_file(db, book) is not None:
+            outcome["already_downloaded"].append(asin)
+        else:
+            db.add(AudibleBookDownload(asin=asin, status=STATUS_QUEUED))
+            db.flush()
+            outcome["queued"].append(asin)
+    db.commit()
+    if outcome["queued"]:
+        try_dispatch_queued_downloads()
+    return outcome
 
 
 def latest_status(db: Session, asin: str) -> AudibleBookDownload | None:
@@ -124,6 +218,89 @@ def latest_status(db: Session, asin: str) -> AudibleBookDownload | None:
         .order_by(AudibleBookDownload.id.desc())
         .first()
     )
+
+
+def get_active_jobs(db: Session) -> list[dict]:
+    """Every running or queued audiobook download, for the Downloads page's
+    Active section — same shape downloads/worker.py's get_active_jobs() gives
+    for bundles (bytes_done / bytes_total / bytes_per_sec).
+    """
+    rows = (
+        db.query(AudibleBookDownload, AudibleBook.title)
+        .outerjoin(AudibleBook, AudibleBook.asin == AudibleBookDownload.asin)
+        .filter(AudibleBookDownload.status.in_((STATUS_RUNNING, STATUS_QUEUED)))
+        .order_by(AudibleBookDownload.id)
+        .all()
+    )
+    return [
+        {
+            "id": job.id,
+            "asin": job.asin,
+            "title": title or job.asin,
+            "status": job.status,
+            "bytes_done": job.progress_bytes,
+            "bytes_total": job.expected_size_bytes or 0,
+            "bytes_per_sec": _progress.get(job.id, {}).get("bytes_per_sec", 0.0),
+        }
+        for job, title in rows
+    ]
+
+
+def sweep_stale_downloads() -> None:
+    """Call on app startup — a restart mid-download would otherwise leave a
+    row stuck 'running' forever (same reasoning as worker.sweep_stale_jobs).
+    Queued rows are left alone; try_dispatch_queued_downloads picks them up.
+    """
+    _running_job_ids.clear()
+    _progress.clear()
+    db = SessionLocal()
+    try:
+        for job in db.query(AudibleBookDownload).filter(AudibleBookDownload.status == STATUS_RUNNING).all():
+            job.status = STATUS_FAILED
+            job.completed_at = datetime.utcnow()
+            job.error_message = "Interrupted by application restart."
+        db.commit()
+    finally:
+        db.close()
+
+
+def try_dispatch_queued_downloads() -> None:
+    """Starts as many queued downloads as the concurrency limit allows. Called
+    after anything is queued and again after one finishes — no polling loop.
+    The limit is the same Downloads-page setting Humble bundles use, re-read
+    every call so a change takes effect on the next dispatch (the two queues
+    each apply it to their own running set).
+
+    Claims a job (marks it running and commits) before spawning its task, so
+    the next loop iteration can't be handed the same row; there's no await
+    between the limit check and the claim, so two calls can't over-claim.
+    """
+    db = SessionLocal()
+    try:
+        limit = worker._current_concurrency_limit(db)
+        while len(_running_job_ids) < limit:
+            job = (
+                db.query(AudibleBookDownload)
+                .filter(AudibleBookDownload.status == STATUS_QUEUED)
+                .order_by(AudibleBookDownload.id)
+                .first()
+            )
+            if job is None:
+                break
+            job.status = STATUS_RUNNING
+            job.started_at = datetime.utcnow()
+            book = db.get(AudibleBook, job.asin)
+            if book is None:
+                job.status = STATUS_FAILED
+                job.error_message = "This book is no longer in your Audible library."
+                job.completed_at = datetime.utcnow()
+                db.commit()
+                continue
+            db.commit()
+            _running_job_ids.add(job.id)
+            spawn_background_task(_run(job.id, job.asin, book.title))
+    finally:
+        db.close()
 
 
 def _extract_offline_url(license_response: dict) -> str | None:
@@ -142,6 +319,7 @@ async def _download_aaxc(url: str, dest_path, job: AudibleBookDownload, db: Sess
 
             bytes_written = 0
             last_committed_at = time.monotonic()
+            last_bytes = 0
             with open(dest_path, "wb") as f:
                 async for chunk in resp.aiter_bytes():
                     f.write(chunk)
@@ -150,6 +328,8 @@ async def _download_aaxc(url: str, dest_path, job: AudibleBookDownload, db: Sess
                     if now - last_committed_at >= 1.0:
                         job.progress_bytes = bytes_written
                         db.commit()
+                        _progress[job.id] = {"bytes_per_sec": (bytes_written - last_bytes) / (now - last_committed_at)}
+                        last_bytes = bytes_written
                         last_committed_at = now
             job.progress_bytes = bytes_written
 
@@ -184,9 +364,6 @@ async def _run(job_id: int, asin: str, title: str) -> None:
     db = SessionLocal()
     try:
         job = db.get(AudibleBookDownload, job_id)
-        job.status = STATUS_RUNNING
-        job.started_at = datetime.utcnow()
-        db.commit()
 
         dest_dir = resolve_destination_root(db)
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -232,6 +409,7 @@ async def _run(job_id: int, asin: str, title: str) -> None:
             aaxc_path.unlink(missing_ok=True)
             job.status = STATUS_COMPLETED
             job.downloaded_path = str(m4b_path)
+            record_local_file(db, asin, m4b_path)
         else:
             job.status = STATUS_FAILED
             job.error_message = (
@@ -241,5 +419,7 @@ async def _run(job_id: int, asin: str, title: str) -> None:
         job.completed_at = datetime.utcnow()
         db.commit()
     finally:
-        _active_asins.discard(asin)
+        _running_job_ids.discard(job_id)
+        _progress.pop(job_id, None)
         db.close()
+        try_dispatch_queued_downloads()

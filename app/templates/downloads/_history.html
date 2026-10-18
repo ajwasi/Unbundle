@@ -5,7 +5,7 @@
   <table>
     <thead>
       <tr>
-        <th scope="col">Bundle</th>
+        <th scope="col">Bundle / Source</th>
         <th scope="col">Item</th>
         <th scope="col">Format</th>
         <th scope="col">Status</th>
@@ -16,27 +16,26 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      {% set d = row.download %}
       <tr>
-        <td><a href="/bundles/{{ d.gamekey }}">{{ row.bundle_name }}</a></td>
-        <td>{{ d.item_name }}</td>
-        <td>{{ d.file_format }}</td>
+        <td><a href="{{ row.href }}">{{ row.name }}</a></td>
+        <td>{{ row.item }}</td>
+        <td>{{ row.file_format }}</td>
         <td>
-          {% if d.status == "completed" %}
+          {% if row.status == "completed" %}
           <span class="badge badge-ok">Completed</span>
-          {% elif d.status == "failed" %}
-          <span class="badge badge-error" title="{{ d.error_message }}">Failed</span>
+          {% elif row.status == "failed" %}
+          <span class="badge badge-error" title="{{ row.error_message }}">Failed</span>
           {% else %}
-          <span class="badge badge-pending">{{ d.status | title }}</span>
+          <span class="badge badge-pending">{{ row.status | title }}</span>
           {% endif %}
         </td>
-        <td>{{ d.expected_size_bytes | human_size }}</td>
+        <td>{{ row.size_bytes | human_size }}</td>
         {# Parens make Jinja's actual precedence explicit: |safe only ever applies to
-           the literal "&mdash;" fallback below — current_location_path itself still
-           gets normal autoescaping either way, this just stops it from reading like
-           the whole expression is unescaped. #}
-        <td class="muted path-cell">{{ d.current_location_path or ("&mdash;" | safe) }}</td>
-        <td>{{ (d.completed_at.strftime("%Y-%m-%d %H:%M") if d.completed_at else "&mdash;") | safe }}</td>
+           the literal "&mdash;" fallback below — location itself still gets normal
+           autoescaping either way, this just stops it from reading like the whole
+           expression is unescaped. #}
+        <td class="muted path-cell">{{ row.location or ("&mdash;" | safe) }}</td>
+        <td>{{ (row.completed_at.strftime("%Y-%m-%d %H:%M") if row.completed_at else "&mdash;") | safe }}</td>
       </tr>
       {% else %}
       {% set any_filter = q or status or file_format %}

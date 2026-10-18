@@ -17,6 +17,7 @@ import asyncio
 import contextlib
 import json
 from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -59,6 +60,24 @@ def _parse_indices(raw: str) -> list[int] | None:
 
 def _parse_formats(raw: str) -> list[str] | None:
     return raw.split(",") if raw else None
+
+
+def _is_on_disk(row: Download | None) -> bool:
+    """True when this item already has a completed row whose file is still
+    where that row says. Trusts the filesystem over a possibly-stale
+    completed status — a file deleted or moved away since is fetched again.
+    This is what lets a file already relocated to a destination folder, or
+    marked downloaded by a folder scan, count as done: humble-cli itself only
+    ever looks at the staging path, so without this it would download both
+    again.
+    """
+    if row is None or row.status != FILE_COMPLETED or not row.current_location_path:
+        return False
+    path = paths.long_path_safe(Path(row.current_location_path))
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
 
 
 def get_active_jobs(db: Session) -> list[dict]:
@@ -245,15 +264,28 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
                 and (not formats or item.file_format in formats)
             ]
 
-            poll_task = asyncio.create_task(_poll_progress(job_id, bundle.name, expected, downloads_root))
-            try:
-                returncode, output = await runner.run_download_job(
-                    settings.humble_cli_path, gamekey, indices, formats, downloads_root
-                )
-            finally:
-                poll_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await poll_task
+            # Items already on disk (see _is_on_disk) are left out of this run
+            # entirely: not handed to humble-cli, and not re-verified below —
+            # their existing completed rows already say where they are.
+            completed = {
+                (d.item_name, d.original_filename): d
+                for d in db.query(Download).filter(Download.gamekey == gamekey, Download.status == FILE_COMPLETED)
+            }
+            todo = [item for item in expected if not _is_on_disk(completed.get((item.item_name, item.original_filename)))]
+            run_indices = sorted({item.subproduct_index for item in todo}) if len(todo) != len(expected) else indices
+
+            if todo:
+                poll_task = asyncio.create_task(_poll_progress(job_id, bundle.name, todo, downloads_root))
+                try:
+                    returncode, output = await runner.run_download_job(
+                        settings.humble_cli_path, gamekey, run_indices, formats, downloads_root
+                    )
+                finally:
+                    poll_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await poll_task
+            else:
+                returncode, output = 0, ""
 
             def _row_for(item) -> Download:
                 # One query per item rather than a bulk prefetch (contrast
@@ -289,7 +321,7 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
                 return row
 
             any_failed = False
-            for item in expected:
+            for item in todo:
                 rel_path = paths.predict_download_path(bundle.name, item.item_name, item.original_filename)
                 try:
                     abs_path = paths.resolve_within(downloads_root, rel_path)

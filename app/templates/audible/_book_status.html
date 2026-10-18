@@ -1,6 +1,9 @@
 <div id="book-status">
   {% if book_running %}
   <span hx-get="/audible/{{ asin }}/book/status" hx-trigger="every 2s" hx-target="#book-status" hx-swap="outerHTML">
+    {% if book_queued %}
+    Queued &mdash; waiting for a download slot&hellip; <a href="/downloads">View queue</a>
+    {% else %}
     Downloading&hellip;
     {% if book_job.expected_size_bytes %}
     <progress value="{{ book_job.progress_bytes }}" max="{{ book_job.expected_size_bytes }}" style="width: 220px;"></progress>
@@ -10,9 +13,11 @@
     {% else %}
     <span class="muted" style="font-size: 0.85em;">{{ book_job.progress_bytes | human_size }}</span>
     {% endif %}
+    {% endif %}
   </span>
   {% elif book_completed %}
   <span class="badge badge-ok">Downloaded</span>
+  {% if book_local %}<span class="muted path-cell" style="font-size: 0.85em;">{{ book_local.path }}</span>{% endif %}
   <a href="/audible/{{ asin }}/book/file">Download .m4b</a>
   <form hx-post="/audible/{{ asin }}/book/download" hx-target="#book-status" hx-swap="outerHTML" style="display: inline;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">

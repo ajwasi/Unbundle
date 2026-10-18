@@ -390,3 +390,102 @@ async def test_progress_polling_tracks_bytes_done_and_speed_while_running(db, ma
     assert job.status == JOB_COMPLETED
     # Cleared once the job finishes — not left showing stale "still running" numbers.
     assert worker.get_job_progress(job_id) == {"bytes_done": 0, "bytes_total": 0, "bytes_per_sec": 0.0}
+
+
+# ------------------------------------------------- already-on-disk items
+
+
+def _seed_two_item_bundle(make_bundle):
+    def item(name, filename):
+        return make_subproduct(
+            human_name=name,
+            downloads=[{"download_struct": [{"name": "EPUB", "file_size": 10, "url": {"web": f"https://dl.humble.com/{filename}"}}]}],
+        )
+
+    order = make_order(name="Two Items", subproducts=[item("Book One", "one.epub"), item("Book Two", "two.epub")])
+    return make_bundle(gamekey="GK2", order=order)
+
+
+def _completed_row(db, bundle, item_name, filename, location, subproduct_index):
+    db.add(
+        Download(
+            gamekey=bundle.gamekey, bundle_name=bundle.name, item_name=item_name, original_filename=filename,
+            subproduct_index=subproduct_index, status=STATUS_COMPLETED, current_location_path=str(location),
+            expected_size_bytes=10, progress_bytes=10,
+        )
+    )
+    db.commit()
+
+
+@pytest.mark.asyncio
+async def test_an_item_already_relocated_to_disk_is_not_handed_to_humble_cli_again(db, make_bundle, tmp_path):
+    bundle = _seed_two_item_bundle(make_bundle)
+    relocated = tmp_path / "library" / "one.epub"
+    relocated.parent.mkdir()
+    relocated.write_bytes(b"x" * 10)
+    _completed_row(db, bundle, "Book One", "one.epub", relocated, subproduct_index=1)
+    # Book Two arrives normally, in staging.
+    staged = _predicted_path(bundle.name, "Book Two", "two.epub")
+    staged.parent.mkdir(parents=True, exist_ok=True)
+    staged.write_bytes(b"y" * 10)
+
+    job = DownloadJob(gamekey=bundle.gamekey, bundle_name=bundle.name)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    run = AsyncMock(return_value=(0, "ok"))
+
+    with patch("app.downloads.worker.runner.run_download_job", new=run):
+        await worker._run_job(job.id, bundle.gamekey, None, None)
+
+    # Only the second item (subproduct index 2) was requested.
+    assert run.await_args.args[2] == [2]
+    db.refresh(job)
+    assert job.status == JOB_COMPLETED
+    # The relocated item's row is untouched — still completed, still where it was.
+    one = db.query(Download).filter(Download.item_name == "Book One").one()
+    assert (one.status, one.current_location_path) == (STATUS_COMPLETED, str(relocated))
+
+
+@pytest.mark.asyncio
+async def test_a_bundle_fully_on_disk_completes_without_running_humble_cli(db, make_bundle, tmp_path):
+    bundle = _seed_two_item_bundle(make_bundle)
+    for index, (name, filename) in enumerate([("Book One", "one.epub"), ("Book Two", "two.epub")], start=1):
+        f = tmp_path / filename
+        f.write_bytes(b"x" * 10)
+        _completed_row(db, bundle, name, filename, f, subproduct_index=index)
+
+    job = DownloadJob(gamekey=bundle.gamekey, bundle_name=bundle.name)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    run = AsyncMock(return_value=(0, "ok"))
+
+    with patch("app.downloads.worker.runner.run_download_job", new=run):
+        await worker._run_job(job.id, bundle.gamekey, None, None)
+
+    run.assert_not_awaited()
+    db.refresh(job)
+    assert job.status == JOB_COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_a_completed_row_whose_file_has_gone_missing_is_downloaded_again(db, make_bundle, tmp_path):
+    bundle = _seed_two_item_bundle(make_bundle)
+    _completed_row(db, bundle, "Book One", "one.epub", tmp_path / "deleted.epub", subproduct_index=1)
+    for filename in ("one.epub", "two.epub"):
+        staged = _predicted_path(bundle.name, "Book One" if filename == "one.epub" else "Book Two", filename)
+        staged.parent.mkdir(parents=True, exist_ok=True)
+        staged.write_bytes(b"z" * 10)
+
+    job = DownloadJob(gamekey=bundle.gamekey, bundle_name=bundle.name)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    run = AsyncMock(return_value=(0, "ok"))
+
+    with patch("app.downloads.worker.runner.run_download_job", new=run):
+        await worker._run_job(job.id, bundle.gamekey, None, None)
+
+    # Nothing was skipped, so the original (unrestricted) request goes through.
+    assert run.await_args.args[2] is None

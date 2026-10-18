@@ -52,9 +52,14 @@ dependency on [mkb79/Audible](https://github.com/mkb79/Audible), itself AGPL-3.0
   can pass) — this uses the real `audible` package's (unofficial, actively maintained)
   external-browser login instead: click a link to log in on Amazon's own site in a real
   browser, then paste the resulting URL back into the Settings card, the same "manual
-  paste-the-redirect-URL" shape GOG above already uses. No audiobook download/decrypt
-  support (Audible's own audio files are DRM-encrypted and need a per-title license +
-  ffmpeg to become playable) — only the plain, unencrypted companion PDF is downloadable.
+  paste-the-redirect-URL" shape GOG above already uses. Audiobooks download as
+  DRM-free .m4b (a per-title license request, then ffmpeg) and queue the same way Humble
+  bundles do: select any number of books in the library table and click "Download
+  selected", or download one from its detail page. They share the Downloads page's
+  concurrency limit and show up in its Active and History sections. A folder scan on the
+  Downloads page finds .m4b/.m4a files you already have, matching file names to titles,
+  and remembers where they are, so nothing already on disk is downloaded again (that
+  record also survives library refreshes and is included in backups).
 - **Auth** — a one-time setup screen on first launch requires setting a password
   before the app is usable at all, or OIDC/SSO (Authentik, Keycloak, etc.) configured
   from Settings afterward, with password login optionally turned off once SSO is

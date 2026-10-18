@@ -8,7 +8,7 @@ import pytest
 
 from app.audible import book_downloader
 from app.models.audible_book import AudibleBook
-from app.models.audible_book_download import STATUS_COMPLETED, STATUS_FAILED
+from app.models.audible_book_download import STATUS_COMPLETED, STATUS_FAILED, STATUS_QUEUED, AudibleBookDownload
 from app.models.audible_download_destination import AudibleDownloadDestination
 from app.models.credential import SOURCE_AUDIBLE, Credential
 from app.security import encrypt_json
@@ -65,9 +65,10 @@ def test_start_download_raises_when_book_missing(db):
         book_downloader.start_download(db, "NONEXISTENT")
 
 
-def test_start_download_rejects_concurrent_download_for_same_asin(db, monkeypatch):
+def test_start_download_rejects_concurrent_download_for_same_asin(db):
     _add_book(db)
-    monkeypatch.setattr(book_downloader, "_active_asins", {"B001"})
+    db.add(AudibleBookDownload(asin="B001", status=STATUS_QUEUED))
+    db.commit()
     with pytest.raises(book_downloader.BookDownloadInProgressError):
         book_downloader.start_download(db, "B001")
 
@@ -107,6 +108,11 @@ async def test_start_download_completes_and_remuxes_to_m4b(db, tmp_path, monkeyp
     assert Path(job.downloaded_path).read_bytes() == b"fake-m4b-bytes"
     # the intermediate .aaxc is cleaned up once the m4b exists
     assert not (tmp_path / "Audible" / "A Great Book.aaxc").exists()
+    # and the finished file is remembered, so it's never downloaded again
+    from app.models.audible_local_file import AudibleLocalFile
+
+    db.expire_all()
+    assert db.get(AudibleLocalFile, "B001").path == job.downloaded_path
 
 
 @pytest.mark.asyncio

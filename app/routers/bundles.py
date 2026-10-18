@@ -453,6 +453,30 @@ def _bundle_download_status_context(db: Session, gamekey: str) -> dict:
     return context
 
 
+@router.post("/download", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
+async def trigger_bulk_download(request: Request, gamekeys: list[str] = Form(default=[]), db: Session = Depends(get_db)):
+    """Queues a whole-bundle download for each selected bundle. A bundle
+    that's already queued or running is left alone. One whose files are all
+    already on disk is queued too and finishes at once — the worker skips
+    anything it can see is already downloaded (see worker._is_on_disk), so
+    the answer to "is this one done?" comes from the filesystem, not from a
+    guess made here.
+    """
+    outcome: dict[str, list[str]] = {"queued": [], "in_progress": [], "unknown": []}
+    for gamekey in dict.fromkeys(gamekeys):
+        bundle = db.get(Bundle, gamekey)
+        if bundle is None:
+            outcome["unknown"].append(gamekey)
+            continue
+        job = worker.latest_job_for_bundle(db, gamekey)
+        if job is not None and job.status in (JOB_RUNNING, JOB_QUEUED):
+            outcome["in_progress"].append(gamekey)
+            continue
+        await worker.start_download(gamekey, bundle.name, None, None)
+        outcome["queued"].append(gamekey)
+    return templates.TemplateResponse(request, "bundles/_bulk_result.html", {"outcome": outcome, "requested": len(gamekeys)})
+
+
 @router.post("/{gamekey}/download", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def trigger_download(
     request: Request,
