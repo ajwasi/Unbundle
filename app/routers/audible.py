@@ -200,6 +200,7 @@ def _context(
         for row in db.query(AudibleAuthorBook).order_by(AudibleAuthorBook.author_name).all()
         if row.asin not in owned_asins
     ]
+    missing_author_groups = _group_missing_by_author(author_missing_rows)
 
     downloaded_asins = {a for (a,) in db.query(AudibleLocalFile.asin).all()}
     active_asins = {job["asin"] for job in book_downloader.get_active_jobs(db)}
@@ -212,8 +213,12 @@ def _context(
         "active_asins": active_asins,
         "missing_count": len(missing_rows),
         "missing_series_groups": _group_missing_by_series(missing_rows),
-        "missing_author_count": len(author_missing_rows),
-        "missing_author_groups": _group_missing_by_author(author_missing_rows),
+        # The number of distinct authors with at least one missing book —
+        # not the number of missing books — matching the tab's own label
+        # ("Missing by author"); each group's own book count is still shown
+        # per-author in the disclosure summary below.
+        "missing_author_count": len(missing_author_groups),
+        "missing_author_groups": missing_author_groups,
         "destinations": _destination_rows(db),
         "view": view if view in ("missing", "missing_authors") else "owned",
         "title": title,
@@ -387,6 +392,77 @@ def audible_series_detail(request: Request, series_asin: str, db: Session = Depe
         request,
         "audible/series_detail.html",
         {"series_title": series_title, "series_asin": series_asin, "rows": rows},
+    )
+
+
+@router.get("/author/{author_name}", response_class=HTMLResponse)
+def audible_author_detail(request: Request, author_name: str, db: Session = Depends(get_db)):
+    # AudibleBook has no normalized per-author list, only the flattened
+    # display string fetch_library() already joined (see its own docstring)
+    # — split it back out and match the exact name, same reasoning
+    # audible_sync._is_contributor_credit's caller already relies on
+    # (author_name here only ever came from AudibleAuthorBook.author_name,
+    # which only ever holds names that already passed that same filter, so
+    # there's no contributor-credit noise to re-exclude here).
+    owned = [
+        b
+        for b in db.query(AudibleBook).all()
+        if author_name.casefold() in {n.strip().casefold() for n in (b.author or "").split(",")}
+    ]
+    missing = db.query(AudibleAuthorBook).filter(AudibleAuthorBook.author_name == author_name).all()
+    # Same read-time owned filter as everywhere else in this file — a book
+    # bought since the last refresh shouldn't show up as both.
+    owned_asins = {b.asin for b in owned}
+    missing = [m for m in missing if m.asin not in owned_asins]
+    if not owned and not missing:
+        return templates.TemplateResponse(
+            request, "audible/author_not_found.html", {"author_name": author_name}, status_code=404
+        )
+
+    rows = [
+        {
+            "owned": True,
+            "asin": b.asin,
+            "title": b.title,
+            "series_title": b.series_title,
+            "series_sequence": b.series_sequence,
+            "cover_url": b.cover_url,
+            "price": b.price_amount,
+            "currency": b.price_currency,
+            "discount_pct": None,
+        }
+        for b in owned
+    ] + [
+        {
+            "owned": False,
+            "asin": m.asin,
+            "title": m.title,
+            "series_title": m.series_title,
+            "series_sequence": m.series_sequence,
+            "cover_url": m.cover_url,
+            "price": m.current_price,
+            "currency": m.currency,
+            "discount_pct": m.discount_pct,
+        }
+        for m in missing
+    ]
+    # No publication date is stored for owned books (fetch_library never
+    # requests/parses one — AudibleBook only has purchase_date, which is
+    # when the account bought it, not when Audible released it), so unlike
+    # the tab's own missing-only groups (sorted newest-release-first), the
+    # combined owned+missing list here sorts by title — the one ordering
+    # that means the same thing for a row from either source.
+    rows.sort(key=lambda r: r["title"].casefold())
+
+    return templates.TemplateResponse(
+        request,
+        "audible/author_detail.html",
+        {
+            "author_name": author_name,
+            "owned_count": len(owned),
+            "missing_count": len(missing),
+            "rows": rows,
+        },
     )
 
 
