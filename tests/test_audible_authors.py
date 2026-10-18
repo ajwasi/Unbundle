@@ -113,6 +113,40 @@ async def test_an_author_that_fails_to_load_does_not_fail_the_refresh(db):
     assert db.query(AudibleAuthorBook).count() == 0
 
 
+def test_is_contributor_credit_flags_a_role_suffixed_name():
+    # Real shape from a captured catalog/products response (2026-10-18):
+    # Audible's own `authors` array carries non-author contributors with
+    # the role appended straight into the name string, no separate field.
+    assert audible_sync._is_contributor_credit("Richard Howard - translator") is True
+    assert audible_sync._is_contributor_credit("Annette Lavers - translator") is True
+
+
+def test_is_contributor_credit_leaves_real_names_alone():
+    assert audible_sync._is_contributor_credit("Dennis E. Taylor") is False
+    assert audible_sync._is_contributor_credit("Jean-Paul Sartre") is False
+
+
+async def test_refresh_never_searches_audible_for_a_contributor_credit(db):
+    """Regression test for the Missing by Author tab coming back empty on a
+    real account: a translator credit like "Richard Howard - translator"
+    was being searched as if it were a real author, and since Audible's own
+    search for that exact credit mostly just finds the same already-owned
+    book back, the result was always zero new rows — not because nothing
+    was missing, but because the "author" was never a real author.
+    """
+    _connect_audible(db)
+    books = [_owned(names=("Roland Barthes", "Richard Howard - translator"))]
+    fetch = AsyncMock(return_value=[])
+    with (
+        patch("app.sync.audible_sync.audible.Authenticator.from_dict", return_value=_FakeAuth()),
+        patch("app.sync.audible_sync.audible_connector.fetch_library", new=AsyncMock(return_value=books)),
+        patch("app.sync.audible_sync.audible_connector.fetch_author_books", new=fetch),
+    ):
+        await audible_sync.refresh_audible_library(db)
+
+    assert [c.args[1] for c in fetch.await_args_list] == ["Roland Barthes"]
+
+
 async def test_each_co_author_is_looked_up_once_even_across_books(db):
     _connect_audible(db)
     books = [_owned("A1", ("Ann", "Bob")), _owned("A2", ("ann",))]
