@@ -3,12 +3,13 @@
 {% block content %}
 <h1>Settings</h1>
 
-<nav class="settings-jump" aria-label="Jump to section">
-  <a href="#identity-section">Identity</a>
-  <a href="#accounts-section">Connected Accounts</a>
-  <a href="#system-section">System</a>
-</nav>
+<div class="store-tabs" id="settings-tabs" role="tablist" aria-label="Settings section">
+  <button type="button" class="store-tab" data-tab-target="identity-panel" role="tab">Identity</button>
+  <button type="button" class="store-tab" data-tab-target="accounts-panel" role="tab">Connected Accounts</button>
+  <button type="button" class="store-tab" data-tab-target="system-panel" role="tab">System</button>
+</div>
 
+<div data-tab-panel id="identity-panel">
 <h2 id="identity-section">Identity</h2>
 
 <div class="settings-grid">
@@ -32,7 +33,9 @@
   </div>
 </div>
 </div>
+</div>
 
+<div data-tab-panel id="accounts-panel" hidden>
 <h2 id="accounts-section">Connected Accounts</h2>
 
 <div class="settings-grid">
@@ -172,6 +175,7 @@
   </div>
 </div>
 </div>
+</div>
 
 <dialog id="gog-login-modal">
   <div id="gog-modal-content">
@@ -185,6 +189,7 @@
   </div>
 </dialog>
 
+<div data-tab-panel id="system-panel" hidden>
 <h2 id="system-section">System</h2>
 
 <div class="settings-grid">
@@ -249,4 +254,59 @@
   </div>
 </div>
 </div>
+</div>
+
+<script>
+  (function () {
+    var tabs = document.getElementById('settings-tabs');
+    if (!tabs) return;
+    var buttons = tabs.querySelectorAll('[data-tab-target]');
+    var panels = document.querySelectorAll('[data-tab-panel]');
+
+    function activate(targetId, updateHash) {
+      buttons.forEach(function (btn) {
+        var active = btn.dataset.tabTarget === targetId;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      panels.forEach(function (panel) {
+        panel.hidden = panel.id !== targetId;
+      });
+      if (updateHash) {
+        history.replaceState(null, '', '#' + targetId);
+      }
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        activate(btn.dataset.tabTarget, true);
+      });
+    });
+
+    // A link elsewhere in the app (e.g. "Change password" in the user menu,
+    // visible on every page including this one) may point at #account-card
+    // — a specific card's id, not a panel's own id — so the active tab is
+    // whichever panel actually CONTAINS the hash target, not just a literal
+    // panel-id match. Falls back to the first tab (Identity) when there's
+    // no hash or no match.
+    function activateFromHash(scroll) {
+      var target = panels[0] ? panels[0].id : null;
+      var hashTarget = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+      var container = hashTarget ? hashTarget.closest('[data-tab-panel]') : null;
+      if (container) target = container.id;
+      if (target) activate(target, false);
+      if (scroll && hashTarget) hashTarget.scrollIntoView();
+    }
+
+    activateFromHash(true);
+    // The link that sets #account-card lives in the sidebar nav on every
+    // page, including this one — clicking it while already on /settings
+    // (just on a different tab) is a same-document fragment navigation:
+    // the hash changes but the page never reloads, so nothing re-runs the
+    // code above unless this also listens for that.
+    window.addEventListener('hashchange', function () {
+      activateFromHash(true);
+    });
+  })();
+</script>
 {% endblock %}

@@ -441,27 +441,6 @@ main {
 .card.is-connected { border-left: 3px solid var(--success); }
 .card.has-error { border-left: 3px solid var(--error); }
 
-/* The quick-jump row under the page's own <h1> — plain anchor links styled
-   as pills, not a second full nav; this page is long enough (a dozen
-   cards) to want a way down to one section without scrolling blind. */
-.settings-jump {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-.settings-jump a {
-  display: inline-block;
-  padding: 0.3rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--text);
-  text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-.settings-jump a:hover { color: var(--accent); border-color: var(--accent); }
-
 /* A step-by-step walkthrough tucked behind a native disclosure instead of
    always sitting fully expanded — a first-time connection needs to read
    every step, a reconnect six months later doesn't. Server decides the
@@ -800,6 +779,19 @@ details.settings-howto p:last-child { margin-bottom: 0; }
   color: var(--muted);
 }
 .store-tab.active .store-tab-count { background: var(--bg); }
+
+/* .store-tab is normally an <a> (see its own comment above) — Settings'
+   client-side tabs use a real <button> instead, since there's no per-tab
+   route to link to there, so this resets the browser's own button chrome
+   (background, font, cursor) that the anchor styling above never had to
+   account for. */
+button.store-tab {
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+button.store-tab:hover { background: var(--bg); }
+button.store-tab.active { background: var(--surface); }
 
 .rating-stars { color: var(--warning); letter-spacing: 0.05em; }
 
