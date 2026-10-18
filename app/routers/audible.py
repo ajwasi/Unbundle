@@ -28,11 +28,21 @@ from app.models.audible_pdf_download import STATUS_COMPLETED, STATUS_QUEUED, STA
 from app.models.audible_series_book import AudibleSeriesBook
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_AUDIBLE
 from app.ratelimit import RateLimiter, rate_limit
+from app.routers.destination_crud import destinations_context, register_simple_destination_routes
 from app.sync import audible_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/audible")
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
+
+_DEST_KWARGS = dict(
+    url_prefix="/audible",
+    dom_id="audible-destinations",
+    folder_label="Audible",
+    name_placeholder="NAS Audiobooks Share",
+    path_placeholder="/mnt/library/audiobooks",
+)
+register_simple_destination_routes(router, AudibleDownloadDestination, **_DEST_KWARGS)
 
 _SORT_COLUMNS = {
     "title": AudibleBook.title,
@@ -45,15 +55,8 @@ _SORT_COLUMNS = {
 }
 
 
-def _destination_rows(db: Session) -> list[dict]:
-    return [
-        {"id": d.id, "name": d.name, "path": d.path, "is_default": d.is_default}
-        for d in db.query(AudibleDownloadDestination).order_by(AudibleDownloadDestination.id).all()
-    ]
-
-
 def _destinations_context(db: Session) -> dict:
-    return {"destinations": _destination_rows(db)}
+    return destinations_context(db, AudibleDownloadDestination, **_DEST_KWARGS)
 
 
 def _series_sort_key(sequence: str) -> tuple:
@@ -264,7 +267,7 @@ def _context(
         "missing_author_book_count": len(author_missing_rows),
         "missing_author_groups": missing_author_groups,
         "author_q": author_q,
-        "destinations": _destination_rows(db),
+        **_destinations_context(db),
         "view": view if view in ("missing", "missing_authors") else "owned",
         "title": title,
         "author": author,
@@ -620,34 +623,3 @@ def download_book_file(asin: str, db: Session = Depends(get_db)):
     book = db.get(AudibleBook, asin)
     filename = f"{book.title}.m4b" if book else f"{asin}.m4b"
     return FileResponse(path, filename=filename, media_type="audio/mp4")
-
-
-@router.post("/destinations", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def create_destination(request: Request, name: str = Form(default=""), path: str = Form(default=""), db: Session = Depends(get_db)):
-    if name.strip() and path.strip():
-        # The first destination anyone adds becomes the default automatically
-        # — otherwise a user who configures exactly one directory would still
-        # need a second click to actually use it.
-        is_first = db.query(AudibleDownloadDestination).count() == 0
-        db.add(AudibleDownloadDestination(name=name.strip(), path=path.strip(), is_default=is_first))
-        db.commit()
-    return templates.TemplateResponse(request, "audible/_destinations.html", _destinations_context(db))
-
-
-@router.post("/destinations/{destination_id}/delete", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def delete_destination(request: Request, destination_id: int, db: Session = Depends(get_db)):
-    dest = db.get(AudibleDownloadDestination, destination_id)
-    if dest is not None:
-        db.delete(dest)
-        db.commit()
-    return templates.TemplateResponse(request, "audible/_destinations.html", _destinations_context(db))
-
-
-@router.post("/destinations/{destination_id}/set-default", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def set_default_destination(request: Request, destination_id: int, db: Session = Depends(get_db)):
-    dest = db.get(AudibleDownloadDestination, destination_id)
-    if dest is not None:
-        db.query(AudibleDownloadDestination).update({"is_default": False})
-        dest.is_default = True
-        db.commit()
-    return templates.TemplateResponse(request, "audible/_destinations.html", _destinations_context(db))

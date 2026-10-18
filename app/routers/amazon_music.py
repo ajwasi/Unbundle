@@ -28,6 +28,7 @@ from app.models.amazon_music_album_catalog_sync import AmazonMusicAlbumCatalogSy
 from app.models.amazon_music_destination import AmazonMusicDestination
 from app.models.amazon_music_track import AmazonMusicTrack
 from app.ratelimit import RateLimiter, rate_limit
+from app.routers.destination_crud import destinations_context, register_simple_destination_routes
 from app.sync import amazon_music_sync
 from app.templates_env import templates
 
@@ -36,6 +37,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/amazon-music")
 
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
+
+_DEST_KWARGS = dict(
+    url_prefix="/amazon-music",
+    dom_id="amazon-music-destinations",
+    folder_label="Amazon Music",
+    name_placeholder="NAS Music Share",
+    path_placeholder="/mnt/library/music",
+)
+register_simple_destination_routes(router, AmazonMusicDestination, **_DEST_KWARGS)
 
 SORTS = {
     "added": AmazonMusicTrack.first_seen_at.desc(),
@@ -55,15 +65,8 @@ SORTS = {
 NEW_WINDOW = timedelta(minutes=5)
 
 
-def _destination_rows(db: Session) -> list[dict]:
-    return [
-        {"id": d.id, "name": d.name, "path": d.path, "is_default": d.is_default}
-        for d in db.query(AmazonMusicDestination).order_by(AmazonMusicDestination.id).all()
-    ]
-
-
 def _destinations_context(db: Session) -> dict:
-    return {"destinations": _destination_rows(db)}
+    return destinations_context(db, AmazonMusicDestination, **_DEST_KWARGS)
 
 
 # Never a real ASIN (those are always exactly 10 alphanumeric characters —
@@ -664,37 +667,6 @@ def refresh_amazon_music(
     context["refresh_result"] = result
     context["refresh_error"] = error
     return templates.TemplateResponse(request, "amazon_music/_albums_table.html", context)
-
-
-@router.post("/destinations", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def create_destination(request: Request, name: str = Form(default=""), path: str = Form(default=""), db: Session = Depends(get_db)):
-    if name.strip() and path.strip():
-        # The first destination anyone adds becomes the default automatically
-        # — otherwise a user who configures exactly one directory would still
-        # need a second click to actually use it.
-        is_first = db.query(AmazonMusicDestination).count() == 0
-        db.add(AmazonMusicDestination(name=name.strip(), path=path.strip(), is_default=is_first))
-        db.commit()
-    return templates.TemplateResponse(request, "amazon_music/_destinations.html", _destinations_context(db))
-
-
-@router.post("/destinations/{destination_id}/delete", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def delete_destination(request: Request, destination_id: int, db: Session = Depends(get_db)):
-    dest = db.get(AmazonMusicDestination, destination_id)
-    if dest is not None:
-        db.delete(dest)
-        db.commit()
-    return templates.TemplateResponse(request, "amazon_music/_destinations.html", _destinations_context(db))
-
-
-@router.post("/destinations/{destination_id}/set-default", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
-def set_default_destination(request: Request, destination_id: int, db: Session = Depends(get_db)):
-    dest = db.get(AmazonMusicDestination, destination_id)
-    if dest is not None:
-        db.query(AmazonMusicDestination).update({"is_default": False})
-        dest.is_default = True
-        db.commit()
-    return templates.TemplateResponse(request, "amazon_music/_destinations.html", _destinations_context(db))
 
 
 @router.post("/downloads", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
