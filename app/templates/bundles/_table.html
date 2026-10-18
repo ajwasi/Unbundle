@@ -29,7 +29,7 @@
     <thead>
       <tr>
         <th class="table-lead-col"><input type="checkbox" title="Select every bundle shown" aria-label="Select every bundle shown"
-            onclick="document.querySelectorAll('.bundle-select').forEach(c => c.checked = this.checked); updateBundleBulkButton();"></th>
+            onclick="document.querySelectorAll('.bundle-select').forEach(c => c.checked = this.checked); document.getElementById('bundle-table').dispatchEvent(new Event('change'));"></th>
         <th>{{ sort_link('name', 'Bundle') }}</th>
         <th>{{ sort_link('items', 'Items') }}</th>
         <th>Downloaded</th>
@@ -101,9 +101,5 @@
   </div>
 </div>
 <script>
-  function updateBundleBulkButton() {
-    var btn = document.getElementById('bundle-bulk-btn');
-    if (btn) btn.disabled = document.querySelectorAll('.bundle-select:checked').length === 0;
-  }
-  document.getElementById('bundle-table').addEventListener('change', updateBundleBulkButton);
+  wireBulkSelect('bundle-table', '.bundle-select:checked', 'bundle-bulk-btn');
 </script>

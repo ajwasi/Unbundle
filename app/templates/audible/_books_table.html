@@ -28,7 +28,7 @@
     <table>
       <thead>
         <tr><th class="table-lead-col"><input type="checkbox" class="audible-select-all" title="Select every book shown" aria-label="Select every book shown"
-            onclick="document.querySelectorAll('.audible-select').forEach(c => c.checked = this.checked); updateAudibleBulkButton();"></th><th></th><th scope="col" style="min-width: 9rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 7rem;">Narrator</th><th scope="col" style="min-width: 6rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 6rem;">{{ sort_link('progress', 'Progress') }}</th><th></th></tr>
+            onclick="document.querySelectorAll('.audible-select').forEach(c => c.checked = this.checked); document.getElementById('audible-books-table').dispatchEvent(new Event('change'));"></th><th></th><th scope="col" style="min-width: 9rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 7rem;">Narrator</th><th scope="col" style="min-width: 6rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 6rem;">{{ sort_link('progress', 'Progress') }}</th><th></th></tr>
         <tr>
           <th></th>
           <th>
@@ -112,9 +112,5 @@
   </div>
 </div>
 <script>
-  function updateAudibleBulkButton() {
-    var btn = document.getElementById('audible-bulk-btn');
-    if (btn) btn.disabled = document.querySelectorAll('.audible-select:checked').length === 0;
-  }
-  document.getElementById('audible-books-table').addEventListener('change', updateAudibleBulkButton);
+  wireBulkSelect('audible-books-table', '.audible-select:checked', 'audible-bulk-btn');
 </script>
