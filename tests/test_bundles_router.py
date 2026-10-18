@@ -773,3 +773,43 @@ def test_refresh_status_shows_failure_message(authed_client, db):
 def test_unredeemed_column_header_carries_an_explanatory_tooltip(authed_client):
     resp = authed_client.get("/bundles")
     assert "still sitting unused on Humble" in resp.text
+
+
+# -------------------------------------------------------- bulk download
+
+
+def test_bulk_download_queues_each_selected_bundle_and_reports_the_outcome(authed_client, db, make_bundle, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from app.downloads import worker
+    from app.models.download_job import STATUS_QUEUED, DownloadJob
+
+    make_bundle(gamekey="GK1")
+    make_bundle(gamekey="GK2")
+    db.add(DownloadJob(gamekey="GK2", bundle_name="x", status=STATUS_QUEUED))
+    db.commit()
+    start = AsyncMock(return_value=1)
+    monkeypatch.setattr(worker, "start_download", start)
+
+    resp = authed_client.post("/bundles/download", data={"gamekeys": ["GK1", "GK2", "NOPE"]})
+
+    assert resp.status_code == 200
+    assert "Queued 1" in resp.text
+    assert "1 already queued" in resp.text
+    assert "1 not found" in resp.text
+    assert start.await_count == 1
+    assert start.await_args.args[0] == "GK1"
+
+
+def test_bulk_download_asks_for_a_selection_when_nothing_is_checked(authed_client):
+    assert "Select at least one bundle" in authed_client.post("/bundles/download", data={}).text
+
+
+def test_bundle_list_has_a_checkbox_per_bundle(authed_client, make_bundle):
+    make_bundle(gamekey="GK1")
+    make_bundle(gamekey="GK2")
+
+    resp = authed_client.get("/bundles")
+
+    assert resp.text.count('name="gamekeys"') == 2
+    assert "Download selected" in resp.text

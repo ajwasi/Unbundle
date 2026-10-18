@@ -16,10 +16,20 @@
     {%- if redeemed == "unredeemed" %} with unredeemed keys{% elif redeemed == "redeemed" %} fully redeemed{% endif -%}
     &mdash; ${{ "%.2f"|format(filtered_total_spent) }} spent{% if q or category or min_items or redeemed %} (this view){% endif %}
   </p>
+  <div class="toolbar">
+    <input type="hidden" class="bundle-bulk" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="button" class="secondary" id="bundle-bulk-btn" disabled
+            hx-post="/bundles/download" hx-include=".bundle-bulk" hx-target="#bundle-bulk-result" hx-swap="innerHTML">
+      Download selected
+    </button>
+    <span id="bundle-bulk-result" aria-live="polite"></span>
+  </div>
   <div class="table-scroll">
   <table>
     <thead>
       <tr>
+        <th class="table-lead-col"><input type="checkbox" title="Select every bundle shown" aria-label="Select every bundle shown"
+            onclick="document.querySelectorAll('.bundle-select').forEach(c => c.checked = this.checked); updateBundleBulkButton();"></th>
         <th>{{ sort_link('name', 'Bundle') }}</th>
         <th>{{ sort_link('items', 'Items') }}</th>
         <th>Downloaded</th>
@@ -34,6 +44,7 @@
     <tbody>
       {% for b in bundles %}
       <tr>
+        <td class="table-lead-col"><input type="checkbox" class="bundle-select bundle-bulk" name="gamekeys" value="{{ b.gamekey }}" aria-label="Select {{ b.name }}"></td>
         <td><a href="/bundles/{{ b.gamekey }}">{{ b.name }}</a></td>
         <td>{{ b.subproduct_count }}</td>
         <td>
@@ -66,13 +77,13 @@
       </tr>
       {% else %}
       {% set any_filter = q or category or min_items or tag_id or redeemed %}
-      <tr><td colspan="9" class="muted">{{ "No bundles match." if any_filter else 'No bundles yet — click "Refresh from Humble" above to sync your library.' }}</td></tr>
+      <tr><td colspan="10" class="muted">{{ "No bundles match." if any_filter else 'No bundles yet — click "Refresh from Humble" above to sync your library.' }}</td></tr>
       {% endfor %}
     </tbody>
     {% if bundles %}
     <tfoot>
       <tr style="font-weight: 600; border-top: 2px solid var(--border);">
-        <td colspan="7">TOTAL ({{ bundles|length }} bundle{{ "s" if bundles|length != 1 else "" }} shown)</td>
+        <td colspan="8">TOTAL ({{ bundles|length }} bundle{{ "s" if bundles|length != 1 else "" }} shown)</td>
         <td>${{ "%.2f"|format(filtered_total_spent) }}</td>
         <td></td>
       </tr>
@@ -81,3 +92,10 @@
   </table>
   </div>
 </div>
+<script>
+  function updateBundleBulkButton() {
+    var btn = document.getElementById('bundle-bulk-btn');
+    if (btn) btn.disabled = document.querySelectorAll('.bundle-select:checked').length === 0;
+  }
+  document.getElementById('bundle-table').addEventListener('change', updateBundleBulkButton);
+</script>
