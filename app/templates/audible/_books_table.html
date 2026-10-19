@@ -7,7 +7,7 @@
 </a>
 {% endmacro %}
 
-{% macro filter_input(name, value, placeholder, width='100%', type='search') %}
+{% macro filter_input(name, value, placeholder='', width='9rem', type='search') %}
 <input type="{{ type }}" name="{{ name }}" value="{{ value if value is not none else '' }}" placeholder="{{ placeholder }}"
        class="audible-filter" style="width: {{ width }};"
        hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
@@ -24,57 +24,84 @@
     </button>
     <span id="audible-bulk-result" aria-live="polite"></span>
   </div>
+  <input type="hidden" name="sort" value="{{ sort }}" class="audible-filter">
+  <input type="hidden" name="dir" value="{{ dir }}" class="audible-filter">
+  <div class="toolbar filter-toolbar">
+    <div class="filter-group">
+      <span>Title</span>
+      {{ filter_input('title', title, 'Filter...') }}
+    </div>
+    <div class="filter-group">
+      <span>Author</span>
+      {{ filter_input('author', author, 'Filter...') }}
+    </div>
+    <div class="filter-group">
+      <span>Narrator</span>
+      {{ filter_input('narrator', narrator, 'Filter...') }}
+    </div>
+    <div class="filter-group">
+      <span>Series</span>
+      {{ filter_input('series', series, 'Filter...') }}
+    </div>
+    <div class="filter-group">
+      <span>Runtime (hrs)</span>
+      <div class="range-inputs">
+        {{ filter_input('runtime_min', runtime_min, 'min', '4.5rem', 'number') }}
+        <span>&ndash;</span>
+        {{ filter_input('runtime_max', runtime_max, 'max', '4.5rem', 'number') }}
+      </div>
+    </div>
+    <div class="filter-group">
+      <span>Purchased</span>
+      <div class="range-inputs">
+        {{ filter_input('purchased_from', purchased_from.strftime('%Y-%m-%d') if purchased_from else '', '', '9.5rem', 'date') }}
+        <span>&ndash;</span>
+        {{ filter_input('purchased_to', purchased_to.strftime('%Y-%m-%d') if purchased_to else '', '', '9.5rem', 'date') }}
+      </div>
+    </div>
+    <div class="filter-group">
+      <span>Price ($)</span>
+      <div class="range-inputs">
+        {{ filter_input('price_min', price_min, 'min', '4.5rem', 'number') }}
+        <span>&ndash;</span>
+        {{ filter_input('price_max', price_max, 'max', '4.5rem', 'number') }}
+      </div>
+    </div>
+    <div class="filter-group">
+      <span>Rating</span>
+      <div class="range-inputs">
+        {{ filter_input('rating_min', rating_min, 'min', '4.5rem', 'number') }}
+        <span>&ndash;</span>
+        {{ filter_input('rating_max', rating_max, 'max', '4.5rem', 'number') }}
+      </div>
+    </div>
+    <div class="filter-group">
+      <span>Progress</span>
+      <select name="progress" class="audible-filter" style="width: 9rem;"
+              hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
+              hx-trigger="change" hx-include=".audible-filter">
+        <option value="">All</option>
+        <option value="finished" {{ "selected" if progress == "finished" else "" }}>Finished</option>
+        <option value="in_progress" {{ "selected" if progress == "in_progress" else "" }}>In Progress</option>
+        <option value="not_started" {{ "selected" if progress == "not_started" else "" }}>Not Started</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span>Ownership</span>
+      <select name="owned" class="audible-filter" style="width: 9rem;"
+              hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
+              hx-trigger="change" hx-include=".audible-filter">
+        <option value="">All</option>
+        <option value="owned" {{ "selected" if owned == "owned" else "" }}>Owned</option>
+        <option value="plus" {{ "selected" if owned == "plus" else "" }}>Plus Catalog</option>
+      </select>
+    </div>
+  </div>
   <div class="table-scroll">
     <table>
       <thead>
         <tr><th class="table-lead-col"><input type="checkbox" class="audible-select-all" title="Select every book shown" aria-label="Select every book shown"
-            onclick="document.querySelectorAll('.audible-select').forEach(c => c.checked = this.checked); document.getElementById('audible-books-table').dispatchEvent(new Event('change'));"></th><th></th><th scope="col" style="min-width: 9rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 7rem;">Narrator</th><th scope="col" style="min-width: 6rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 6rem;">{{ sort_link('progress', 'Progress') }}</th><th></th></tr>
-        <tr>
-          <th></th>
-          <th>
-            <input type="hidden" name="sort" value="{{ sort }}" class="audible-filter">
-            <input type="hidden" name="dir" value="{{ dir }}" class="audible-filter">
-          </th>
-          <th>{{ filter_input('title', title, 'Filter...') }}</th>
-          <th>{{ filter_input('author', author, 'Filter...') }}</th>
-          <th>{{ filter_input('narrator', narrator, 'Filter...') }}</th>
-          <th>{{ filter_input('series', series, 'Filter...') }}</th>
-          <th>
-            {{ filter_input('runtime_min', runtime_min, 'min hrs', '4rem', 'number') }}
-            {{ filter_input('runtime_max', runtime_max, 'max hrs', '4rem', 'number') }}
-          </th>
-          <th>
-            {{ filter_input('purchased_from', purchased_from.strftime('%Y-%m-%d') if purchased_from else '', '', '7rem', 'date') }}
-            {{ filter_input('purchased_to', purchased_to.strftime('%Y-%m-%d') if purchased_to else '', '', '7rem', 'date') }}
-          </th>
-          <th>
-            {{ filter_input('price_min', price_min, 'min $', '3.5rem', 'number') }}
-            {{ filter_input('price_max', price_max, 'max $', '3.5rem', 'number') }}
-          </th>
-          <th>
-            {{ filter_input('rating_min', rating_min, 'min ★', '3rem', 'number') }}
-            {{ filter_input('rating_max', rating_max, 'max ★', '3rem', 'number') }}
-          </th>
-          <th>
-            <select name="progress" class="audible-filter" style="width: 100%;"
-                    hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
-                    hx-trigger="change" hx-include=".audible-filter">
-              <option value="">All</option>
-              <option value="finished" {{ "selected" if progress == "finished" else "" }}>Finished</option>
-              <option value="in_progress" {{ "selected" if progress == "in_progress" else "" }}>In Progress</option>
-              <option value="not_started" {{ "selected" if progress == "not_started" else "" }}>Not Started</option>
-            </select>
-          </th>
-          <th>
-            <select name="owned" class="audible-filter" style="width: 100%;"
-                    hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
-                    hx-trigger="change" hx-include=".audible-filter">
-              <option value="">All</option>
-              <option value="owned" {{ "selected" if owned == "owned" else "" }}>Owned</option>
-              <option value="plus" {{ "selected" if owned == "plus" else "" }}>Plus Catalog</option>
-            </select>
-          </th>
-        </tr>
+            onclick="document.querySelectorAll('.audible-select').forEach(c => c.checked = this.checked); document.getElementById('audible-books-table').dispatchEvent(new Event('change'));"></th><th></th><th scope="col" style="min-width: 9rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 7rem;">Narrator</th><th scope="col" style="min-width: 6rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 6rem;">{{ sort_link('progress', 'Progress') }}</th><th scope="col" style="min-width: 7rem;">Ownership</th></tr>
       </thead>
       <tbody>
         {% for b in books %}
