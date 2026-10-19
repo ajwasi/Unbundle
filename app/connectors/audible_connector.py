@@ -489,7 +489,7 @@ async def probe_catalog_product(auth: audible.Authenticator, asin: str) -> dict:
         return await client.get(f"catalog/products/{asin}", params={"response_groups": PROBE_RESPONSE_GROUPS})
 
 
-async def request_license(auth: audible.Authenticator, asin: str, quality: str = "Extreme") -> dict:
+async def request_license(auth: audible.Authenticator, asin: str, quality: str = "High") -> dict:
     """The license-request call behind an actual audiobook download —
     NOT reverse-engineered for this app specifically: this is the `audible`
     package's own official example
@@ -502,6 +502,14 @@ async def request_license(auth: audible.Authenticator, asin: str, quality: str =
     auth, response) decrypts the per-file key/iv book_downloader.py needs —
     see that module for the rest of the pipeline (download, then ffmpeg
     remux into a plain .m4b).
+
+    quality defaults to "High", not the official example's "Extreme" —
+    confirmed live against a real account (2026-10-18) that Audible's API
+    now rejects "Extreme" outright: `1 validation error detected: Value
+    'Extreme' at 'quality' failed to satisfy constraint: Member must
+    satisfy enum value set: [High, Normal]`, failing every download. The
+    example was either outdated or always wrong; "High" is the best value
+    Audible's own validation currently still accepts.
     """
     async with audible.AsyncClient(auth) as client:
         return await client.post(

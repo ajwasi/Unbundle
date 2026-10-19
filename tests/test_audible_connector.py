@@ -312,7 +312,11 @@ def test_is_owned_false_for_plus_catalog_benefit_id():
 
 
 @pytest.mark.asyncio
-async def test_request_license_posts_the_official_example_body():
+async def test_request_license_defaults_to_high_quality():
+    # Not "Extreme" — the `audible` package's own official example uses that,
+    # but a real account (2026-10-18) confirmed Audible's API now rejects it
+    # outright ("Member must satisfy enum value set: [High, Normal]"),
+    # failing every download. "High" is the best value still accepted.
     fake_response = {"content_license": {"asin": "B001"}}
 
     class _FakeAsyncClient:
@@ -324,7 +328,7 @@ async def test_request_license_posts_the_official_example_body():
 
         async def post(self, path, body=None):
             assert path == "content/B001/licenserequest"
-            assert body == {"drm_type": "Adrm", "consumption_type": "Download", "quality": "Extreme"}
+            assert body == {"drm_type": "Adrm", "consumption_type": "Download", "quality": "High"}
             return fake_response
 
     with patch("audible.AsyncClient", return_value=_FakeAsyncClient()):
