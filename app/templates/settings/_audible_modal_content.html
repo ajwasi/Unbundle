@@ -9,7 +9,10 @@
   <form hx-post="/settings/audible/login/answer" hx-target="#audible-modal-content" hx-swap="innerHTML" class="form-row" style="max-width: 480px;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <label for="audible-pasted-url" class="sr-only">Pasted Amazon redirect URL</label>
-    <input id="audible-pasted-url" type="text" name="pasted_url" placeholder="Paste the redirected URL here" autocomplete="off" style="flex: 1;">
+    <input id="audible-pasted-url" type="text" name="pasted_url" placeholder="Paste the redirected URL here" autocomplete="off" required
+           pattern=".*openid\.oa2\.authorization_code.*"
+           title="This doesn't look like the right URL — make sure you copied the FULL address bar contents (e.g. click the address bar, Ctrl+A, Ctrl+C) right after Amazon's redirect, not a partial selection. It must contain openid.oa2.authorization_code."
+           style="flex: 1;">
     <button type="submit">Submit</button>
   </form>
 </div>
