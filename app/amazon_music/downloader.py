@@ -47,6 +47,7 @@ from app.connectors import amazon_music_template as tmpl
 from app.connectors.amazon_music_probe import NotConnectedError as _ProbeNotConnectedError
 from app.db import SessionLocal
 from app.downloads.paths import sanitize_dir_name
+from app.fs_utils import safe_unlink
 from app.models.amazon_music_destination import AmazonMusicDestination
 from app.models.amazon_music_download import (
     STATUS_COMPLETED,
@@ -464,7 +465,7 @@ async def _run_one(job_id: int, download_id: str, client: httpx.AsyncClient, hea
             job.completed_at = datetime.utcnow()
             db.commit()
             if dest_path is not None:
-                dest_path.unlink(missing_ok=True)
+                safe_unlink(dest_path)
             return
 
         # Trust the filesystem over the HTTP-reported size, same philosophy

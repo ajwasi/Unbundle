@@ -45,6 +45,7 @@ from app.connectors import audible_connector
 from app.db import SessionLocal
 from app.downloads import worker
 from app.downloads.paths import sanitize_dir_name
+from app.fs_utils import safe_unlink
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import (
     STATUS_COMPLETED,
@@ -397,8 +398,8 @@ async def _run(job_id: int, asin: str, title: str) -> None:
             job.error_message = str(exc)
             job.completed_at = datetime.utcnow()
             db.commit()
-            aaxc_path.unlink(missing_ok=True)
-            voucher_path.unlink(missing_ok=True)
+            safe_unlink(aaxc_path)
+            safe_unlink(voucher_path)
             return
 
         ok, ffmpeg_output = await _remux_to_m4b(aaxc_path, m4b_path, key, iv)
@@ -406,7 +407,13 @@ async def _run(job_id: int, asin: str, title: str) -> None:
             # The .aaxc is DRM-locked to this one license and useless on its
             # own once the m4b exists — the voucher stays too (cheap, and
             # the only record of the key/iv that produced this exact file).
-            aaxc_path.unlink(missing_ok=True)
+            # Best-effort: a cleanup failure here must never cost the job
+            # its own completed status — the m4b already exists and is
+            # done, regardless of whether the now-redundant .aaxc could be
+            # removed (confirmed live: a destination mounted read-only
+            # left a job stuck at "running" forever otherwise, despite a
+            # fully finished download sitting right there).
+            safe_unlink(aaxc_path)
             job.status = STATUS_COMPLETED
             job.downloaded_path = str(m4b_path)
             record_local_file(db, asin, m4b_path)
