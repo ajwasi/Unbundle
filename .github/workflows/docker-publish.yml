@@ -71,11 +71,39 @@ jobs:
       # GITHUB_REF_NAME is the tag itself (e.g. "v1.2.3") for a tag-triggered
       # run — stripping the leading "v" gives a plain semver tag (1.2.3) to
       # pair alongside the "v"-prefixed one, so either form works in a pull.
+      #
+      # :latest is included only when this tag is the highest vX.Y.Z tag that
+      # exists right now (sort -V, real semver order — not push/finish
+      # order), checked via a live `ls-remote` rather than this job's own
+      # (possibly minutes-stale) checkout, and as late as possible before
+      # the actual push. Pushing several release tags within a few minutes
+      # of each other starts that many independent runs, and their build
+      # times vary — real incident: six tags pushed within two minutes, and
+      # the *oldest* one's run happened to finish last, so its unconditional
+      # `:latest` push silently clobbered every newer image that had
+      # already pushed :latest before it. Computing "am I the latest" fresh,
+      # late, and from the remote means whichever run finishes last can
+      # never downgrade :latest — an older tag's run just never attempts to
+      # push it at all. Not airtight against every conceivable interleaving
+      # (nothing short of a registry-side lock is), but it shrinks the race
+      # window from "this run's entire build+push duration" to the moment
+      # of this one check — pushing release tags back-to-back rather than
+      # scattering them over many minutes is what keeps that window small.
       - name: Derive version tags
         id: version
         run: |
           echo "full=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           echo "bare=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          highest=$(git ls-remote --tags --refs origin 'v*.*.*' | sed 's#.*refs/tags/##' | sort -V | tail -n1)
+          {
+            echo "tags<<TAGS_EOF"
+            echo "${IMAGE_NAME}:${GITHUB_REF_NAME}"
+            echo "${IMAGE_NAME}:${GITHUB_REF_NAME#v}"
+            if [ "${GITHUB_REF_NAME}" = "$highest" ]; then
+              echo "${IMAGE_NAME}:latest"
+            fi
+            echo TAGS_EOF
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v7
@@ -83,7 +111,4 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.full }}
-            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.bare }}
+          tags: ${{ steps.version.outputs.tags }}
