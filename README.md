@@ -316,6 +316,14 @@ network drive (mount it into the container via `docker-compose.yml` and point a
 destination's path at the mount, e.g. `/mnt/library/comics`) — this app doesn't manage
 the mount itself, just moves files onto it.
 
+Already have that same library mounted as a scan root (below)? You don't need a
+second mount of it just to get a writable copy — scan roots default to read-only
+(scanning only ever reads filenames/sizes), but setting that root's own `_MODE`
+variable to `rw` in `docker-compose.yml` (e.g. `SCAN_ROOT_MODE=rw`) makes the
+existing mount writable too, so a destination can point straight at `/scan-root`
+(or a subfolder of it) and downloads land directly in the library you're already
+scanning. See that file's own comment on `SCAN_ROOT` for the exact syntax.
+
 **Scan a folder** reconciles files that predate this feature (or were placed there
 some other way): point it at a folder and it matches filenames against every item in
 your library, previews what it found (flagging anything ambiguous — the same filename
@@ -342,8 +350,8 @@ file's own comment on `SCAN_ROOT`) and list all of them, comma-separated, in `.e
 ```bash
 # docker-compose.yml
 volumes:
-  - ${SCAN_ROOT:-./scan-root}:/scan-root:ro
-  - ${SCAN_ROOT_COMICS:-./scan-root-comics}:/scan-root-comics:ro
+  - ${SCAN_ROOT:-./scan-root}:/scan-root:${SCAN_ROOT_MODE:-ro}
+  - ${SCAN_ROOT_COMICS:-./scan-root-comics}:/scan-root-comics:${SCAN_ROOT_COMICS_MODE:-ro}
 ```
 ```bash
 # .env
@@ -354,6 +362,10 @@ The scan form then shows a dropdown to pick which root to scan — its label is 
 that mount's own last path segment (`/scan-root-comics` → "scan-root-comics"), so name
 the container-side path meaningfully. Leaving `SCAN_ROOTS` blank keeps today's
 single-root behavior exactly as before.
+
+Each root is read-only by default; set its own `_MODE` variable to `rw` (e.g.
+`SCAN_ROOT_COMICS_MODE=rw` in `.env`) if you also want Downloads-page destinations to
+be able to write into that particular mount — see the "Downloads" section above.
 
 ## Reverse proxy / HTTPS
 

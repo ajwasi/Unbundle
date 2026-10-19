@@ -17,16 +17,26 @@ services:
       - ${DATA_DIR_HOST:-./data}:/data
       # Folder-scan (Downloads page) can only ever see this mount and its
       # subdirectories — never an arbitrary host path. Point SCAN_ROOT at
-      # wherever your existing library actually lives; read-only since
-      # scanning only ever reads filenames/sizes, never writes here.
-      - ${SCAN_ROOT:-./scan-root}:/scan-root:ro
+      # wherever your existing library actually lives; defaults to read-only
+      # since scanning only ever reads filenames/sizes, never writes here.
+      #
+      # Set SCAN_ROOT_MODE=rw to make this same mount writable too, and you
+      # can then point a Downloads-page Destination's path straight at
+      # /scan-root (or a subfolder of it) instead of adding a second mount
+      # of the same host folder just to get a writable copy of it — real
+      # downloads land directly in the library you're already scanning. The
+      # read-only default is the safer starting point (nothing this app
+      # does to a scan can ever touch the real files); only switch to rw
+      # once you actually want to write into this location.
+      - ${SCAN_ROOT:-./scan-root}:/scan-root:${SCAN_ROOT_MODE:-ro}
       # To scan more than one location (e.g. separate shares that can't share
       # a common parent directory), mount each as its own path here — name it
       # meaningfully, it becomes that root's label on the scan form — and
       # list all of them (comma-separated, matching these exact container
       # paths) in .env's SCAN_ROOTS. See README's "Scanning multiple
-      # folders" section. Example:
-      # - ${SCAN_ROOT_COMICS:-./scan-root-comics}:/scan-root-comics:ro
+      # folders" section. Each one takes its own independent _MODE variable,
+      # same as SCAN_ROOT_MODE above. Example:
+      # - ${SCAN_ROOT_COMICS:-./scan-root-comics}:/scan-root-comics:${SCAN_ROOT_COMICS_MODE:-ro}
     environment:
       # Trusts X-Forwarded-* from anywhere on the Compose network — safe *because*
       # the accompanying guidance (README's "Reverse proxy / HTTPS" section) is to
