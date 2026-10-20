@@ -1,0 +1,41 @@
+{% from "_macros.html" import status_badge %}
+<p>
+  Status:
+  {{ status_badge(audiobookshelf_status) }}
+</p>
+{% if audiobookshelf_error %}<p class="text-error">{{ audiobookshelf_error }}</p>{% endif %}
+{% if audiobookshelf_connected_as %}<p class="text-success">{{ audiobookshelf_connected_as }}</p>{% endif %}
+{% if audiobookshelf_refreshed_count is defined and audiobookshelf_refreshed_count is not none %}
+<p class="text-success">Synced {{ audiobookshelf_refreshed_count }} item(s) from AudiobookShelf.</p>
+{% endif %}
+
+<form hx-post="/settings/audiobookshelf" hx-target="#audiobookshelf-card-body" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+    <label>
+      Server URL
+      <input type="text" name="base_url" value="{{ audiobookshelf_base_url }}" placeholder="https://audiobookshelf.example.com" style="width: 100%;">
+    </label>
+    <label>
+      API Token {% if audiobookshelf_has_token %}<span class="muted">(leave blank to keep the saved one)</span>{% endif %}
+      <input type="password" name="api_token" placeholder="{{ '••••••••' if audiobookshelf_has_token else '' }}" style="width: 100%;">
+    </label>
+    <label>
+      Library ID <span class="muted">(optional — leave blank to use the first audiobook library found)</span>
+      <input type="text" name="library_id" value="{{ audiobookshelf_library_id }}" placeholder="auto-detected" style="width: 100%;">
+    </label>
+    <button type="submit" style="align-self: flex-start;">{{ 'Reconnect' if audiobookshelf_status == 'error' else 'Save' }}</button>
+  </div>
+</form>
+
+{% if audiobookshelf_status != 'not_configured' %}
+<form hx-post="/settings/audiobookshelf/refresh" hx-target="#audiobookshelf-card-body" hx-swap="innerHTML" style="margin-top: 0.6rem; display: inline;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <button type="submit">Refresh library</button>
+</form>
+<form hx-post="/settings/audiobookshelf/disconnect" hx-target="#audiobookshelf-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect AudiobookShelf? This removes the saved server URL and API token; already-matched data is kept until the next refresh." style="margin-top: 0.6rem; display: inline;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <button type="submit" class="danger">Disconnect</button>
+</form>
+{% endif %}

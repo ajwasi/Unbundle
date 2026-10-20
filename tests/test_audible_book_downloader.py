@@ -36,8 +36,8 @@ async def _await_until(predicate, timeout=_POLL_TIMEOUT_SECONDS):
     return False
 
 
-def _add_book(db, asin="B001", title="A Great Book"):
-    db.add(AudibleBook(asin=asin, title=title))
+def _add_book(db, asin="B001", title="A Great Book", author="A Great Author"):
+    db.add(AudibleBook(asin=asin, title=title, author=author))
     db.commit()
 
 
@@ -58,6 +58,14 @@ class _FakeAuth:
 
 def _aaxc_handler(request):
     return httpx.Response(200, content=b"fake-aaxc-bytes")
+
+
+def test_book_folder_rel_path_is_author_then_title():
+    assert book_downloader._book_folder_rel_path("Jane Author", "Cool Book") == Path("Jane Author") / "Cool Book"
+
+
+def test_book_folder_rel_path_falls_back_when_author_blank():
+    assert book_downloader._book_folder_rel_path("", "Cool Book") == Path("Unknown Author") / "Cool Book"
 
 
 def test_start_download_raises_when_book_missing(db):
@@ -106,8 +114,11 @@ async def test_start_download_completes_and_remuxes_to_m4b(db, tmp_path, monkeyp
     assert job.status == STATUS_COMPLETED
     assert job.downloaded_path.endswith(".m4b")
     assert Path(job.downloaded_path).read_bytes() == b"fake-m4b-bytes"
+    # lands at Author/Title/Title.m4b — the layout Plex/AudiobookShelf expect,
+    # not a bare file dropped in the destination root
+    assert job.downloaded_path == str(tmp_path / "Audible" / "A Great Author" / "A Great Book" / "A Great Book.m4b")
     # the intermediate .aaxc is cleaned up once the m4b exists
-    assert not (tmp_path / "Audible" / "A Great Book.aaxc").exists()
+    assert not (tmp_path / "Audible" / "A Great Author" / "A Great Book" / "A Great Book.aaxc").exists()
     # and the finished file is remembered, so it's never downloaded again
     from app.models.audible_local_file import AudibleLocalFile
 
@@ -141,8 +152,8 @@ async def test_start_download_keeps_raw_files_when_ffmpeg_fails(db, tmp_path, mo
     assert "ffmpeg exploded" in job.error_message
     assert "aaxc" in job.error_message.lower()
     # the raw file and its decryption key are kept, not thrown away
-    aaxc_path = tmp_path / "Audible" / "A Great Book.aaxc"
-    voucher_path = tmp_path / "Audible" / "A Great Book.voucher.json"
+    aaxc_path = tmp_path / "Audible" / "A Great Author" / "A Great Book" / "A Great Book.aaxc"
+    voucher_path = tmp_path / "Audible" / "A Great Author" / "A Great Book" / "A Great Book.voucher.json"
     assert aaxc_path.exists()
     assert aaxc_path.read_bytes() == b"fake-aaxc-bytes"
     assert voucher_path.exists()
@@ -335,7 +346,7 @@ def test_start_download_reports_already_downloaded_without_a_new_license_request
 
     monkeypatch.setattr(settings, "downloads_dir", tmp_path)
     _add_book(db)
-    dest_dir = tmp_path / "Audible"
+    dest_dir = tmp_path / "Audible" / "A Great Author" / "A Great Book"
     dest_dir.mkdir(parents=True)
     existing = dest_dir / "A Great Book.m4b"
     existing.write_bytes(b"already here")
@@ -356,7 +367,7 @@ async def test_start_download_force_redownloads_even_when_a_file_already_exists(
     monkeypatch.setattr(settings, "downloads_dir", tmp_path)
     _add_book(db)
     _connect(db)
-    dest_dir = tmp_path / "Audible"
+    dest_dir = tmp_path / "Audible" / "A Great Author" / "A Great Book"
     dest_dir.mkdir(parents=True)
     (dest_dir / "A Great Book.m4b").write_bytes(b"stale copy")
     _patch_async_client(monkeypatch, httpx.MockTransport(_aaxc_handler))
