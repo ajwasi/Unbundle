@@ -21,7 +21,15 @@
   <script src="/static/js/user-menu.js" defer></script>
   <script src="/static/js/nav-toggle.js" defer></script>
   <script src="/static/js/request-error-toast.js" defer></script>
-  <script src="/static/js/bulk-select.js" defer></script>
+  <!-- NOT deferred, unlike the others above: it only defines wireBulkSelect()
+       (no top-level DOM access, so there's no reason to wait), and every
+       table that calls it does so from its own plain inline <script> —
+       which runs synchronously as the parser reaches it, well before any
+       deferred script would. A deferred load here left wireBulkSelect
+       undefined at every one of those call sites ("wireBulkSelect is not
+       defined"), silently breaking every bulk-select button on the page
+       since this file was introduced — confirmed live, not hypothetical. -->
+  <script src="/static/js/bulk-select.js"></script>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
