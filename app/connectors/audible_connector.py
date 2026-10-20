@@ -78,6 +78,13 @@ class AudibleLoginError(Exception):
 @dataclass
 class AudiblePendingPrompt:
     login_url: str  # the Amazon OAuth URL to open in a real browser
+    # True once answer_login() has been called — device registration can take
+    # ~30s (a real POST to Amazon's /auth/register), during which login_status()
+    # still reports "pending" since login_result() has no answer yet. Lets the
+    # template show "verifying" instead of silently re-showing the same
+    # paste-the-URL form with a blank input, which looked like the submission
+    # had been dropped.
+    answered: bool = False
 
 
 @dataclass
@@ -173,7 +180,7 @@ def login_status() -> AudiblePendingPrompt | None:
     with _pending_lock:
         if _pending is None or _pending["done"]:
             return None
-        return AudiblePendingPrompt(login_url=_pending["login_url"])
+        return AudiblePendingPrompt(login_url=_pending["login_url"], answered=_pending["answered"])
 
 
 def login_result() -> tuple[audible.Authenticator | None, str | None] | None:
@@ -207,6 +214,7 @@ def start_login(locale: str) -> None:
         _pending = {
             "login_url": "",
             "answer_queue": queue.Queue(),
+            "answered": False,
             "result": None,
             "error": None,
             "done": False,
@@ -266,6 +274,7 @@ def answer_login(pasted_url: str) -> None:
     with _pending_lock:
         if _pending is None:
             return
+        _pending["answered"] = True
         _pending["answer_queue"].put(pasted_url)
 
 

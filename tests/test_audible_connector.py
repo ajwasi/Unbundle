@@ -7,6 +7,7 @@ fake from_login_external, with a short poll-with-timeout since a real
 background thread is involved.
 """
 
+import threading
 import time
 from unittest.mock import patch
 
@@ -73,6 +74,33 @@ def test_login_url_prompt_surfaces_and_answer_completes_login():
         auth, error = audible_connector.login_result()
         assert auth == "fake-authenticator"
         assert error is None
+
+
+def test_login_status_reports_answered_while_registration_still_running():
+    still_blocking = threading.Event()
+
+    def fake_from_login_external(locale, login_url_callback=None, **kwargs):
+        login_url_callback("https://amazon.com/ap/signin?fake=1")
+        still_blocking.wait(timeout=_POLL_TIMEOUT_SECONDS)
+        return "fake-authenticator"
+
+    with patch("audible.Authenticator.from_login_external", side_effect=fake_from_login_external):
+        audible_connector.start_login("us")
+        assert _wait_until(lambda: audible_connector.login_status() is not None)
+        assert audible_connector.login_status().answered is False
+
+        audible_connector.answer_login("https://amazon.com/ap/maplanding?openid.oa2.authorization_code=abc")
+
+        # Registration (from_login_external) is deliberately still "running"
+        # here (blocked on still_blocking) — login_result() has no answer yet,
+        # so login_status() must keep reporting pending, now with answered=True.
+        assert audible_connector.login_result() is None
+        prompt = audible_connector.login_status()
+        assert prompt is not None
+        assert prompt.answered is True
+
+        still_blocking.set()
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
 
 
 def test_start_login_passes_locale_and_login_url_callback():
