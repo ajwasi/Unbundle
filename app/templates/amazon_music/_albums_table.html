@@ -159,12 +159,13 @@
           <th>Album</th>
           <th>Artist</th>
           <th>Tracks</th>
+          <th>Navidrome</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
         {% for a in albums %}{{ rowmacro.render_row(a) }}{% else %}
-        <tr><td colspan="6" class="muted">
+        <tr><td colspan="7" class="muted">
           {% if q %}No albums match.{% else %}Nothing synced yet — click "Sync Amazon Music" above.{% endif %}
         </td></tr>
         {% endfor %}

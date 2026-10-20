@@ -1,0 +1,41 @@
+{% from "_macros.html" import status_badge %}
+<p>
+  Status:
+  {{ status_badge(plex_status) }}
+</p>
+{% if plex_error %}<p class="text-error">{{ plex_error }}</p>{% endif %}
+{% if plex_connected_as %}<p class="text-success">{{ plex_connected_as }}</p>{% endif %}
+{% if plex_refreshed_count is defined and plex_refreshed_count is not none %}
+<p class="text-success">Synced {{ plex_refreshed_count }} item(s) from Plex.</p>
+{% endif %}
+
+<form hx-post="/settings/plex" hx-target="#plex-card-body" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+    <label>
+      Server URL
+      <input type="text" name="base_url" value="{{ plex_base_url }}" placeholder="http://plex.example.com:32400" style="width: 100%;">
+    </label>
+    <label>
+      Token {% if plex_has_token %}<span class="muted">(leave blank to keep the saved one)</span>{% endif %}
+      <input type="password" name="token" placeholder="{{ '••••••••' if plex_has_token else '' }}" style="width: 100%;">
+    </label>
+    <label>
+      Library section ID <span class="muted">(required — save with this blank first to see the list below)</span>
+      <input type="text" name="library_id" value="{{ plex_library_id }}" placeholder="e.g. 3" style="width: 100%;">
+    </label>
+    <button type="submit" style="align-self: flex-start;">{{ 'Reconnect' if plex_status == 'error' else 'Save' }}</button>
+  </div>
+</form>
+
+{% if plex_status != 'not_configured' %}
+<form hx-post="/settings/plex/refresh" hx-target="#plex-card-body" hx-swap="innerHTML" style="margin-top: 0.6rem; display: inline;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <button type="submit">Refresh library</button>
+</form>
+<form hx-post="/settings/plex/disconnect" hx-target="#plex-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect Plex? This removes the saved server URL and token; already-matched data is kept until the next refresh." style="margin-top: 0.6rem; display: inline;">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <button type="submit" class="danger">Disconnect</button>
+</form>
+{% endif %}

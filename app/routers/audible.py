@@ -29,7 +29,8 @@ from app.models.audible_series_book import AudibleSeriesBook
 from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_AUDIBLE
 from app.ratelimit import RateLimiter, rate_limit
 from app.routers.destination_crud import destinations_context, register_simple_destination_routes
-from app.sync import audible_sync, audiobookshelf_sync
+from app.audible.scan import normalize
+from app.sync import audible_sync, audiobookshelf_sync, plex_sync
 from app.templates_env import templates
 
 router = APIRouter(prefix="/audible")
@@ -248,6 +249,7 @@ def _context(
     downloaded_asins = {a for (a,) in db.query(AudibleLocalFile.asin).all()}
     active_asins = {job["asin"] for job in book_downloader.get_active_jobs(db)}
     in_audiobookshelf_asins = audiobookshelf_sync.owned_asins(db)
+    in_plex_titles = plex_sync.owned_normalized_titles(db)
 
     return {
         "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
@@ -256,6 +258,8 @@ def _context(
         "downloaded_asins": downloaded_asins,
         "active_asins": active_asins,
         "in_audiobookshelf_asins": in_audiobookshelf_asins,
+        "in_plex_titles": in_plex_titles,
+        "normalize_title": normalize,
         # Each tab's badge shows "groups/books" — distinct series or authors,
         # then the total missing books across all of them — computed before
         # the search filter above, so it's the stable library-wide total,
