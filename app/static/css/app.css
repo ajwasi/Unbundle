@@ -423,12 +423,13 @@ main {
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-  /* Without this, grid's own default (stretch) forces every card in a row
-     to match its tallest row-mate — fine when neighbors are similar, but
-     Chirp's long walkthrough next to Amazon Music's two-sentence probe
-     card left a cavern of empty space inside the short one. Each card now
-     sizes to its own content instead. */
-  align-items: start;
+  /* Grid's own default — every card in a row matches its tallest row-mate,
+     so the row of connector cards reads as one tidy block instead of a
+     ragged skyline (previously overridden to align-items: start so a short
+     card wouldn't show dead space below its own content; uniform height
+     across the row is the more important property now that there are six
+     of these). */
+  align-items: stretch;
   gap: 1.25rem;
   margin-bottom: 1.25rem;
 }
