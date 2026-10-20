@@ -29,6 +29,18 @@ SOURCE_CHIRP = "chirp"
 # Read-only: this app only ever lists AudiobookShelf's library to flag which
 # Audible/Humble titles are already there, never writes to it.
 SOURCE_AUDIOBOOKSHELF = "audiobookshelf"
+# Plain base_url + X-Plex-Token — see connectors/plex_connector.py. Read-only,
+# same role as SOURCE_AUDIOBOOKSHELF above. Plex has no dedicated "audiobook"
+# library type (audiobooks are conventionally housed in a plain Music/"artist"
+# library, author-as-artist/book-as-album), so unlike AudiobookShelf's
+# mediaType marker there is nothing to auto-detect the right library by —
+# the library's own section key is a required field here.
+SOURCE_PLEX = "plex"
+# Plain base_url + username + password — see connectors/navidrome_connector.py
+# (Subsonic API, salted per-request, never sent in plaintext). Read-only,
+# compared against Amazon Music's own owned-albums page rather than Audible's
+# — Navidrome is a music server, not an audiobook one.
+SOURCE_NAVIDROME = "navidrome"
 
 STATUS_NOT_CONFIGURED = "not_configured"
 STATUS_OK = "ok"

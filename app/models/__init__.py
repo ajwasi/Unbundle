@@ -17,11 +17,13 @@ from app.models.download_destination import DownloadDestination
 from app.models.download_job import DownloadJob
 from app.models.download_settings import DownloadSettings
 from app.models.gog_game import GogGame
+from app.models.navidrome_album import NavidromeAlbum
+from app.models.plex_audiobook_item import PlexAudiobookItem
 from app.models.steam_game import SteamGame
 from app.models.sync_run import SyncRun
 
 __all__ = [
     "AccountSettings", "ApiToken", "AudibleBook", "AudibleBookDownload", "AudiblePdfDownload", "AudiobookShelfItem",
     "BackupSettings", "Bundle", "BundleEntitlement", "Credential", "Download", "DownloadDestination", "DownloadJob",
-    "DownloadSettings", "GogGame", "SteamGame", "SyncRun",
+    "DownloadSettings", "GogGame", "NavidromeAlbum", "PlexAudiobookItem", "SteamGame", "SyncRun",
 ]

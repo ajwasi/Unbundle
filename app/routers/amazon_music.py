@@ -27,9 +27,10 @@ from app.deps import get_db
 from app.models.amazon_music_album_catalog_sync import AmazonMusicAlbumCatalogSync
 from app.models.amazon_music_destination import AmazonMusicDestination
 from app.models.amazon_music_track import AmazonMusicTrack
+from app.audible.scan import normalize
 from app.ratelimit import RateLimiter, rate_limit
 from app.routers.destination_crud import destinations_context, register_simple_destination_routes
-from app.sync import amazon_music_sync
+from app.sync import amazon_music_sync, navidrome_sync
 from app.templates_env import templates
 
 logger = logging.getLogger(__name__)
@@ -272,6 +273,7 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
     # same reason. track_status is the same idea, applied to download state.
     order_synced_asins = {row[0] for row in db.query(AmazonMusicAlbumCatalogSync.album_asin).all()}
     track_status = downloader.latest_statuses(db, [t.download_id for t in tracks])
+    navidrome_albums = navidrome_sync.owned_normalized_albums(db)
 
     groups: dict[str, dict] = {}
     # cover_url is a presigned, expiring S3 URL (see AmazonMusicTrack's own
@@ -296,6 +298,7 @@ def _album_rows(db: Session, q: str = "", show_missing: bool = False) -> list[di
                 "downloading": False,
                 "track_order_synced": key in order_synced_asins,
                 "first_seen_at": t.first_seen_at,
+                "in_navidrome": (normalize(t.album or ""), normalize("Various Artists" if t.is_compilation else t.artist)) in navidrome_albums,
             }
         g["track_count"] += 1
         if t.missing_since:
@@ -334,6 +337,7 @@ def _single_album_row(db: Session, album_key: str) -> dict | None:
     active_ids = {a["download_id"] for a in downloader.get_active_downloads(db)}
     track_status = downloader.latest_statuses(db, [t.download_id for t in rows])
     synced = album_key != _NO_ALBUM_KEY and db.get(AmazonMusicAlbumCatalogSync, album_key) is not None
+    navidrome_albums = navidrome_sync.owned_normalized_albums(db)
 
     cover_url = ""
     cover_refreshed_at = None
@@ -368,6 +372,7 @@ def _single_album_row(db: Session, album_key: str) -> dict | None:
         "all_downloaded": trackable > 0 and downloaded_count == trackable,
         "downloading": downloading,
         "track_order_synced": synced,
+        "in_navidrome": (normalize(row.album or ""), normalize("Various Artists" if row.is_compilation else row.artist)) in navidrome_albums,
     }
 
 

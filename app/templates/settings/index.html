@@ -147,6 +147,31 @@
   </div>
 </div>
 
+<div class="card{% if plex_status == 'ok' %} is-connected{% elif plex_status == 'error' %} has-error{% endif %}" id="plex-card">
+  <h3>Plex</h3>
+  <p class="muted">
+    Compares your owned Audible audiobooks against a Plex library, so the Audible page can show
+    which ones are already there. Read-only &mdash; nothing here is ever written back to Plex.
+  </p>
+  <details class="settings-howto"{% if plex_status == 'not_configured' %} open{% endif %}>
+    <summary>How to connect</summary>
+    <ol class="muted" style="padding-left: 1.2rem;">
+      <li>Find your Plex token &mdash; the simplest way is to open any item in Plex Web, click the
+          &hellip; menu &rarr; Get Info &rarr; View XML, and copy the <code>X-Plex-Token</code> value
+          from that page's URL.</li>
+      <li>Enter your server's URL (e.g. <code>http://plex.example.com:32400</code>) and that token
+          below, then Save once with Library section ID left blank &mdash; the status message will
+          list every library on your server along with its ID.</li>
+      <li>Plex has no dedicated audiobook library type (audiobooks conventionally live in a plain
+          Music library, author-as-artist, book-as-album) &mdash; pick the ID of whichever library
+          holds yours and save again.</li>
+    </ol>
+  </details>
+  <div id="plex-card-body">
+    {% include "settings/_plex_form.html" %}
+  </div>
+</div>
+
 <div class="card" id="amazon-music-card">
   <h3>Amazon Music <span class="badge badge-pending">Experimental</span></h3>
   <p class="muted">
@@ -157,6 +182,28 @@
   </p>
   <div id="amazon-music-card-body">
     {% include "settings/_amazon_music_form.html" %}
+  </div>
+</div>
+
+<div class="card{% if navidrome_status == 'ok' %} is-connected{% elif navidrome_status == 'error' %} has-error{% endif %}" id="navidrome-card">
+  <h3>Navidrome</h3>
+  <p class="muted">
+    Compares your purchased Amazon Music albums against your self-hosted Navidrome library, so
+    that page can show which ones are already there. Read-only &mdash; nothing here is ever
+    written back to Navidrome.
+  </p>
+  <details class="settings-howto"{% if navidrome_status == 'not_configured' %} open{% endif %}>
+    <summary>How to connect</summary>
+    <ol class="muted" style="padding-left: 1.2rem;">
+      <li>Enter your server's URL (e.g. <code>https://navidrome.example.com</code>) and your
+          regular Navidrome username and password below.</li>
+      <li>Your password is only ever sent as a salted, single-use token (the Subsonic API's
+          standard scheme) &mdash; never in plain text &mdash; and stored encrypted at rest the
+          same way every other connected account here is.</li>
+    </ol>
+  </details>
+  <div id="navidrome-card-body">
+    {% include "settings/_navidrome_form.html" %}
   </div>
 </div>
 

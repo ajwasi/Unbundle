@@ -380,6 +380,27 @@ def test_table_shows_track_number_and_dash_for_unnumbered(authed_client, db):
     assert ">—<" in resp.text  # the one with no track_number
 
 
+def test_page_shows_navidrome_presence_badge_matched_by_album_and_artist(authed_client, db):
+    from app.models.navidrome_album import NavidromeAlbum
+
+    now = datetime.utcnow()
+    db.add(AmazonMusicTrack(
+        download_id="in-nd", track_asin="A1", album_asin="ALBUM1", album="A Great Album",
+        artist="A Great Artist", title="Track One", first_seen_at=now, last_seen_at=now,
+    ))
+    db.add(AmazonMusicTrack(
+        download_id="not-in-nd", track_asin="A2", album_asin="ALBUM2", album="Missing Album",
+        artist="Missing Artist", title="Track Two", first_seen_at=now, last_seen_at=now,
+    ))
+    # Navidrome's own title differs in punctuation/case — normalize() must still match it.
+    db.add(NavidromeAlbum(album_id="nd1", name="a great album", artist="A GREAT ARTIST"))
+    db.commit()
+
+    resp = authed_client.get("/amazon-music")
+    assert "In Navidrome" in resp.text
+    assert "Not found" in resp.text
+
+
 def test_page_shows_ordered_badge_for_a_synced_album(authed_client, db):
     _seed(db)
     db.add(AmazonMusicAlbumCatalogSync(album_asin="B074JM9JHY", tracks_found=1, tracks_matched=1))

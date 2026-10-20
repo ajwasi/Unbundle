@@ -98,6 +98,21 @@ def test_audible_page_shows_audiobookshelf_presence_badge(authed_client, db):
     assert "Not found" in resp.text
 
 
+def test_audible_page_shows_plex_presence_badge_matched_by_normalized_title(authed_client, db):
+    from app.models.plex_audiobook_item import PlexAudiobookItem
+
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="Dune: Part One"))
+    db.add(AudibleBook(asin="B002", title="Not In Plex"))
+    # Plex's own title differs in punctuation/spacing — normalize() must still match it.
+    db.add(PlexAudiobookItem(rating_key="100", title="Dune  Part One", author=""))
+    db.commit()
+
+    resp = authed_client.get("/audible")
+    assert "In Plex" in resp.text
+    assert "Not found" in resp.text
+
+
 def test_audible_page_title_filter(authed_client, db):
     _connect_audible(db)
     db.add(AudibleBook(asin="B001", title="A Great Book", author="Jane Author", runtime_minutes=0))

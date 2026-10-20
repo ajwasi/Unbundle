@@ -18,6 +18,7 @@
     {{ a.track_count }}
     {% if a.missing_count %}<span class="muted" style="font-size: 0.85em;">({{ a.missing_count }} no longer listed)</span>{% endif %}
   </td>
+  <td>{% if a.in_navidrome %}<span class="badge badge-ok" title="Found in your Navidrome library by album/artist.">In Navidrome</span>{% else %}<span class="badge badge-not-configured" title="Not found in your Navidrome library — connect and refresh it in Settings if this looks wrong.">Not found</span>{% endif %}</td>
   <td style="white-space: nowrap;">
     {% if a.downloading %}
     <span class="badge badge-pending">Downloading&hellip;</span>
@@ -38,6 +39,6 @@
 <tr id="amazon-music-albums-sentinel"
     hx-get="/amazon-music/albums/rows?q={{ q | urlencode }}&sort={{ sort }}&show_missing={{ 'true' if show_missing else 'false' }}&offset={{ next_offset }}"
     hx-trigger="revealed" hx-target="this" hx-swap="outerHTML">
-  <td colspan="6" class="muted">Loading more&hellip;</td>
+  <td colspan="7" class="muted">Loading more&hellip;</td>
 </tr>
 {% endmacro %}

@@ -101,7 +101,7 @@
     <table>
       <thead>
         <tr><th class="table-lead-col"><input type="checkbox" class="audible-select-all" title="Select every book shown" aria-label="Select every book shown"
-            onclick="document.querySelectorAll('.audible-select').forEach(c => c.checked = this.checked); document.getElementById('audible-books-table').dispatchEvent(new Event('change'));"></th><th></th><th scope="col" style="min-width: 9rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 7rem;">Narrator</th><th scope="col" style="min-width: 6rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 6rem;">{{ sort_link('progress', 'Progress') }}</th><th scope="col" style="min-width: 7rem;">Ownership</th><th scope="col" style="min-width: 7rem;">AudiobookShelf</th></tr>
+            onclick="document.querySelectorAll('.audible-select').forEach(c => c.checked = this.checked); document.getElementById('audible-books-table').dispatchEvent(new Event('change'));"></th><th></th><th scope="col" style="min-width: 9rem;">{{ sort_link('title', 'Title') }}</th><th scope="col" style="min-width: 7rem;">{{ sort_link('author', 'Author') }}</th><th scope="col" style="min-width: 7rem;">Narrator</th><th scope="col" style="min-width: 6rem;">Series</th><th scope="col">{{ sort_link('runtime', 'Runtime') }}</th><th scope="col">{{ sort_link('purchased', 'Purchased') }}</th><th scope="col">{{ sort_link('price', 'Price') }}</th><th scope="col">{{ sort_link('rating', 'Rating') }}</th><th scope="col" style="min-width: 6rem;">{{ sort_link('progress', 'Progress') }}</th><th scope="col" style="min-width: 7rem;">Ownership</th><th scope="col" style="min-width: 7rem;">AudiobookShelf</th><th scope="col" style="min-width: 6rem;">Plex</th></tr>
       </thead>
       <tbody>
         {% for b in books %}
@@ -128,12 +128,13 @@
           <td>{% if b.is_finished %}<span class="badge badge-ok">Finished</span>{% elif b.percent_complete %}{{ "%.0f"|format(b.percent_complete) }}%{% endif %}</td>
           <td><span class="badge tip {{ 'badge-ok' if is_owned(b.benefit_id) else 'badge-pending' }}" title="{{ 'Bought outright — it stays in your library permanently.' if is_owned(b.benefit_id) else 'Available with an Audible Plus subscription — it leaves your library if the subscription ends.' }}">{{ 'Owned' if is_owned(b.benefit_id) else 'Plus Catalog' }}</span></td>
           <td>{% if b.asin in in_audiobookshelf_asins %}<span class="badge badge-ok" title="Found in your AudiobookShelf library by ASIN.">In AudiobookShelf</span>{% else %}<span class="badge badge-not-configured" title="Not found in your AudiobookShelf library — connect and refresh it in Settings if this looks wrong.">Not found</span>{% endif %}</td>
+          <td>{% if normalize_title(b.title) in in_plex_titles %}<span class="badge badge-ok" title="Found in your Plex library by title.">In Plex</span>{% else %}<span class="badge badge-not-configured" title="Not found in your Plex library — connect and refresh it in Settings if this looks wrong.">Not found</span>{% endif %}</td>
         </tr>
         {% else %}
         {% set any_filter = title or author or narrator or series or owned or progress or runtime_min is not none or runtime_max is not none
                              or purchased_from or purchased_to or price_min is not none or price_max is not none
                              or rating_min is not none or rating_max is not none %}
-        <tr><td colspan="13" class="muted">{{ "No books match." if any_filter else "No books loaded yet — click Refresh." }}</td></tr>
+        <tr><td colspan="14" class="muted">{{ "No books match." if any_filter else "No books loaded yet — click Refresh." }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
