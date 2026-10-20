@@ -1,3 +1,4 @@
+import threading
 import time
 from unittest.mock import patch
 
@@ -71,6 +72,33 @@ def test_start_login_shows_login_url_prompt(authed_client, db):
         answer_resp = authed_client.post("/settings/audible/login/answer", data={"pasted_url": _FAKE_REDIRECT_URL})
         assert answer_resp.status_code == 200
 
+        assert _wait_until(lambda: audible_connector.login_result() is not None)
+
+
+def test_answering_shows_verifying_state_while_registration_in_progress(authed_client, db):
+    # Device registration (the real POST to Amazon's /auth/register) can take
+    # ~30s after the URL is submitted — during that window login_result() has
+    # no answer yet, so the modal must show a "verifying" state rather than
+    # silently re-rendering the same paste-the-URL form with a blank input
+    # (looked like the submission had been dropped — see audible_connector's
+    # AudiblePendingPrompt.answered docstring).
+    still_blocking = threading.Event()
+
+    def fake_from_login_external(locale, login_url_callback=None, **kwargs):
+        login_url_callback(_FAKE_LOGIN_URL)
+        still_blocking.wait(timeout=_POLL_TIMEOUT_SECONDS)
+        return "fake-authenticator"
+
+    with patch("audible.Authenticator.from_login_external", side_effect=fake_from_login_external):
+        authed_client.post("/settings/audible/login", data={"locale": "us"})
+        assert _wait_until(lambda: audible_connector.login_status() is not None)
+
+        answer_resp = authed_client.post("/settings/audible/login/answer", data={"pasted_url": _FAKE_REDIRECT_URL})
+        assert "Verifying" in answer_resp.text
+        assert _FAKE_LOGIN_URL not in answer_resp.text
+        assert 'name="pasted_url"' not in answer_resp.text
+
+        still_blocking.set()
         assert _wait_until(lambda: audible_connector.login_result() is not None)
 
 

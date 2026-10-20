@@ -1,5 +1,8 @@
 {% if audible_pending %}
 <div hx-get="/settings/audible/login/status" hx-target="#audible-modal-content" hx-swap="innerHTML" hx-trigger="every 2s">
+  {% if audible_pending.answered %}
+  <p class="muted">Verifying and registering this device with Amazon&hellip; this can take up to 30 seconds.</p>
+  {% else %}
   <ol class="muted" style="padding-left: 1.2rem;">
     <li><a href="{{ audible_pending.login_url }}" target="_blank" rel="noopener">Log in to Amazon &rarr;</a> (opens in a new tab)</li>
     <li>After logging in, Amazon shows a mostly-blank page. Copy the full URL from your
@@ -15,6 +18,7 @@
            style="flex: 1;">
     <button type="submit">Submit</button>
   </form>
+  {% endif %}
 </div>
 {% elif just_connected %}
 <p>Connected to Audible{% if audible_connected_as %} as {{ audible_connected_as }}{% endif %}.</p>
