@@ -7,6 +7,7 @@ from app.models.api_token import ApiToken
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import AudibleBookDownload
 from app.models.audible_pdf_download import AudiblePdfDownload
+from app.models.audiobookshelf_item import AudiobookShelfItem
 from app.models.backup_settings import BackupSettings
 from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
@@ -20,7 +21,7 @@ from app.models.steam_game import SteamGame
 from app.models.sync_run import SyncRun
 
 __all__ = [
-    "AccountSettings", "ApiToken", "AudibleBook", "AudibleBookDownload", "AudiblePdfDownload", "BackupSettings",
-    "Bundle", "BundleEntitlement", "Credential", "Download", "DownloadDestination", "DownloadJob", "DownloadSettings",
-    "GogGame", "SteamGame", "SyncRun",
+    "AccountSettings", "ApiToken", "AudibleBook", "AudibleBookDownload", "AudiblePdfDownload", "AudiobookShelfItem",
+    "BackupSettings", "Bundle", "BundleEntitlement", "Credential", "Download", "DownloadDestination", "DownloadJob",
+    "DownloadSettings", "GogGame", "SteamGame", "SyncRun",
 ]

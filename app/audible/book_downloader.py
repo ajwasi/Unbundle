@@ -44,7 +44,7 @@ from app.config import settings
 from app.connectors import audible_connector
 from app.db import SessionLocal
 from app.downloads import worker
-from app.downloads.paths import sanitize_dir_name
+from app.downloads.paths import resolve_within, sanitize_dir_name
 from app.fs_utils import safe_unlink
 from app.models.audible_book import AudibleBook
 from app.models.audible_book_download import (
@@ -118,6 +118,17 @@ def record_local_file(db: Session, asin: str, path: Path, source: str = SOURCE_D
     db.commit()
 
 
+def _book_folder_rel_path(author: str, title: str) -> Path:
+    """Author/Title — one folder per book, named by its author — the layout
+    both Plex's audiobook library type and AudiobookShelf expect in order to
+    recognise a book at all (a bare file dropped straight in the root isn't
+    enough for either). Shared by _run() (to build this download's landing
+    folder) and existing_file() (to keep looking in the right place for one
+    already there) so the two can never drift apart.
+    """
+    return Path(sanitize_dir_name(author or "Unknown Author")) / sanitize_dir_name(title)
+
+
 def existing_file(db: Session, book: AudibleBook) -> Path | None:
     """The file this book already has on disk, if any. Trusts the filesystem
     over the stored record, same philosophy as the Humble worker's re-verify
@@ -130,7 +141,11 @@ def existing_file(db: Session, book: AudibleBook) -> Path | None:
     local = db.get(AudibleLocalFile, book.asin)
     if local is not None and _is_present(Path(local.path)):
         return Path(local.path)
-    expected = resolve_destination_root(db) / f"{sanitize_dir_name(book.title)}.m4b"
+    expected = (
+        resolve_destination_root(db)
+        / _book_folder_rel_path(book.author, book.title)
+        / f"{sanitize_dir_name(book.title)}.m4b"
+    )
     return expected if _is_present(expected) else None
 
 
@@ -299,7 +314,7 @@ def try_dispatch_queued_downloads() -> None:
                 continue
             db.commit()
             _running_job_ids.add(job.id)
-            spawn_background_task(_run(job.id, job.asin, book.title))
+            spawn_background_task(_run(job.id, job.asin, book.title, book.author))
     finally:
         db.close()
 
@@ -404,19 +419,25 @@ async def _remux_to_m4b(aaxc_path, m4b_path, key: str, iv: str) -> tuple[bool, s
     return True, ""
 
 
-async def _run(job_id: int, asin: str, title: str) -> None:
+async def _run(job_id: int, asin: str, title: str, author: str) -> None:
     db = SessionLocal()
     try:
         job = db.get(AudibleBookDownload, job_id)
 
-        dest_dir = resolve_destination_root(db)
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        base_name = sanitize_dir_name(title)
-        aaxc_path = dest_dir / f"{base_name}.aaxc"
-        voucher_path = dest_dir / f"{base_name}.voucher.json"
-        m4b_path = dest_dir / f"{base_name}.m4b"
+        # None until the try block below actually creates the destination
+        # folder — the except block only cleans up what might exist, and
+        # resolve_within (a PathTraversalError, in practice never expected
+        # from Audible's own catalog data) can fail before anything does.
+        aaxc_path = voucher_path = None
 
         try:
+            dest_dir = resolve_within(resolve_destination_root(db), _book_folder_rel_path(author, title))
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            base_name = sanitize_dir_name(title)
+            aaxc_path = dest_dir / f"{base_name}.aaxc"
+            voucher_path = dest_dir / f"{base_name}.voucher.json"
+            m4b_path = dest_dir / f"{base_name}.m4b"
+
             payload = get_audible_credential(db)
             if not payload:
                 raise NotConnectedError("Audible is not connected yet — connect it in Settings.")
@@ -444,8 +465,10 @@ async def _run(job_id: int, asin: str, title: str) -> None:
             job.error_message = str(exc)
             job.completed_at = datetime.utcnow()
             db.commit()
-            safe_unlink(aaxc_path)
-            safe_unlink(voucher_path)
+            if aaxc_path is not None:
+                safe_unlink(aaxc_path)
+            if voucher_path is not None:
+                safe_unlink(voucher_path)
             return
 
         ok, ffmpeg_output = await _remux_to_m4b(aaxc_path, m4b_path, key, iv)

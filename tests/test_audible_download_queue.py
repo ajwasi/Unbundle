@@ -54,7 +54,7 @@ def _fake_run(finish_with=STATUS_COMPLETED, delay=0.05, seen=None):
     """Stands in for the real license/download/ffmpeg pipeline. Honors the same
     bookkeeping contract _run does (free the slot, then dispatch the next)."""
 
-    async def fake(job_id, asin, title):
+    async def fake(job_id, asin, title, author):
         db = SessionLocal()
         try:
             if seen is not None:
@@ -111,7 +111,7 @@ async def test_only_as_many_run_at_once_as_the_concurrency_limit_allows(db, down
 @pytest.mark.asyncio
 async def test_queue_many_reports_why_a_book_was_not_queued(db, downloads_dir, monkeypatch):
     _add_books(db, "Fresh", "Already Have", "Busy")
-    have = downloads_dir / "Audible" / "Already Have.m4b"
+    have = downloads_dir / "Audible" / "An Author" / "Already Have" / "Already Have.m4b"
     have.parent.mkdir(parents=True)
     have.write_bytes(b"audio")
     db.add(AudibleBookDownload(asin="B003", status=STATUS_QUEUED))

@@ -27,12 +27,12 @@ from app.deps import get_db
 from app.models.credential import STATUS_NOT_CONFIGURED
 from app.templates_env import templates
 
-from . import account, amazon_music, api_tokens, audible, backups, chirp, gog, humble, logs, oidc, steam
+from . import account, amazon_music, api_tokens, audible, audiobookshelf, backups, chirp, gog, humble, logs, oidc, steam
 from .deployment import deployment_context
 from .humble import humble_credential
 
 router = APIRouter(prefix="/settings")
-for _sub in (account, humble, oidc, steam, gog, audible, chirp, amazon_music, backups, api_tokens, logs):
+for _sub in (account, humble, oidc, steam, gog, audible, audiobookshelf, chirp, amazon_music, backups, api_tokens, logs):
     router.include_router(_sub.router)
 
 
@@ -54,6 +54,7 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     context.update(steam.steam_context(db))
     context.update(gog.gog_context(db))
     context.update(audible.audible_context(db))
+    context.update(audiobookshelf.audiobookshelf_context(db))
     context.update(chirp.chirp_context(db))
     context.update(backups.backup_context(db))
     context.update(amazon_music.amazon_music_context(db))

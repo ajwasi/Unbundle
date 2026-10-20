@@ -84,6 +84,20 @@ def test_audible_page_shows_ownership_badge(authed_client, db):
     assert "audible-row-credit" in resp.text
 
 
+def test_audible_page_shows_audiobookshelf_presence_badge(authed_client, db):
+    from app.models.audiobookshelf_item import AudiobookShelfItem
+
+    _connect_audible(db)
+    db.add(AudibleBook(asin="B001", title="In The Shelf"))
+    db.add(AudibleBook(asin="B002", title="Not In The Shelf"))
+    db.add(AudiobookShelfItem(library_item_id="item1", asin="B001", title="In The Shelf", author=""))
+    db.commit()
+
+    resp = authed_client.get("/audible")
+    assert "In AudiobookShelf" in resp.text
+    assert "Not found" in resp.text
+
+
 def test_audible_page_title_filter(authed_client, db):
     _connect_audible(db)
     db.add(AudibleBook(asin="B001", title="A Great Book", author="Jane Author", runtime_minutes=0))

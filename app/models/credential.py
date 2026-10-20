@@ -24,6 +24,11 @@ SOURCE_AMAZON_MUSIC = "amazon_music"
 # chirp_connector.py's own docstring for why a plain credentials POST may
 # not even clear Chirp's Cloudflare protection in the first place.
 SOURCE_CHIRP = "chirp"
+# Plain base_url + api_token (a Bearer token minted in AudiobookShelf's own
+# Settings > Users > API Keys) — see connectors/audiobookshelf_connector.py.
+# Read-only: this app only ever lists AudiobookShelf's library to flag which
+# Audible/Humble titles are already there, never writes to it.
+SOURCE_AUDIOBOOKSHELF = "audiobookshelf"
 
 STATUS_NOT_CONFIGURED = "not_configured"
 STATUS_OK = "ok"

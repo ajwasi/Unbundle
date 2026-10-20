@@ -124,6 +124,29 @@
   </div>
 </div>
 
+<div class="card{% if audiobookshelf_status == 'ok' %} is-connected{% elif audiobookshelf_status == 'error' %} has-error{% endif %}" id="audiobookshelf-card">
+  <h3>AudiobookShelf</h3>
+  <p class="muted">
+    Compares your owned Audible audiobooks against your self-hosted AudiobookShelf library, so the
+    Audible page can show which ones are already there. Read-only &mdash; nothing here is ever
+    written back to AudiobookShelf.
+  </p>
+  <details class="settings-howto"{% if audiobookshelf_status == 'not_configured' %} open{% endif %}>
+    <summary>How to get an API token</summary>
+    <ol class="muted" style="padding-left: 1.2rem;">
+      <li>In AudiobookShelf, go to Settings &rarr; Users &rarr; your account &rarr; API Keys, and
+          create a new key.</li>
+      <li>Enter your server's URL (e.g. <code>https://audiobookshelf.example.com</code>) and that
+          key below.</li>
+      <li>Library ID is optional &mdash; leave it blank to use the first library whose type is
+          "Audiobooks"; set it only if your server has more than one and the wrong one gets picked.</li>
+    </ol>
+  </details>
+  <div id="audiobookshelf-card-body">
+    {% include "settings/_audiobookshelf_form.html" %}
+  </div>
+</div>
+
 <div class="card" id="amazon-music-card">
   <h3>Amazon Music <span class="badge badge-pending">Experimental</span></h3>
   <p class="muted">
