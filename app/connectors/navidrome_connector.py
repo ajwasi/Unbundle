@@ -38,8 +38,17 @@ def _normalize_base_url(base_url: str) -> str:
 
 
 def _auth_params(username: str, password: str) -> dict:
+    # MD5 here is the Subsonic API's own mandated scheme, not a choice made by
+    # this app — the spec defines t as exactly md5(password + salt), and
+    # Navidrome's server validates against that formula; a stronger hash on
+    # this end would simply fail every request. A fresh, cryptographically
+    # random salt (secrets.token_hex, not reused across calls) on every
+    # single request is what actually carries this scheme's real security
+    # property — not sending the plaintext password on the wire — rather
+    # than MD5's own (otherwise weak) collision resistance; HTTPS is still
+    # what protects the password and token values themselves in transit.
     salt = secrets.token_hex(6)
-    token = hashlib.md5((password + salt).encode("utf-8")).hexdigest()
+    token = hashlib.md5((password + salt).encode("utf-8")).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
     return {"u": username, "t": token, "s": salt, "v": _API_VERSION, "c": _CLIENT_NAME, "f": "json"}
 
 
