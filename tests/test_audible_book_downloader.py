@@ -169,6 +169,42 @@ async def test_start_download_fails_cleanly_when_license_has_no_url(db, tmp_path
 
 
 @pytest.mark.asyncio
+async def test_start_download_surfaces_audibles_own_denial_reasons(db, tmp_path, monkeypatch):
+    """Real-account shape (2026-10-19): a denied license is still an HTTP 200,
+    with the actual reason only present in content_license.license_denial_reasons.
+    Before this, that information was thrown away and the job just said "no
+    download URL" — leaving the user with no idea why."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "downloads_dir", tmp_path)
+    _add_book(db)
+    _connect(db)
+
+    denied_response = {
+        "content_license": {
+            "status_code": "Denied",
+            "license_denial_reasons": [
+                {"message": "Customer is not part of any plans", "rejectionReason": "RequesterEligibility", "validationType": "Membership"},
+                {"message": "Asin: [B001] is not eligible for AYCL", "rejectionReason": "ContentEligibility", "validationType": "AYCL"},
+            ],
+        }
+    }
+
+    with (
+        patch.object(book_downloader.audible.Authenticator, "from_dict", return_value=_FakeAuth()),
+        patch("app.audible.book_downloader.audible_connector.request_license", new=AsyncMock(return_value=denied_response)),
+    ):
+        book_downloader.start_download(db, "B001")
+        assert await _await_until(lambda: book_downloader.latest_status(db, "B001").status in (STATUS_COMPLETED, STATUS_FAILED))
+
+    job = book_downloader.latest_status(db, "B001")
+    assert job.status == STATUS_FAILED
+    assert "not part of any plans" in job.error_message
+    assert "not eligible for AYCL" in job.error_message
+    assert "amazon.com/hz/mycd/digital-console/devicedetails" in job.error_message
+
+
+@pytest.mark.asyncio
 async def test_start_download_records_the_real_error_even_if_cleanup_unlink_fails(db, tmp_path, monkeypatch):
     """Regression test for a real incident: a destination mounted read-only
     made the post-failure `aaxc_path.unlink()` itself raise OSError (errno

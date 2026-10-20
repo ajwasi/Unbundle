@@ -311,6 +311,49 @@ def _extract_offline_url(license_response: dict) -> str | None:
         return None
 
 
+# Where Amazon lists every device registered against this account (filtered
+# to the Audible app) — the one place a stale/duplicate registration can
+# actually be deregistered, which a plain reconnect in this app's own
+# Settings page does not do (that only adds a new registration, it never
+# removes an old one). Confirmed independently by Libation
+# (github.com/rmcrackan/Libation — AppScaffolding/LicenseRecoveryGuidance.cs)
+# as the fix for this same denial shape after an Audible-side change broke
+# license grants for a lot of accounts.
+_DEVICE_MANAGEMENT_URL = "https://www.amazon.com/hz/mycd/digital-console/devicedetails?deviceFamily=AUDIBLE_APP"
+
+
+def _denial_error_message(license_response: dict) -> str | None:
+    """A license request that Audible denies is still an HTTP 200 — the
+    denial lives entirely in content_license.license_denial_reasons, which
+    _extract_offline_url has no reason to look at (there's no content_url on
+    a denied response either way). Without this, the job's error_message was
+    just "no download URL", throwing away the one piece of information
+    Audible actually gave: why.
+
+    None when there's nothing to report (an empty/absent
+    license_denial_reasons) — the caller falls back to its own generic
+    message for that case, same as before this existed.
+    """
+    reasons = (license_response.get("content_license") or {}).get("license_denial_reasons") or []
+    if not isinstance(reasons, list) or not reasons:
+        return None
+
+    details = "; ".join(
+        f"{r.get('validationType')}: {r.get('message')}" for r in reasons if isinstance(r, dict) and r.get("message")
+    )
+    if not details:
+        return None
+
+    return (
+        f"Audible denied the license for this title ({details}). This is Audible's own decision, "
+        "not an error in this app — most often a stale device registration at Amazon's end, or a "
+        "real account/plan eligibility limit. Try deregistering old entries at "
+        f"{_DEVICE_MANAGEMENT_URL} (look under the Audible app), then disconnect and reconnect "
+        "Audible in Settings and retry. If it still fails, wait 24-48 hours (Audible also applies "
+        "temporary rate limits) and confirm the title plays in Audible's own app."
+    )
+
+
 async def _download_aaxc(url: str, dest_path, job: AudibleBookDownload, db: Session) -> None:
     async with httpx.AsyncClient(timeout=60) as client:
         async with client.stream("GET", url, headers={"User-Agent": _DOWNLOAD_USER_AGENT}) as resp:
@@ -384,7 +427,10 @@ async def _run(job_id: int, asin: str, title: str) -> None:
 
             offline_url = _extract_offline_url(license_response)
             if not offline_url:
-                raise ValueError("Audible's license response did not include a download URL.")
+                raise ValueError(
+                    _denial_error_message(license_response)
+                    or "Audible's license response did not include a download URL."
+                )
 
             await _download_aaxc(offline_url, aaxc_path, job, db)
 
