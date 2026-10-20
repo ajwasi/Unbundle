@@ -22,6 +22,7 @@ from app.asyncio_utils import spawn_background_task
 from app.config import settings
 from app.db import SessionLocal
 from app.downloads.paths import sanitize_dir_name
+from app.fs_utils import safe_unlink
 from app.models.audible_book import AudibleBook
 from app.models.audible_pdf_download import (
     STATUS_COMPLETED,
@@ -107,7 +108,7 @@ async def _run(job_id: int, asin: str, pdf_url: str, title: str) -> None:
             job.completed_at = datetime.utcnow()
             db.commit()
             if dest_path is not None:
-                dest_path.unlink(missing_ok=True)
+                safe_unlink(dest_path)
             return
 
         # Trust the filesystem over the HTTP-reported size, same philosophy

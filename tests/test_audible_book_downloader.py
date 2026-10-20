@@ -169,6 +169,35 @@ async def test_start_download_fails_cleanly_when_license_has_no_url(db, tmp_path
 
 
 @pytest.mark.asyncio
+async def test_start_download_records_the_real_error_even_if_cleanup_unlink_fails(db, tmp_path, monkeypatch):
+    """Regression test for a real incident: a destination mounted read-only
+    made the post-failure `aaxc_path.unlink()` itself raise OSError (errno
+    30), which — before safe_unlink — propagated straight out of the task
+    uncaught (surfacing only as asyncio's "Task exception was never
+    retrieved"), even though the *real* error ("no download URL") had
+    already been committed to the job row by that point. The job must still
+    end up STATUS_FAILED with that real message, not hang at "running".
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "downloads_dir", tmp_path)
+    _add_book(db)
+    _connect(db)
+
+    with (
+        patch.object(book_downloader.audible.Authenticator, "from_dict", return_value=_FakeAuth()),
+        patch("app.audible.book_downloader.audible_connector.request_license", new=AsyncMock(return_value={"content_license": {}})),
+        patch("pathlib.Path.unlink", side_effect=OSError(30, "Read-only file system")),
+    ):
+        book_downloader.start_download(db, "B001")
+        assert await _await_until(lambda: book_downloader.latest_status(db, "B001").status in (STATUS_COMPLETED, STATUS_FAILED))
+
+    job = book_downloader.latest_status(db, "B001")
+    assert job.status == STATUS_FAILED
+    assert "download URL" in job.error_message
+
+
+@pytest.mark.asyncio
 async def test_start_download_fails_when_not_connected(db, tmp_path, monkeypatch):
     from app.config import settings
 
