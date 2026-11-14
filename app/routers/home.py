@@ -5,6 +5,7 @@ the user's own Catalog via the shared machine_name identity key.
 """
 
 import asyncio
+import logging
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -22,6 +23,7 @@ from app.routers.catalog import _avg_item_value, _build_catalog
 from app.templates_env import templates
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 CATEGORY_LABELS = [("games", "Games"), ("books", "Books"), ("software", "Software")]
 _ALLOWED_STOREFRONT_HOST = urlparse(storefront.BASE_URL).hostname
@@ -44,6 +46,17 @@ async def _fetch_detail_safe(bundle: storefront.StorefrontBundle) -> storefront.
         return await storefront.fetch_bundle_detail(bundle.product_url)
     except Exception:
         return None
+
+
+async def _fetch_listing_safe(force: bool = False) -> tuple[list[storefront.StorefrontBundle], str | None]:
+    """(bundles, error). Humble's markup isn't a contract (it moved to Next.js
+    in Nov 2026 and broke the parser) — a listing that can't be fetched or
+    parsed must show a notice on Home, not a 500 for the whole page."""
+    try:
+        return await storefront.fetch_current_bundles(force=force), None
+    except Exception as exc:  # noqa: BLE001 - surfaced as a notice, never a crash
+        logger.warning("Storefront listing unavailable: %s", exc)
+        return [], "Couldn't read Humble's bundle listing right now (their page may have changed)."
 
 
 async def _build_tiles(bundles: list[storefront.StorefrontBundle], db: Session) -> list[dict]:
@@ -85,7 +98,7 @@ async def _build_tiles(bundles: list[storefront.StorefrontBundle], db: Session) 
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request, db: Session = Depends(get_db)):
-    bundles = await storefront.fetch_current_bundles()
+    bundles, storefront_error = await _fetch_listing_safe()
     tiles = await _build_tiles(bundles, db)
     return templates.TemplateResponse(
         request,
@@ -94,6 +107,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
             "by_category": _grouped(tiles),
             "category_labels": CATEGORY_LABELS,
             "last_synced": storefront.last_fetched_at(),
+            "storefront_error": storefront_error,
             # Absence of the row, not its status — a saved-but-failing key means
             # the user has already been through setup and gets the error on the
             # Settings card instead of a getting-started banner here.
@@ -104,7 +118,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/storefront/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "storefront-refresh")), Depends(require_csrf)])
 async def refresh_storefront(request: Request, db: Session = Depends(get_db)):
-    bundles = await storefront.fetch_current_bundles(force=True)
+    bundles, storefront_error = await _fetch_listing_safe(force=True)
     tiles = await _build_tiles(bundles, db)
     return templates.TemplateResponse(
         request,
@@ -113,6 +127,7 @@ async def refresh_storefront(request: Request, db: Session = Depends(get_db)):
             "by_category": _grouped(tiles),
             "category_labels": CATEGORY_LABELS,
             "last_synced": storefront.last_fetched_at(),
+            "storefront_error": storefront_error,
         },
     )
 

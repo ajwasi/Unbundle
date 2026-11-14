@@ -4,8 +4,11 @@ humble_connector.py: it's unauthenticated (no session cookie, no /api/v1),
 scrapes embedded JSON off the public HTML instead of calling an API, and
 describes bundles for sale rather than bundles already owned.
 
-Both the listing page and individual bundle pages embed their full data as a
-<script type="application/json"> block. Confirmed reachable via a plain GET
+Both the listing page and individual bundle pages embed their full data. Until
+Nov 2026 that was a <script type="application/json"> block; Humble has since
+moved to Next.js, which streams the same data inside self.__next_f.push([1, "..."])
+calls (React Server Components "flight" data). Both shapes are read: the legacy
+script block first, the flight stream as the fallback. Confirmed reachable via a plain GET
 with a browser User-Agent — unlike /processlogin, these pages are not behind
 Cloudflare's bot check, so no browser automation is needed here.
 
@@ -19,7 +22,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import httpx
@@ -168,6 +171,162 @@ class StorefrontBundleDetail:
     tiers: list[StorefrontTier]  # lowest price first
 
 
+# --- Next.js flight-stream reading (Humble's site since Nov 2026) ---------------
+
+_FLIGHT_MARKER = "self.__next_f.push("
+_json = json.JSONDecoder()
+
+_FLIGHT_LABELS = {"pdf": "PDF", "epub": "EPUB", "mobi": "MOBI", "cbz": "CBZ", "mp3": "MP3", "flac": "FLAC"}
+_FLIGHT_DELIVERY = {"download": "DRM-free download", "steam": "Steam", "gog": "GOG", "itch": "itch.io"}
+
+
+def _flight_text(html: str) -> str:
+    """Every self.__next_f.push([1, "<chunk>"]) payload, concatenated."""
+    chunks: list[str] = []
+    pos = 0
+    while (i := html.find(_FLIGHT_MARKER, pos)) != -1:
+        start = i + len(_FLIGHT_MARKER)
+        try:
+            arr, end = _json.raw_decode(html, start)
+        except ValueError:
+            pos = start
+            continue
+        pos = end
+        if isinstance(arr, list) and len(arr) == 2 and arr[0] == 1 and isinstance(arr[1], str):
+            chunks.append(arr[1])
+    return "".join(chunks)
+
+
+def _objects_after(text: str, marker: str):
+    """Yield the JSON value that immediately follows each occurrence of `marker`."""
+    pos = 0
+    while (i := text.find(marker, pos)) != -1:
+        start = i + len(marker)
+        pos = start
+        try:
+            value, _ = _json.raw_decode(text, start)
+        except ValueError:
+            continue
+        yield value
+
+
+def _real(value: object) -> object | None:
+    """Flight data spells "undefined" as the string "$undefined" and uses other
+    "$<hex>" strings as references to rows we don't resolve — neither is a value."""
+    if isinstance(value, str) and value.startswith("$"):
+        return None
+    return value
+
+
+def _flight_listing(html: str) -> list[StorefrontBundle]:
+    seen: set[str] = set()
+    bundles: list[StorefrontBundle] = []
+    for hit in _objects_after(_flight_text(html), '{"relationTo":"algolia-hit","value":'):
+        if not isinstance(hit, dict) or hit.get("productType") != "humble-bundle":
+            continue
+        url = hit.get("url")
+        if not isinstance(url, str) or not url.startswith("/") or url in seen:
+            continue
+        seen.add(url)
+        titles = [t for t in (hit.get("includedItemTitles") or []) if isinstance(t, str)]
+        blurb = ""
+        if titles:
+            more = len(titles) > 3 or (hit.get("itemsCount") or 0) > 3
+            blurb = f"Includes {', '.join(titles[:3])}{' and more' if more else ''}"
+        bundles.append(
+            StorefrontBundle(
+                category=hit.get("category") or "",
+                machine_name=hit.get("productKey") or "",
+                name=hit.get("title") or "",
+                blurb=nh3.clean(blurb, tags=_ALLOWED_BLURB_TAGS, attributes={}),
+                product_url=f"{BASE_URL}{url}",
+                image_url=hit.get("thumbnail") or "",
+                end_date=_parse_datetime(_real(hit.get("endDate"))),
+            )
+        )
+    return bundles
+
+
+def _flight_item(item: dict, fallback_type: str) -> StorefrontItem | None:
+    key, title = item.get("key"), item.get("title")
+    if not key or not title:
+        return None
+    msrp = item.get("msrp")
+    description = _real(item.get("description"))
+    platforms = [p for p in (item.get("platforms") or []) if isinstance(p, str)]
+    delivery = [d for d in (item.get("deliveryMethods") or []) if isinstance(d, str)]
+    return StorefrontItem(
+        machine_name=key,
+        name=title,
+        content_type=item.get("bundleType") or fallback_type or None,
+        msrp_amount=msrp.get("amount") if isinstance(msrp, dict) else None,
+        description=(
+            nh3.clean(description, tags=_ALLOWED_DESCRIPTION_TAGS, attributes={}) if isinstance(description, str) else ""
+        ),
+        authors=_named(item.get("developers"), "name"),
+        publishers=_named(item.get("publishers"), "name"),
+        formats=[_FLIGHT_LABELS.get(p, p.title()) for p in platforms],
+        delivery_methods=[_FLIGHT_DELIVERY.get(d, d.title()) for d in delivery],
+        image_url=item.get("thumbnailImageUrl") or "",
+    )
+
+
+def _flight_detail(html: str) -> StorefrontBundleDetail | None:
+    page = next(
+        (
+            p
+            for p in _objects_after(_flight_text(html), '"bundlePage":')
+            if isinstance(p, dict) and isinstance(p.get("tiers"), list)
+        ),
+        None,
+    )
+    if page is None:
+        return None
+    page_type = page.get("bundleType") or ""
+
+    def _price(tier: dict) -> float | None:
+        price = tier.get("price")
+        return price.get("amount") if isinstance(price, dict) else None
+
+    items: list[StorefrontItem] = []
+    seen: set[str] = set()
+    tiers: list[StorefrontTier] = []
+    # A higher tier's bundleItems repeats lower tiers' items as string references
+    # ("$e:0:props:..."); only the dict entries are real items, and anything
+    # already seen is skipped, so each tier lists just what it newly unlocks.
+    ordered = sorted((t for t in page["tiers"] if isinstance(t, dict)), key=lambda t: _price(t) or 0)
+    for index, tier in enumerate(ordered):
+        new_items = []
+        for raw in tier.get("bundleItems") or []:
+            si = _flight_item(raw, page_type) if isinstance(raw, dict) else None
+            if si is None or si.machine_name in seen:
+                continue
+            seen.add(si.machine_name)
+            new_items.append(si)
+        items.extend(new_items)
+        if not new_items:
+            continue
+        price = _price(tier)
+        amount = f"${price:g}" if price is not None else "this tier"
+        tiers.append(
+            StorefrontTier(
+                identifier=str(tier.get("id") or index + 1),
+                label=f"Pay {amount} or more{' to also unlock!' if tiers else ' to unlock'}",
+                price_amount=price,
+                is_bta=False,
+                items=new_items,
+            )
+        )
+
+    value = page.get("value")
+    return StorefrontBundleDetail(
+        name=page.get("title") or "",
+        msrp_total=value.get("amount") if isinstance(value, dict) else None,
+        items=items,
+        tiers=tiers,
+    )
+
+
 _listing_cache: tuple[float, list[StorefrontBundle]] | None = None
 _detail_cache: dict[str, tuple[float, StorefrontBundleDetail]] = {}
 # Wall-clock companion to _listing_cache's monotonic timestamp (monotonic time
@@ -188,25 +347,17 @@ def _parse_datetime(raw: str | None) -> datetime | None:
     if not raw:
         return None
     try:
-        return datetime.fromisoformat(raw)
+        parsed = datetime.fromisoformat(raw)
     except ValueError:
         return None
+    # The flight data carries explicit offsets ("...Z"); the rest of the app
+    # (and the "Z" the countdown template appends) expects naive UTC.
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
-async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
-    global _listing_cache, _listing_fetched_at
-    if _listing_cache and not force and time.monotonic() - _listing_cache[0] < LISTING_TTL_SECONDS:
-        return _listing_cache[1]
-
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
-        resp = await client.get(f"{BASE_URL}/bundles")
-        resp.raise_for_status()
-
-    payload = _extract_embedded_json(resp.text, _LISTING_ID, "mosaic")
-    if payload is None:
-        raise ValueError(
-            f"Could not find {_LISTING_ID} on the bundles listing page ({_describe_page(resp)})"
-        )
+def _legacy_listing(payload: object, resp: httpx.Response) -> list[StorefrontBundle]:
     data = (payload.get("data") if isinstance(payload, dict) else None) or {}
     if not isinstance(data, dict) or not any(isinstance(v, dict) and "mosaic" in v for v in data.values()):
         # Shape moved (e.g. wrapped one level deeper) — look for the category map itself.
@@ -236,6 +387,27 @@ async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
                         end_date=_parse_datetime(product.get("end_date|datetime")),
                     )
                 )
+    return bundles
+
+
+async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
+    global _listing_cache, _listing_fetched_at
+    if _listing_cache and not force and time.monotonic() - _listing_cache[0] < LISTING_TTL_SECONDS:
+        return _listing_cache[1]
+
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
+        resp = await client.get(f"{BASE_URL}/bundles")
+        resp.raise_for_status()
+
+    payload = _extract_embedded_json(resp.text, _LISTING_ID, "mosaic")
+    if payload is None:
+        bundles = _flight_listing(resp.text)
+        if not bundles:
+            raise ValueError(
+                f"Could not find {_LISTING_ID} or Next.js bundle data on the bundles listing page ({_describe_page(resp)})"
+            )
+    else:
+        bundles = _legacy_listing(payload, resp)
 
     _listing_cache = (time.monotonic(), bundles)
     _listing_fetched_at = datetime.utcnow()
@@ -314,38 +486,7 @@ def _availability(item: dict) -> tuple[list[str], list[str]]:
     return formats, delivery
 
 
-async def fetch_bundle_detail(product_url: str, force: bool = False) -> StorefrontBundleDetail:
-    cached = _detail_cache.get(product_url)
-    if cached and not force and time.monotonic() - cached[0] < DETAIL_TTL_SECONDS:
-        return cached[1]
-
-    # Three prior attempts at validating product_url in place — a caller-side check
-    # in home.py; a guard-clause-with-early-raise here; the sink moved inside the
-    # true branch of a direct literal comparison — all still left CodeQL's SSRF
-    # query flagging client.get() below. Validating a tainted string doesn't clear a
-    # direct source-to-sink dataflow edge in its model, no matter how the validation
-    # is shaped, as long as that same tainted string is still what's passed to the
-    # sink. This is CodeQL's own documented fix for py/full-ssrf instead: never let
-    # the sink see the original tainted value at all. Rebuild the request URL from
-    # BASE_URL (a trusted literal) plus only the path/query/fragment pulled out of
-    # product_url — the scheme+host that actually determines *destination* is now
-    # always the literal string, never attacker-influenced.
-    parsed = urlparse(product_url)
-    if parsed.scheme != "https" or parsed.hostname != "www.humblebundle.com":
-        raise ValueError(f"Refusing to fetch a bundle detail URL outside {BASE_URL}")
-    safe_url = f"{BASE_URL}{parsed.path}"
-    if parsed.query:
-        safe_url = f"{safe_url}?{parsed.query}"
-    if parsed.fragment:
-        safe_url = f"{safe_url}#{parsed.fragment}"
-
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
-        resp = await client.get(safe_url)
-        resp.raise_for_status()
-
-    payload = _extract_embedded_json(resp.text, _DETAIL_ID, "bundleData")
-    if payload is None:
-        raise ValueError(f"Could not find {_DETAIL_ID} on {product_url} ({_describe_page(resp)})")
+def _legacy_detail(payload: object) -> StorefrontBundleDetail:
     bundle_data = (_find_key(payload, "bundleData")) or {}
     basic_data = bundle_data.get("basic_data") or {}
     tier_items = bundle_data.get("tier_item_data") or {}
@@ -404,11 +545,49 @@ async def fetch_bundle_detail(product_url: str, force: bool = False) -> Storefro
             )
         )
 
-    result = StorefrontBundleDetail(
+    return StorefrontBundleDetail(
         name=basic_data.get("human_name") or "",
         msrp_total=(basic_data.get("msrp|money") or {}).get("amount"),
         items=items,
         tiers=tiers,
     )
+
+
+async def fetch_bundle_detail(product_url: str, force: bool = False) -> StorefrontBundleDetail:
+    cached = _detail_cache.get(product_url)
+    if cached and not force and time.monotonic() - cached[0] < DETAIL_TTL_SECONDS:
+        return cached[1]
+
+    # Three prior attempts at validating product_url in place — a caller-side check
+    # in home.py; a guard-clause-with-early-raise here; the sink moved inside the
+    # true branch of a direct literal comparison — all still left CodeQL's SSRF
+    # query flagging client.get() below. Validating a tainted string doesn't clear a
+    # direct source-to-sink dataflow edge in its model, no matter how the validation
+    # is shaped, as long as that same tainted string is still what's passed to the
+    # sink. This is CodeQL's own documented fix for py/full-ssrf instead: never let
+    # the sink see the original tainted value at all. Rebuild the request URL from
+    # BASE_URL (a trusted literal) plus only the path/query/fragment pulled out of
+    # product_url — the scheme+host that actually determines *destination* is now
+    # always the literal string, never attacker-influenced.
+    parsed = urlparse(product_url)
+    if parsed.scheme != "https" or parsed.hostname != "www.humblebundle.com":
+        raise ValueError(f"Refusing to fetch a bundle detail URL outside {BASE_URL}")
+    safe_url = f"{BASE_URL}{parsed.path}"
+    if parsed.query:
+        safe_url = f"{safe_url}?{parsed.query}"
+    if parsed.fragment:
+        safe_url = f"{safe_url}#{parsed.fragment}"
+
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
+        resp = await client.get(safe_url)
+        resp.raise_for_status()
+
+    payload = _extract_embedded_json(resp.text, _DETAIL_ID, "bundleData")
+    if payload is not None:
+        result = _legacy_detail(payload)
+    else:
+        result = _flight_detail(resp.text)
+        if result is None:
+            raise ValueError(f"Could not find {_DETAIL_ID} or Next.js bundle data on {product_url} ({_describe_page(resp)})")
     _detail_cache[product_url] = (time.monotonic(), result)
     return result

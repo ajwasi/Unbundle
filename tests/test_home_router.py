@@ -46,6 +46,13 @@ def test_home_shows_bundles_grouped_by_category(authed_client):
     assert "Books" in resp.text
 
 
+def test_home_shows_a_notice_instead_of_500_when_the_listing_cannot_be_parsed(authed_client):
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(side_effect=ValueError("markup changed"))):
+        resp = authed_client.get("/")
+    assert resp.status_code == 200
+    assert "bundle listing right now" in resp.text
+
+
 def test_home_shows_not_refreshed_yet_when_never_fetched(authed_client):
     with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=[])), \
          patch("app.routers.home.storefront.last_fetched_at", return_value=None):

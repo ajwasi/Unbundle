@@ -37,7 +37,7 @@
   {% endif %}
   {% endfor %}
   {% if not ns.any_items %}
-  <p class="muted">Nothing currently listed for sale, in any category.</p>
+  {% if storefront_error %}<p class="muted">{{ storefront_error }}</p>{% else %}<p class="muted">Nothing currently listed for sale, in any category.</p>{% endif %}
   {% endif %}
 </div>
 

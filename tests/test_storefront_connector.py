@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -364,3 +365,166 @@ async def test_listing_failure_reports_page_diagnostics():
     with _mock_get(html):
         with pytest.raises(ValueError, match=r"Just a moment.*cf-chl"):
             await storefront.fetch_current_bundles(force=True)
+
+
+# --- Next.js flight-stream pages (Humble's site since Nov 2026) -----------------
+
+
+def _compact(obj) -> str:
+    # Humble's flight stream is compact JSON; the parsers locate objects by exact marker text.
+    return json.dumps(obj, separators=(",", ":"))
+
+
+def _flight_html(*chunks: str) -> str:
+    """A page whose data lives only in self.__next_f.push([1, "..."]) calls."""
+    scripts = "".join(f"<script>self.__next_f.push([1,{json.dumps(c)}])</script>" for c in chunks)
+    return f"<html><head><title>All Bundles</title></head><body>{scripts}</body></html>"
+
+
+def _hit(slug="data-science-oreilly-books", category="books", **overrides):
+    value = {
+        "id": "abc",
+        "productKey": "datascienceoreilly_bookbundle",
+        "slug": slug,
+        "url": f"/{category}/{slug}",
+        "title": "Data Science by O'Reilly",
+        "thumbnail": "https://hb-prd.imgix.net/product-media/t.jpg",
+        "endDate": "2026-11-16T19:00:00.000Z",
+        "category": category,
+        "itemsCount": 5,
+        "productType": "humble-bundle",
+        "includedItemTitles": ["Book A", "Book B", "Book <script>x</script>", "Book D"],
+    }
+    value.update(overrides)
+    return {"relationTo": "algolia-hit", "value": value}
+
+
+def _item(key, title, **overrides):
+    item = {
+        "id": key,
+        "key": key,
+        "title": title,
+        "thumbnailImageUrl": f"https://hb-prd.imgix.net/{key}.png",
+        "description": "$70",
+        "developers": [{"name": "Dev One", "url": "http://x"}],
+        "publishers": [{"name": "Pub One"}],
+        "deliveryMethods": ["download"],
+        "platforms": ["pdf", "epub"],
+        "bundleType": "books",
+        "msrp": "$undefined",
+    }
+    item.update(overrides)
+    return item
+
+
+def _bundle_page(tiers):
+    return {"bundlePage": {"slug": "x", "title": "My Flight Bundle", "bundleType": "books", "value": {"amount": 1597, "currencyCode": "USD"}, "tiers": tiers}}
+
+
+def _flight_page_chunk(page: dict) -> str:
+    return 'e:[["$","section",null,' + _compact({"children": ["$", "$L6e", None, page]}) + "]]"
+
+
+@pytest.mark.asyncio
+async def test_listing_parses_next_js_flight_data():
+    chunk = "5:" + _compact([_hit(), _hit(slug="game-one", category="games", title="Game One", productKey="gameone")])
+    with _mock_get(_flight_html(chunk)):
+        bundles = await storefront.fetch_current_bundles(force=True)
+
+    assert [b.category for b in bundles] == ["books", "games"]
+    first = bundles[0]
+    assert first.machine_name == "datascienceoreilly_bookbundle"
+    assert first.name == "Data Science by O'Reilly"
+    assert first.product_url == "https://www.humblebundle.com/books/data-science-oreilly-books"
+    assert first.image_url == "https://hb-prd.imgix.net/product-media/t.jpg"
+    # Naive UTC, like the legacy dates — the template appends its own "Z".
+    assert first.end_date == datetime(2026, 11, 16, 19, 0)
+    assert first.end_date.tzinfo is None
+    assert first.start_date is None
+
+
+@pytest.mark.asyncio
+async def test_flight_listing_blurb_is_sanitized_and_summarizes_contents():
+    with _mock_get(_flight_html("5:" + _compact([_hit()]))):
+        (bundle,) = await storefront.fetch_current_bundles(force=True)
+    assert bundle.blurb.startswith("Includes Book A, Book B, ")
+    assert bundle.blurb.endswith("and more")
+    assert "<script" not in bundle.blurb
+
+
+@pytest.mark.asyncio
+async def test_flight_listing_ignores_non_bundles_and_duplicate_urls():
+    hits = [_hit(), _hit(), _hit(slug="choice", productType="humble-choice")]
+    with _mock_get(_flight_html("5:" + _compact(hits))):
+        bundles = await storefront.fetch_current_bundles(force=True)
+    assert [b.product_url.rsplit("/", 1)[1] for b in bundles] == ["data-science-oreilly-books"]
+
+
+@pytest.mark.asyncio
+async def test_flight_listing_reads_data_split_across_several_pushes():
+    text = "5:" + _compact([_hit()])
+    cut = len(text) // 2
+    with _mock_get(_flight_html(text[:cut], text[cut:])):
+        bundles = await storefront.fetch_current_bundles(force=True)
+    assert len(bundles) == 1
+
+
+@pytest.mark.asyncio
+async def test_flight_listing_with_no_bundles_reports_page_diagnostics():
+    with _mock_get(_flight_html('1:"$Sreact.fragment"')):
+        with pytest.raises(ValueError, match=r"All Bundles"):
+            await storefront.fetch_current_bundles(force=True)
+
+
+@pytest.mark.asyncio
+async def test_detail_parses_next_js_flight_data_with_tiers_and_back_references():
+    tier1 = {"id": "1", "price": {"amount": 5}, "bundleItems": [_item("a_x", "Book A"), _item("b_x", "Book B")]}
+    # Higher tiers repeat lower tiers' items as string references; only the dict is new.
+    tier2 = {"id": "2", "price": {"amount": 18}, "bundleItems": ["$e:0:props:bundlePage:tiers:0:bundleItems:0", _item("c_x", "Book C")]}
+    tier3 = {"id": "3", "price": {"amount": 30}, "bundleItems": ["$e:0:props:bundlePage:tiers:0:bundleItems:1"]}
+    html = _flight_html(_flight_page_chunk(_bundle_page([tier2, tier3, tier1])))  # deliberately out of order
+    with _mock_get(html):
+        detail = await storefront.fetch_bundle_detail("https://www.humblebundle.com/books/x", force=True)
+
+    assert detail.name == "My Flight Bundle"
+    assert detail.msrp_total == 1597
+    assert [i.machine_name for i in detail.items] == ["a_x", "b_x", "c_x"]
+    # Tier 3 unlocks nothing new, so it's dropped, like the legacy parser does.
+    assert [(t.price_amount, [i.name for i in t.items]) for t in detail.tiers] == [(5, ["Book A", "Book B"]), (18, ["Book C"])]
+    assert detail.tiers[0].label == "Pay $5 or more to unlock"
+    assert detail.tiers[1].label == "Pay $18 or more to also unlock!"
+
+
+@pytest.mark.asyncio
+async def test_detail_flight_item_fields():
+    game = _item(
+        "g_x", "Game", bundleType="games", msrp={"amount": 24.99, "currencyCode": "USD"},
+        platforms=["windows"], deliveryMethods=["steam"], description="Plain text <b>bold</b><script>x</script>",
+    )
+    html = _flight_html(_flight_page_chunk(_bundle_page([{"id": "1", "price": {"amount": 10}, "bundleItems": [game, _item("noname", "")]}])))
+    with _mock_get(html):
+        detail = await storefront.fetch_bundle_detail("https://www.humblebundle.com/games/x", force=True)
+
+    (item,) = detail.items  # the untitled entry is dropped
+    assert item.msrp_amount == 24.99
+    assert item.content_type == "games"
+    assert (item.authors, item.publishers) == (["Dev One"], ["Pub One"])
+    assert (item.formats, item.delivery_methods) == (["Windows"], ["Steam"])
+    assert "<script" not in item.description and "bold" in item.description
+    assert item.image_url == "https://hb-prd.imgix.net/g_x.png"
+
+
+@pytest.mark.asyncio
+async def test_detail_unresolved_flight_references_are_not_shown_as_descriptions_or_prices():
+    html = _flight_html(_flight_page_chunk(_bundle_page([{"id": "1", "price": {"amount": 5}, "bundleItems": [_item("a_x", "Book A")]}])))
+    with _mock_get(html):
+        detail = await storefront.fetch_bundle_detail("https://www.humblebundle.com/books/x", force=True)
+    assert detail.items[0].description == ""  # "$70" is a row reference, not text
+    assert detail.items[0].msrp_amount is None  # "$undefined"
+
+
+@pytest.mark.asyncio
+async def test_detail_failure_without_any_known_data_raises():
+    with _mock_get(_flight_html('1:"$Sreact.fragment"')):
+        with pytest.raises(ValueError, match="Next.js bundle data"):
+            await storefront.fetch_bundle_detail("https://www.humblebundle.com/books/x", force=True)
