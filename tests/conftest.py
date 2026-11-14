@@ -97,6 +97,30 @@ def _no_real_update_checks(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_real_storefront_fetches(request, monkeypatch):
+    """GET / renders Humble's live storefront listing; any test that loads the
+    Home page would otherwise hit humblebundle.com — and fail the moment their
+    markup changes (it did, 2026-11-14, taking the whole CI run down).
+    Tests that exercise the connector itself (test_storefront_connector.py)
+    drive it with their own mock transport and need the real functions; tests
+    that care about listing contents patch these again themselves.
+    """
+    if request.module.__name__.endswith("test_storefront_connector"):
+        yield
+        return
+
+    async def _no_bundles(*args, **kwargs):
+        return []
+
+    async def _no_detail(*args, **kwargs):
+        raise RuntimeError("storefront detail fetch blocked in tests")
+
+    monkeypatch.setattr("app.connectors.storefront.fetch_current_bundles", _no_bundles)
+    monkeypatch.setattr("app.connectors.storefront.fetch_bundle_detail", _no_detail)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _fresh_rate_limits():
     """Rate limiter instances (app/ratelimit.py) are module-level singletons that
     outlive any single test's TestClient — without this, hit counts would
