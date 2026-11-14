@@ -342,3 +342,25 @@ async def test_fetch_bundle_detail_skips_tier_with_nothing_new():
     with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp)):
         detail = await storefront.fetch_bundle_detail("https://www.humblebundle.com/books/x")
     assert [t.identifier for t in detail.tiers] == ["initial"]
+
+
+def _mock_get(html: str):
+    resp = httpx.Response(200, text=html, request=httpx.Request("GET", f"{storefront.BASE_URL}/bundles"))
+    return patch("httpx.AsyncClient.get", new=AsyncMock(return_value=resp))
+
+
+@pytest.mark.asyncio
+async def test_listing_survives_renamed_script_id_and_extra_attributes():
+    payload = {"data": {"games": {"mosaic": [{"products": [_product()]}]}}}
+    html = f'<html><script nonce="x" type="application/json" id="renamed-data">{json.dumps(payload)}</script></html>'
+    with _mock_get(html):
+        bundles = await storefront.fetch_current_bundles(force=True)
+    assert [b.machine_name for b in bundles] == ["somebundle"]
+
+
+@pytest.mark.asyncio
+async def test_listing_failure_reports_page_diagnostics():
+    html = '<html><title>Just a moment...</title><script id="cf-chl">var a=1;</script></html>'
+    with _mock_get(html):
+        with pytest.raises(ValueError, match=r"Just a moment.*cf-chl"):
+            await storefront.fetch_current_bundles(force=True)

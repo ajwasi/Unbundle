@@ -15,6 +15,7 @@ stale (bundles rotate) on its own regardless.
 """
 
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass, field
@@ -23,6 +24,8 @@ from urllib.parse import urlparse
 
 import httpx
 import nh3
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.humblebundle.com"
 # marketing_blurb renders with autoescaping bypassed (see home/_bundles.html) so
@@ -45,12 +48,72 @@ USER_AGENT = (
 LISTING_TTL_SECONDS = 1800
 DETAIL_TTL_SECONDS = 1800
 
-_LISTING_MARKER = re.compile(
-    r'<script id="landingPage-json-data" type="application/json">(.*?)</script>', re.S
-)
-_DETAIL_MARKER = re.compile(
-    r'<script id="webpack-bundle-page-data" type="application/json">(.*?)</script>', re.S
-)
+_LISTING_ID = "landingPage-json-data"
+_DETAIL_ID = "webpack-bundle-page-data"
+# Any <script ...>body</script>; attributes are parsed separately so a change in
+# attribute order, quoting, or extra attributes (nonce, data-*) can't break the
+# match the way a single fixed-string regex did.
+_SCRIPT_RE = re.compile(r"<script\b([^>]*)>(.*?)</script\b[^>]*>", re.S | re.I)
+_ID_RE = re.compile(r"""\bid\s*=\s*["']([^"']+)["']""", re.I)
+
+
+def _find_key(obj: object, key: str, depth: int = 0) -> object | None:
+    """First value stored under `key` anywhere in a parsed JSON tree."""
+    if depth > 6:
+        return None
+    if isinstance(obj, dict):
+        if key in obj:
+            return obj[key]
+        children = obj.values()
+    elif isinstance(obj, list):
+        children = obj
+    else:
+        return None
+    for child in children:
+        found = _find_key(child, key, depth + 1)
+        if found is not None:
+            return found
+    return None
+
+
+def _extract_embedded_json(html: str, script_id: str, shape_key: str) -> object | None:
+    """Pull the page's embedded JSON payload out of the HTML.
+
+    Preferred: the <script> whose id is `script_id` (the historical contract).
+    Fallback, for when Humble renames the element: any JSON-parsable <script>
+    whose tree contains `shape_key` (e.g. "mosaic" for the listing). Returns
+    None if neither finds anything.
+    """
+    candidates: list[tuple[bool, str]] = []
+    for attrs, body in _SCRIPT_RE.findall(html):
+        id_match = _ID_RE.search(attrs)
+        candidates.append((bool(id_match and id_match.group(1) == script_id), body))
+    candidates.sort(key=lambda c: not c[0])  # exact-id match first
+
+    for is_exact, body in candidates:
+        body = body.strip()
+        if not body or body[0] not in "{[":
+            continue
+        try:
+            parsed = json.loads(body)
+        except ValueError:
+            continue
+        if is_exact:
+            return parsed
+        if _find_key(parsed, shape_key) is not None:
+            logger.warning("Storefront: %s not found by id; using a script matched by shape (%s)", script_id, shape_key)
+            return parsed
+    return None
+
+
+def _describe_page(resp: httpx.Response) -> str:
+    """Diagnostics for a parse failure: what did we actually get back?"""
+    ids = [m.group(1) for attrs, _ in _SCRIPT_RE.findall(resp.text) if (m := _ID_RE.search(attrs))]
+    title = re.search(r"<title[^>]*>(.*?)</title>", resp.text, re.S | re.I)
+    return (
+        f"status={resp.status_code} final_url={resp.url} bytes={len(resp.content)} "
+        f"title={(title.group(1).strip()[:80] if title else None)!r} script_ids={ids[:15]}"
+    )
 
 
 @dataclass
@@ -139,13 +202,23 @@ async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
         resp = await client.get(f"{BASE_URL}/bundles")
         resp.raise_for_status()
 
-    match = _LISTING_MARKER.search(resp.text)
-    if not match:
-        raise ValueError("Could not find landingPage-json-data on the bundles listing page")
-    data = (json.loads(match.group(1)).get("data")) or {}
+    payload = _extract_embedded_json(resp.text, _LISTING_ID, "mosaic")
+    if payload is None:
+        raise ValueError(
+            f"Could not find {_LISTING_ID} on the bundles listing page ({_describe_page(resp)})"
+        )
+    data = (payload.get("data") if isinstance(payload, dict) else None) or {}
+    if not isinstance(data, dict) or not any(isinstance(v, dict) and "mosaic" in v for v in data.values()):
+        # Shape moved (e.g. wrapped one level deeper) — look for the category map itself.
+        inner = _find_key(payload, "data")
+        data = inner if isinstance(inner, dict) else {}
 
     bundles: list[StorefrontBundle] = []
+    if not data:
+        raise ValueError(f"Found embedded JSON on the bundles listing page but no category data ({_describe_page(resp)})")
     for category, section in data.items():
+        if not isinstance(section, dict):
+            continue
         for group in section.get("mosaic") or []:
             for product in group.get("products") or []:
                 if product.get("category") != "bundle":
@@ -270,10 +343,10 @@ async def fetch_bundle_detail(product_url: str, force: bool = False) -> Storefro
         resp = await client.get(safe_url)
         resp.raise_for_status()
 
-    match = _DETAIL_MARKER.search(resp.text)
-    if not match:
-        raise ValueError(f"Could not find webpack-bundle-page-data on {product_url}")
-    bundle_data = (json.loads(match.group(1)).get("bundleData")) or {}
+    payload = _extract_embedded_json(resp.text, _DETAIL_ID, "bundleData")
+    if payload is None:
+        raise ValueError(f"Could not find {_DETAIL_ID} on {product_url} ({_describe_page(resp)})")
+    bundle_data = (_find_key(payload, "bundleData")) or {}
     basic_data = bundle_data.get("basic_data") or {}
     tier_items = bundle_data.get("tier_item_data") or {}
 
