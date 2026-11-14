@@ -13,6 +13,12 @@ from app.models.audible_download_destination import AudibleDownloadDestination
 from app.models.credential import SOURCE_AUDIBLE, Credential
 from app.security import encrypt_json
 
+
+@pytest.fixture(autouse=True)
+def _no_license_pacing(monkeypatch):
+    monkeypatch.setattr(book_downloader, "_LICENSE_REQUEST_MIN_INTERVAL", 0.0)
+    monkeypatch.setattr(book_downloader, "_license_lock", None)  # lock is bound to a loop; fresh per test
+
 _POLL_TIMEOUT_SECONDS = 2.0
 
 LICENSE_RESPONSE = {
@@ -388,3 +394,24 @@ async def test_start_download_force_redownloads_even_when_a_file_already_exists(
     job = book_downloader.latest_status(db, "B001")
     assert job.status == STATUS_COMPLETED
     assert Path(job.downloaded_path).read_bytes() == b"fresh copy"
+
+
+def test_denial_message_not_owned_and_throttled():
+    resp = {
+        "content_license": {
+            "license_denial_reasons": [
+                {"message": "Customer is not part of any plans", "rejectionReason": "RequesterEligibility", "validationType": "Membership"},
+                {"message": "No Ownership information", "rejectionReason": "RequesterEligibility", "validationType": "Ownership"},
+                {"message": "Customer being throttled", "rejectionReason": "CustomerThrottled", "validationType": "AYCL"},
+            ]
+        }
+    }
+    msg = book_downloader._denial_error_message(resp)
+    assert "isn't in your purchased library" in msg
+    assert "throttling" in msg
+
+
+def test_denial_message_throttled_only():
+    resp = {"content_license": {"license_denial_reasons": [
+        {"message": "Customer being throttled", "rejectionReason": "CustomerThrottled", "validationType": "AYCL"}]}}
+    assert "rate-limiting" in book_downloader._denial_error_message(resp)

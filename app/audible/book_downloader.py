@@ -359,6 +359,21 @@ def _denial_error_message(license_response: dict) -> str | None:
     if not details:
         return None
 
+    kinds = {r.get("rejectionReason") for r in reasons if isinstance(r, dict)}
+    types = {r.get("validationType") for r in reasons if isinstance(r, dict)}
+    if "CustomerThrottled" in kinds and not ({"Membership", "Ownership"} <= types):
+        return (
+            f"Audible is rate-limiting this account ({details}). Wait a while (up to 24-48 hours if it "
+            "persists), then retry — and queue fewer titles at once."
+        )
+    if {"Membership", "Ownership"} <= types:
+        return (
+            f"Audible says this account can't download this title ({details}). It isn't in your "
+            "purchased library, and there's no active membership/plan covering it (typical of "
+            "Plus Catalog titles after a membership ends). Only titles you own can be downloaded."
+            + (" Audible is also throttling the account, so retrying soon won't help." if "CustomerThrottled" in kinds else "")
+        )
+
     return (
         f"Audible denied the license for this title ({details}). This is Audible's own decision, "
         "not an error in this app — most often a stale device registration at Amazon's end, or a "
@@ -367,6 +382,29 @@ def _denial_error_message(license_response: dict) -> str | None:
         "Audible in Settings and retry. If it still fails, wait 24-48 hours (Audible also applies "
         "temporary rate limits) and confirm the title plays in Audible's own app."
     )
+
+
+# Audible answers bursts of license requests with CustomerThrottled denials
+# (seen live 2026-11-10 when a bulk queue fired several at once). License
+# requests are serialized and spaced out; the downloads themselves still run
+# concurrently up to the configured limit.
+_LICENSE_REQUEST_MIN_INTERVAL = 5.0
+_license_lock: asyncio.Lock | None = None
+_last_license_request_at = 0.0
+
+
+async def _paced_request_license(auth, asin: str) -> dict:
+    global _license_lock, _last_license_request_at
+    if _license_lock is None:
+        _license_lock = asyncio.Lock()
+    async with _license_lock:
+        wait = _LICENSE_REQUEST_MIN_INTERVAL - (time.monotonic() - _last_license_request_at)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        try:
+            return await audible_connector.request_license(auth, asin)
+        finally:
+            _last_license_request_at = time.monotonic()
 
 
 async def _download_aaxc(url: str, dest_path, job: AudibleBookDownload, db: Session) -> None:
@@ -443,7 +481,7 @@ async def _run(job_id: int, asin: str, title: str, author: str) -> None:
                 raise NotConnectedError("Audible is not connected yet — connect it in Settings.")
             auth = audible.Authenticator.from_dict(dict(payload))
 
-            license_response = await audible_connector.request_license(auth, asin)
+            license_response = await _paced_request_license(auth, asin)
             save_authenticator(db, auth)
 
             offline_url = _extract_offline_url(license_response)
