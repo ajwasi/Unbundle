@@ -53,7 +53,7 @@ _DETAIL_ID = "webpack-bundle-page-data"
 # Any <script ...>body</script>; attributes are parsed separately so a change in
 # attribute order, quoting, or extra attributes (nonce, data-*) can't break the
 # match the way a single fixed-string regex did.
-_SCRIPT_RE = re.compile(r"<script\b([^>]*)>(.*?)</script>", re.S | re.I)
+_SCRIPT_RE = re.compile(r"<script\b([^>]*)>(.*?)</script\b[^>]*>", re.S | re.I)
 _ID_RE = re.compile(r"""\bid\s*=\s*["']([^"']+)["']""", re.I)
 
 
