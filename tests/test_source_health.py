@@ -107,6 +107,7 @@ def test_home_records_a_failed_listing_and_says_when_it_last_worked(authed_clien
     assert resp.status_code == 200
     assert "bundle listing right now" in resp.text
     assert "It last worked" in resp.text and "2 days ago" in resp.text
+    assert "card has-error" in resp.text  # an outage is a notice, not a muted aside
     db.expire_all()
     assert db.get(SourceHealth, sh.SOURCE_STOREFRONT).consecutive_failures == 1
 

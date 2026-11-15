@@ -2,15 +2,14 @@
 {% if source_health %}
 <table>
   <thead>
-    <tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Last worked</th><th scope="col">Detail</th></tr>
+    <tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Last worked</th></tr>
   </thead>
   <tbody>
     {% for row in source_health %}
     <tr>
-      <td>{{ row.label }}</td>
+      <td>{{ row.label }}{% if row.detail %}<div class="muted" style="font-size: 0.85em; margin-top: 0.15rem;">{{ row.detail }}</div>{% endif %}</td>
       <td>{{ badge(row.state, {"ok": "Working", "error": "Failing", "off": "Unknown"}[row.state]) }}</td>
       <td>{% if row.last_ok %}<span title="{{ row.last_ok.strftime('%Y-%m-%d %H:%M') }} UTC">{{ row.last_ok | time_since }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
-      <td>{% if row.detail %}<span class="muted">{{ row.detail }}</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
