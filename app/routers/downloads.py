@@ -102,7 +102,7 @@ def _active_jobs(db: Session) -> list[dict]:
     return jobs
 
 
-def _history_context(db: Session, status: str, file_format: str, q: str) -> dict:
+def _humble_history_rows(db: Session, status: str, file_format: str, q: str) -> list[dict]:
     query = db.query(Download, Bundle.name).join(Bundle, Bundle.gamekey == Download.gamekey)
     if status:
         query = query.filter(Download.status == status)
@@ -110,7 +110,7 @@ def _history_context(db: Session, status: str, file_format: str, q: str) -> dict
         query = query.filter(Download.file_format == file_format)
     if q:
         query = query.filter(Bundle.name.ilike(f"%{q}%"))
-    rows = [
+    return [
         {
             "kind": "Humble",
             "href": f"/bundles/{d.gamekey}",
@@ -127,41 +127,47 @@ def _history_context(db: Session, status: str, file_format: str, q: str) -> dict
         for d, bundle_name in query.all()
     ]
 
-    book_query = db.query(AudibleBookDownload, AudibleBook.title).outerjoin(
+
+def _audible_history_rows(db: Session, status: str, file_format: str, q: str) -> list[dict]:
+    # Every audiobook is a .m4b once downloaded; the format filter only ever
+    # narrows to or away from that.
+    if file_format and file_format != "m4b":
+        return []
+    query = db.query(AudibleBookDownload, AudibleBook.title).outerjoin(
         AudibleBook, AudibleBook.asin == AudibleBookDownload.asin
     )
     if status:
-        book_query = book_query.filter(AudibleBookDownload.status == status)
+        query = query.filter(AudibleBookDownload.status == status)
     if q:
-        book_query = book_query.filter(AudibleBook.title.ilike(f"%{q}%"))
-    # Every audiobook is a .m4b once downloaded; the format filter only ever
-    # narrows to or away from that.
-    if not file_format or file_format == "m4b":
-        rows += [
-            {
-                "kind": "Audible",
-                "href": f"/audible/{j.asin}",
-                "name": "Audible",
-                "item": title or j.asin,
-                "file_format": "m4b",
-                "status": j.status,
-                "error_message": j.error_message,
-                "size_bytes": j.expected_size_bytes or j.progress_bytes,
-                "location": j.downloaded_path,
-                "completed_at": j.completed_at,
-                "queued_at": j.queued_at,
-            }
-            for j, title in book_query.all()
-        ]
+        query = query.filter(AudibleBook.title.ilike(f"%{q}%"))
+    return [
+        {
+            "kind": "Audible",
+            "href": f"/audible/{j.asin}",
+            "name": "Audible",
+            "item": title or j.asin,
+            "file_format": "m4b",
+            "status": j.status,
+            "error_message": j.error_message,
+            "size_bytes": j.expected_size_bytes or j.progress_bytes,
+            "location": j.downloaded_path,
+            "completed_at": j.completed_at,
+            "queued_at": j.queued_at,
+        }
+        for j, title in query.all()
+    ]
 
-    track_query = db.query(AmazonMusicDownload, AmazonMusicTrack).join(
+
+def _amazon_history_rows(db: Session, status: str, file_format: str, q: str) -> list[dict]:
+    query = db.query(AmazonMusicDownload, AmazonMusicTrack).join(
         AmazonMusicTrack, AmazonMusicTrack.download_id == AmazonMusicDownload.download_id
     )
     if status:
-        track_query = track_query.filter(AmazonMusicDownload.status == status)
+        query = query.filter(AmazonMusicDownload.status == status)
     if q:
-        track_query = track_query.filter(AmazonMusicTrack.title.ilike(f"%{q}%"))
-    for j, track in track_query.all():
+        query = query.filter(AmazonMusicTrack.title.ilike(f"%{q}%"))
+    rows = []
+    for j, track in query.all():
         # Trusts the real file on disk over an assumed extension — every
         # capture on file so far has been .mp3 (see downloader.py's own
         # _guess_extension), but nothing here promises that's the only one.
@@ -183,17 +189,32 @@ def _history_context(db: Session, status: str, file_format: str, q: str) -> dict
                 "queued_at": j.queued_at,
             }
         )
-    rows.sort(key=lambda r: r["queued_at"], reverse=True)
+    return rows
 
-    all_formats = {fmt for (fmt,) in db.query(Download.file_format).distinct().all() if fmt}
+
+def _history_formats(db: Session) -> list[str]:
+    """Every file format that appears in any download source, for the filter."""
+    formats = {fmt for (fmt,) in db.query(Download.file_format).distinct().all() if fmt}
     if db.query(AudibleBookDownload.id).first() is not None:
-        all_formats.add("m4b")
-    all_formats |= {
+        formats.add("m4b")
+    formats |= {
         fmt
         for (path,) in db.query(AmazonMusicDownload.downloaded_path).filter(AmazonMusicDownload.downloaded_path != "").all()
         if (fmt := Path(path).suffix.lstrip(".").lower())
     }
-    return {"rows": rows, "status": status, "file_format": file_format, "q": q, "all_formats": sorted(all_formats)}
+    return sorted(formats)
+
+
+def _history_context(db: Session, status: str, file_format: str, q: str) -> dict:
+    """The Downloads page's history table: every source's finished/failed
+    downloads merged into one list, newest first."""
+    rows = (
+        _humble_history_rows(db, status, file_format, q)
+        + _audible_history_rows(db, status, file_format, q)
+        + _amazon_history_rows(db, status, file_format, q)
+    )
+    rows.sort(key=lambda r: r["queued_at"], reverse=True)
+    return {"rows": rows, "status": status, "file_format": file_format, "q": q, "all_formats": _history_formats(db)}
 
 
 @router.get("", response_class=HTMLResponse)

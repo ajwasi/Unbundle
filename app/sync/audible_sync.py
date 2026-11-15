@@ -49,24 +49,8 @@ def save_authenticator(db: Session, auth: audible.Authenticator) -> None:
     db.commit()
 
 
-async def refresh_audible_library(db: Session) -> int:
-    """Returns the number of titles fetched. Raises NotConnectedError —
-    caller surfaces the message."""
-    payload = get_audible_credential(db)
-    if not payload:
-        raise NotConnectedError("Audible is not connected yet — connect it in Settings.")
-
-    try:
-        # from_dict() pops "locale_code" off the dict it's given (confirmed
-        # in audible/auth.py) — pass a copy so a decrypt-then-mutate-then-
-        # re-encrypt round trip never silently drops the stored locale.
-        auth = audible.Authenticator.from_dict(dict(payload))
-        books = await audible_connector.fetch_library(auth)
-        save_authenticator(db, auth)
-    except Exception as exc:
-        _set_credential_status(db, STATUS_ERROR, str(exc))
-        raise
-
+def _upsert_books(db: Session, books: list) -> None:
+    """Brings the audible_book table in line with what the account holds, and commits."""
     # An upsert, not the delete-everything-then-reinsert this used to be:
     # AudibleBookDownload and AudiblePdfDownload both carry a foreign key to
     # audible_book.asin, and on Postgres (unlike this app's own SQLite,
@@ -114,38 +98,53 @@ async def refresh_audible_library(db: Session) -> int:
         db.query(AudibleBook).filter(AudibleBook.asin.in_(removed_asins)).delete(synchronize_session=False)
     db.commit()
 
+
+async def _refresh_enrichment(db: Session, what: str, kept: str, model: type, fetch):
+    """One optional enrichment step (series, authors, author profiles): fetch
+    fresh rows and replace the cache table with them. These are nice-to-have —
+    a failure keeps the previous data and is only logged, never failing the
+    library refresh itself. Returns the new rows, or None if the fetch failed.
+    """
     try:
-        series_rows = await _fetch_series_rows(auth, books)
-    except Exception as exc:  # noqa: BLE001 - optional enrichment: keep the previous series data
-        logger.warning("audible: series refresh failed, keeping previous series data: %s", exc)
-        series_rows = None
-    if series_rows is not None:
-        db.query(AudibleSeriesBook).delete()
-        for row in series_rows:
-            db.add(row)
-        db.commit()
+        rows = await fetch()
+    except Exception as exc:  # noqa: BLE001 - optional enrichment: keep the previous data
+        logger.warning("audible: %s refresh failed, keeping previous %s data: %s", what, kept, exc)
+        return None
+    db.query(model).delete()
+    for row in rows:
+        db.add(row)
+    db.commit()
+    return rows
+
+
+async def refresh_audible_library(db: Session) -> int:
+    """Returns the number of titles fetched. Raises NotConnectedError —
+    caller surfaces the message."""
+    payload = get_audible_credential(db)
+    if not payload:
+        raise NotConnectedError("Audible is not connected yet — connect it in Settings.")
 
     try:
-        author_rows = await _fetch_author_rows(auth, books)
-    except Exception as exc:  # noqa: BLE001 - optional enrichment: keep the previous author data
-        logger.warning("audible: author refresh failed, keeping previous author data: %s", exc)
-        author_rows = None
+        # from_dict() pops "locale_code" off the dict it's given (confirmed
+        # in audible/auth.py) — pass a copy so a decrypt-then-mutate-then-
+        # re-encrypt round trip never silently drops the stored locale.
+        auth = audible.Authenticator.from_dict(dict(payload))
+        books = await audible_connector.fetch_library(auth)
+        save_authenticator(db, auth)
+    except Exception as exc:
+        _set_credential_status(db, STATUS_ERROR, str(exc))
+        raise
+
+    _upsert_books(db, books)
+
+    await _refresh_enrichment(db, "series", "series", AudibleSeriesBook, lambda: _fetch_series_rows(auth, books))
+    author_rows = await _refresh_enrichment(
+        db, "author", "author", AudibleAuthorBook, lambda: _fetch_author_rows(auth, books)
+    )
     if author_rows is not None:
-        db.query(AudibleAuthorBook).delete()
-        for row in author_rows:
-            db.add(row)
-        db.commit()
-
-        try:
-            profile_rows = await _fetch_author_profiles(author_rows)
-        except Exception as exc:  # noqa: BLE001 - optional enrichment: keep the previous profile data
-            logger.warning("audible: author profile refresh failed, keeping previous profile data: %s", exc)
-            profile_rows = None
-        if profile_rows is not None:
-            db.query(AudibleAuthorProfile).delete()
-            for row in profile_rows:
-                db.add(row)
-            db.commit()
+        await _refresh_enrichment(
+            db, "author profile", "profile", AudibleAuthorProfile, lambda: _fetch_author_profiles(author_rows)
+        )
 
     _set_credential_status(db, STATUS_OK, None)
     return len(books)
