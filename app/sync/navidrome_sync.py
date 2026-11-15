@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.audible.scan import normalize
 from app.connectors import navidrome_connector
-from app.models.credential import SOURCE_NAVIDROME, STATUS_ERROR, STATUS_OK, Credential
+from app.models.credential import SOURCE_NAVIDROME, Credential
 from app.models.navidrome_album import NavidromeAlbum
-from app.timeutil import utcnow
+from app.sync.media_cache import refresh_media_cache
 
 
 class NotConnectedError(Exception):
@@ -25,24 +25,17 @@ async def refresh_navidrome_library(db: Session) -> int:
     """Returns the number of albums fetched. Raises NotConnectedError or
     ValueError (bad credentials, unreachable server) — caller surfaces the
     message."""
-    payload = get_navidrome_credential(db)
-    if not payload:
-        raise NotConnectedError("Navidrome is not connected yet — add its server URL and login in Settings.")
-
-    try:
-        albums = await navidrome_connector.fetch_albums(payload["base_url"], payload["username"], payload["password"])
-    except Exception as exc:
-        Credential.set_status(db, SOURCE_NAVIDROME, STATUS_ERROR, str(exc))
-        raise
-
-    db.query(NavidromeAlbum).delete()
-    now = utcnow()
-    for album in albums:
-        db.add(NavidromeAlbum(album_id=album.album_id, name=album.name, artist=album.artist, fetched_at=now))
-    db.commit()
-
-    Credential.set_status(db, SOURCE_NAVIDROME, STATUS_OK, None)
-    return len(albums)
+    return await refresh_media_cache(
+        db,
+        source=SOURCE_NAVIDROME,
+        payload=get_navidrome_credential(db),
+        not_connected=NotConnectedError("Navidrome is not connected yet — add its server URL and login in Settings."),
+        model=NavidromeAlbum,
+        fetch=lambda p: navidrome_connector.fetch_albums(p["base_url"], p["username"], p["password"]),
+        to_row=lambda album, now: NavidromeAlbum(
+            album_id=album.album_id, name=album.name, artist=album.artist, fetched_at=now
+        ),
+    )
 
 
 def owned_normalized_albums(db: Session) -> set[tuple[str, str]]:

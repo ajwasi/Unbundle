@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.audible.scan import normalize
 from app.connectors import plex_connector
-from app.models.credential import SOURCE_PLEX, STATUS_ERROR, STATUS_OK, Credential
+from app.models.credential import SOURCE_PLEX, Credential
 from app.models.plex_audiobook_item import PlexAudiobookItem
-from app.timeutil import utcnow
+from app.sync.media_cache import refresh_media_cache
 
 
 class NotConnectedError(Exception):
@@ -25,26 +25,17 @@ async def refresh_plex_library(db: Session) -> int:
     """Returns the number of items fetched. Raises NotConnectedError or
     ValueError (bad token, unreachable server, no library_id configured) —
     caller surfaces the message."""
-    payload = get_plex_credential(db)
-    if not payload:
-        raise NotConnectedError("Plex is not connected yet — add its server URL and token in Settings.")
-
-    try:
-        items = await plex_connector.fetch_audiobook_items(
-            payload["base_url"], payload["token"], payload.get("library_id", "")
-        )
-    except Exception as exc:
-        Credential.set_status(db, SOURCE_PLEX, STATUS_ERROR, str(exc))
-        raise
-
-    db.query(PlexAudiobookItem).delete()
-    now = utcnow()
-    for item in items:
-        db.add(PlexAudiobookItem(rating_key=item.rating_key, title=item.title, author=item.author, fetched_at=now))
-    db.commit()
-
-    Credential.set_status(db, SOURCE_PLEX, STATUS_OK, None)
-    return len(items)
+    return await refresh_media_cache(
+        db,
+        source=SOURCE_PLEX,
+        payload=get_plex_credential(db),
+        not_connected=NotConnectedError("Plex is not connected yet — add its server URL and token in Settings."),
+        model=PlexAudiobookItem,
+        fetch=lambda p: plex_connector.fetch_audiobook_items(p["base_url"], p["token"], p.get("library_id", "")),
+        to_row=lambda item, now: PlexAudiobookItem(
+            rating_key=item.rating_key, title=item.title, author=item.author, fetched_at=now
+        ),
+    )
 
 
 def owned_normalized_titles(db: Session) -> set[str]:

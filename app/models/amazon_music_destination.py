@@ -1,13 +1,8 @@
-from datetime import datetime
-
-from sqlalchemy import Boolean, DateTime, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
-
 from app.db import Base
-from app.timeutil import utcnow
+from app.models.simple_destination import SimpleDestinationMixin
 
 
-class AmazonMusicDestination(Base):
+class AmazonMusicDestination(SimpleDestinationMixin, Base):
     """A named directory purchased tracks can be downloaded into.
 
     Deliberately simpler than DownloadDestination (Humble's format/tag routing
@@ -21,9 +16,3 @@ class AmazonMusicDestination(Base):
     """
 
     __tablename__ = "amazon_music_destination"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    path: Mapped[str] = mapped_column(Text, nullable=False)
-    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
