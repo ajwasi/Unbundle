@@ -1,12 +1,8 @@
-from datetime import datetime
-
-from sqlalchemy import Boolean, DateTime, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
-
 from app.db import Base
+from app.models.simple_destination import SimpleDestinationMixin
 
 
-class AudibleDownloadDestination(Base):
+class AudibleDownloadDestination(SimpleDestinationMixin, Base):
     """A named directory downloaded audiobooks (.m4b) can be written into.
 
     Same deliberately-simple shape as AmazonMusicDestination (see its own
@@ -20,9 +16,3 @@ class AudibleDownloadDestination(Base):
     """
 
     __tablename__ = "audible_download_destination"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    path: Mapped[str] = mapped_column(Text, nullable=False)
-    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)

@@ -80,7 +80,7 @@ def _restore_humble_key_file() -> None:
     try:
         if humble_key.sync_key_file_from_db(db):
             print("Restored humble-cli's key file from the stored credential.", file=sys.stderr)
-    except Exception as exc:  # pragma: no cover - never block startup over this
+    except Exception as exc:  # pragma: no cover - never block startup over this  # noqa: BLE001 - never block startup over this
         print(f"WARNING: could not restore humble-cli's key file: {type(exc).__name__}", file=sys.stderr)
     finally:
         db.close()

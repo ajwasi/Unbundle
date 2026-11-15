@@ -135,14 +135,14 @@ def _fresh_rate_limits():
 
 @pytest.fixture(autouse=True)
 def _fresh_catalog_cache():
-    """_build_catalog()'s in-process cache (app/routers/catalog.py) is a
+    """build_catalog()'s in-process cache (app/services/catalog.py) is a
     module-level dict that outlives any single test's isolated DB — without
     this, a cache entry keyed on (bundle count, max(fetched_at)) populated by
     one test could coincidentally match another test's fresh-but-differently-
     seeded DB (same count, same-microsecond-or-mocked fetched_at) and hand
     back the wrong catalog entirely.
     """
-    from app.routers import catalog
+    from app.services import catalog
 
     catalog._catalog_cache["key"] = None
     catalog._catalog_cache["items"] = None

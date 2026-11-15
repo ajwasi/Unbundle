@@ -24,7 +24,7 @@ from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.gog_game import GogGame
 from app.ratelimit import RateLimiter, rate_limit
-from app.routers.home import CATEGORY_LABELS, _build_tiles, _grouped
+from app.services.bundle_tiles import CATEGORY_LABELS, build_tiles, grouped
 from app.templates_env import templates
 
 router = APIRouter(prefix="/deals")
@@ -56,7 +56,7 @@ async def _gog_context(
     if error is None:
         try:
             deals, total_discounted = await gog_deals.fetch_deals(force=force)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
             error = f"Could not reach GOG's catalogue ({type(exc).__name__}). It may be temporarily unavailable."
 
     # The whole point of the page: an exact product_id join, not title matching.
@@ -98,12 +98,12 @@ async def _gog_context(
 
 async def _humble_context(db: Session, force: bool = False) -> dict:
     bundles = await storefront.fetch_current_bundles(force=force)
-    tiles = await _build_tiles(bundles, db)
+    tiles = await build_tiles(bundles, db)
     return {
         "source": "humble",
         "sources": SOURCES,
         "source_labels": SOURCE_LABELS,
-        "by_category": _grouped(tiles),
+        "by_category": grouped(tiles),
         "category_labels": CATEGORY_LABELS,
         "last_synced": storefront.last_fetched_at(),
     }

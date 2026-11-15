@@ -197,7 +197,7 @@ def _is_fetchable_url(remote_url: str) -> bool:
     the module docstring for what this does and doesn't catch."""
     try:
         url = httpx.URL(remote_url)
-    except Exception:
+    except Exception:  # noqa: BLE001 - unparseable URL is simply not cacheable
         return False
     if url.scheme not in ("http", "https") or not url.host:
         return False
@@ -253,7 +253,7 @@ def _safe_log_url(remote_url: str) -> str:
     try:
         url = httpx.URL(remote_url)
         return f"{url.scheme}://{url.host}{url.path}"
-    except Exception:
+    except Exception:  # noqa: BLE001 - diagnostic label only
         return "(unparseable URL)"
 
 

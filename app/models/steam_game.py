@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class SteamGame(Base):
@@ -20,7 +21,7 @@ class SteamGame(Base):
     playtime_forever_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Just a hash, not a usable URL by itself — see icon_url below.
     img_icon_url: Mapped[str] = mapped_column(String(200), nullable=False, default="")
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     @property
     def icon_url(self) -> str:

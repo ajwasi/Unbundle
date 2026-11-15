@@ -43,6 +43,7 @@ dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
     "pytest-xdist==3.8.0",
+    "ruff==0.17.5",
 ]
 # psycopg3, not psycopg2 (SQLAlchemy 2.0's actively-recommended modern driver).
 # [binary] vendors a statically-linked libpq in the wheel, so no apt-get
@@ -59,6 +60,16 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.ruff]
+target-version = "py311"
+extend-exclude = ["app/alembic/versions"]
+
+[tool.ruff.lint]
+# F: pyflakes (unused/undefined names). E9: syntax errors. BLE: blind `except
+# Exception` — this app has many deliberate "never crash the page" boundaries,
+# so each one carries a `# noqa: BLE001 - <why>` rather than going unmarked.
+select = ["F", "E9", "BLE"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

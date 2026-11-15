@@ -30,6 +30,7 @@ from app.models.credential import SOURCE_AUDIBLE, STATUS_ERROR, STATUS_OK, Crede
 from app.security import encrypt_json
 
 import audible
+from app.timeutil import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -48,24 +49,8 @@ def save_authenticator(db: Session, auth: audible.Authenticator) -> None:
     db.commit()
 
 
-async def refresh_audible_library(db: Session) -> int:
-    """Returns the number of titles fetched. Raises NotConnectedError —
-    caller surfaces the message."""
-    payload = get_audible_credential(db)
-    if not payload:
-        raise NotConnectedError("Audible is not connected yet — connect it in Settings.")
-
-    try:
-        # from_dict() pops "locale_code" off the dict it's given (confirmed
-        # in audible/auth.py) — pass a copy so a decrypt-then-mutate-then-
-        # re-encrypt round trip never silently drops the stored locale.
-        auth = audible.Authenticator.from_dict(dict(payload))
-        books = await audible_connector.fetch_library(auth)
-        save_authenticator(db, auth)
-    except Exception as exc:
-        _set_credential_status(db, STATUS_ERROR, str(exc))
-        raise
-
+def _upsert_books(db: Session, books: list) -> None:
+    """Brings the audible_book table in line with what the account holds, and commits."""
     # An upsert, not the delete-everything-then-reinsert this used to be:
     # AudibleBookDownload and AudiblePdfDownload both carry a foreign key to
     # audible_book.asin, and on Postgres (unlike this app's own SQLite,
@@ -76,7 +61,7 @@ async def refresh_audible_library(db: Session) -> int:
     # common case (the same books, refreshed); only a book that's actually
     # left the account gets its row deleted at all.
     existing_books = {b.asin: b for b in db.query(AudibleBook).all()}
-    now = datetime.utcnow()
+    now = utcnow()
     for b in books:
         row = existing_books.get(b.asin)
         if row is None:
@@ -113,38 +98,53 @@ async def refresh_audible_library(db: Session) -> int:
         db.query(AudibleBook).filter(AudibleBook.asin.in_(removed_asins)).delete(synchronize_session=False)
     db.commit()
 
+
+async def _refresh_enrichment(db: Session, what: str, kept: str, model: type, fetch):
+    """One optional enrichment step (series, authors, author profiles): fetch
+    fresh rows and replace the cache table with them. These are nice-to-have —
+    a failure keeps the previous data and is only logged, never failing the
+    library refresh itself. Returns the new rows, or None if the fetch failed.
+    """
     try:
-        series_rows = await _fetch_series_rows(auth, books)
-    except Exception as exc:
-        logger.warning("audible: series refresh failed, keeping previous series data: %s", exc)
-        series_rows = None
-    if series_rows is not None:
-        db.query(AudibleSeriesBook).delete()
-        for row in series_rows:
-            db.add(row)
-        db.commit()
+        rows = await fetch()
+    except Exception as exc:  # noqa: BLE001 - optional enrichment: keep the previous data
+        logger.warning("audible: %s refresh failed, keeping previous %s data: %s", what, kept, exc)
+        return None
+    db.query(model).delete()
+    for row in rows:
+        db.add(row)
+    db.commit()
+    return rows
+
+
+async def refresh_audible_library(db: Session) -> int:
+    """Returns the number of titles fetched. Raises NotConnectedError —
+    caller surfaces the message."""
+    payload = get_audible_credential(db)
+    if not payload:
+        raise NotConnectedError("Audible is not connected yet — connect it in Settings.")
 
     try:
-        author_rows = await _fetch_author_rows(auth, books)
+        # from_dict() pops "locale_code" off the dict it's given (confirmed
+        # in audible/auth.py) — pass a copy so a decrypt-then-mutate-then-
+        # re-encrypt round trip never silently drops the stored locale.
+        auth = audible.Authenticator.from_dict(dict(payload))
+        books = await audible_connector.fetch_library(auth)
+        save_authenticator(db, auth)
     except Exception as exc:
-        logger.warning("audible: author refresh failed, keeping previous author data: %s", exc)
-        author_rows = None
+        _set_credential_status(db, STATUS_ERROR, str(exc))
+        raise
+
+    _upsert_books(db, books)
+
+    await _refresh_enrichment(db, "series", "series", AudibleSeriesBook, lambda: _fetch_series_rows(auth, books))
+    author_rows = await _refresh_enrichment(
+        db, "author", "author", AudibleAuthorBook, lambda: _fetch_author_rows(auth, books)
+    )
     if author_rows is not None:
-        db.query(AudibleAuthorBook).delete()
-        for row in author_rows:
-            db.add(row)
-        db.commit()
-
-        try:
-            profile_rows = await _fetch_author_profiles(author_rows)
-        except Exception as exc:
-            logger.warning("audible: author profile refresh failed, keeping previous profile data: %s", exc)
-            profile_rows = None
-        if profile_rows is not None:
-            db.query(AudibleAuthorProfile).delete()
-            for row in profile_rows:
-                db.add(row)
-            db.commit()
+        await _refresh_enrichment(
+            db, "author profile", "profile", AudibleAuthorProfile, lambda: _fetch_author_profiles(author_rows)
+        )
 
     _set_credential_status(db, STATUS_OK, None)
     return len(books)
@@ -166,11 +166,11 @@ async def _fetch_series_rows(
             representative[b.series_asin] = b.series_title
 
     rows: list[AudibleSeriesBook] = []
-    now = datetime.utcnow()
+    now = utcnow()
     for series_asin, series_title in representative.items():
         try:
             children = await audible_connector.fetch_series_children(auth, series_asin)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - one unavailable series is skipped
             logger.warning("audible: series %s unavailable, skipping: %s", series_asin, exc)
             continue
         for asin, sequence in children:
@@ -178,7 +178,7 @@ async def _fetch_series_rows(
                 continue
             try:
                 data = await audible_connector.probe_catalog_product(auth, asin)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - one unavailable book is skipped
                 logger.warning("audible: series book %s unavailable, skipping: %s", asin, exc)
                 continue
             parsed = audible_connector.parse_series_book_item(data.get("product") or {}, sequence)
@@ -241,11 +241,11 @@ async def _fetch_author_rows(
             authors.setdefault(name.casefold(), name)
 
     rows: list[AudibleAuthorBook] = []
-    now = datetime.utcnow()
+    now = utcnow()
     for author_name in authors.values():
         try:
             found = await audible_connector.fetch_author_books(auth, author_name)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - one unavailable author is skipped
             logger.warning("audible: author %s unavailable, skipping: %s", author_name, exc)
             continue
         for parsed in found:
@@ -291,7 +291,7 @@ async def _fetch_one_author_profile(
     async with semaphore:
         try:
             profile = await audible_connector.fetch_author_profile(author_asin)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - one unavailable profile is skipped
             logger.warning("audible: author profile %s unavailable, skipping: %s", author_asin, exc)
             return None
     if profile is None:
@@ -317,7 +317,7 @@ async def _fetch_author_profiles(author_rows: list[AudibleAuthorBook]) -> list[A
     if not author_asins:
         return []
     semaphore = asyncio.Semaphore(_AUDNEXUS_CONCURRENCY)
-    now = datetime.utcnow()
+    now = utcnow()
     results = await asyncio.gather(*(_fetch_one_author_profile(semaphore, asin, now) for asin in author_asins))
     return [row for row in results if row is not None]
 
@@ -367,7 +367,7 @@ async def refresh_audible_wishlist(db: Session) -> dict:
         _set_credential_status(db, STATUS_ERROR, str(exc))
         raise
 
-    now = datetime.utcnow()
+    now = utcnow()
     seen: set[str] = set()
     new = price_changes = 0
 

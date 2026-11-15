@@ -128,6 +128,6 @@ async def refresh_chirp(request: Request, db: Session = Depends(get_db)):
         await chirp_sync.refresh_chirp_library(db)
     except chirp_sync.NotConnectedError:
         pass  # nothing to fetch — the page already shows a "not configured" state
-    except Exception:
+    except Exception:  # noqa: BLE001 - error already recorded on the credential row
         pass  # error already recorded on the credential row by refresh_chirp_library
     return templates.TemplateResponse(request, "chirp/_content.html", _context(db))

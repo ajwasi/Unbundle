@@ -1,10 +1,9 @@
+{% from "_macros.html" import sort_link as shared_sort_link %}
+{# Per-page wrapper: only builds this table's own base URL (its current filters);
+   the link markup itself lives in _macros.html. #}
 {% macro sort_link(col, label) %}
-{% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
-<a href="#"
-   hx-get="/audible?title={{ title | urlencode }}&author={{ author | urlencode }}&narrator={{ narrator | urlencode }}&series={{ series | urlencode }}&runtime_min={{ runtime_min if runtime_min is not none else '' }}&runtime_max={{ runtime_max if runtime_max is not none else '' }}&purchased_from={{ purchased_from.strftime('%Y-%m-%d') if purchased_from else '' }}&purchased_to={{ purchased_to.strftime('%Y-%m-%d') if purchased_to else '' }}&price_min={{ price_min if price_min is not none else '' }}&price_max={{ price_max if price_max is not none else '' }}&rating_min={{ rating_min if rating_min is not none else '' }}&rating_max={{ rating_max if rating_max is not none else '' }}&owned={{ owned | urlencode }}&progress={{ progress | urlencode }}&sort={{ col }}&dir={{ next_dir }}"
-   hx-target="#audible-books-table" hx-swap="outerHTML">
-  {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
-</a>
+{% set base %}/audible?title={{ title | urlencode }}&author={{ author | urlencode }}&narrator={{ narrator | urlencode }}&series={{ series | urlencode }}&runtime_min={{ runtime_min if runtime_min is not none else '' }}&runtime_max={{ runtime_max if runtime_max is not none else '' }}&purchased_from={{ purchased_from.strftime('%Y-%m-%d') if purchased_from else '' }}&purchased_to={{ purchased_to.strftime('%Y-%m-%d') if purchased_to else '' }}&price_min={{ price_min if price_min is not none else '' }}&price_max={{ price_max if price_max is not none else '' }}&rating_min={{ rating_min if rating_min is not none else '' }}&rating_max={{ rating_max if rating_max is not none else '' }}&owned={{ owned | urlencode }}&progress={{ progress | urlencode }}{% endset %}
+{{ shared_sort_link(base, "#audible-books-table", col, label, sort, dir) }}
 {% endmacro %}
 
 {% macro filter_input(name, value, placeholder='', width='9rem', type='search') %}

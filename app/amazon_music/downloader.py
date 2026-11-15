@@ -33,12 +33,12 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from datetime import datetime
 from pathlib import Path
 
 import httpx
 from sqlalchemy.orm import Session
 
+from app import jobqueue
 from app.asyncio_utils import spawn_background_task
 from app.config import settings
 from app.connectors import amazon_music_connector as amc
@@ -58,6 +58,8 @@ from app.models.amazon_music_download import (
 )
 from app.models.amazon_music_track import AmazonMusicTrack
 from app.sync.amazon_music_sync import AmazonMusicRequestError, NoTemplateError, NotConnectedError
+from app.timeutil import utcnow
+from app.http import async_client
 
 # Same courtesy as amazon_music_sync.PAGE_DELAY_SECONDS, applied between
 # tracks instead of between pages.
@@ -166,16 +168,7 @@ def sweep_stale_downloads() -> None:
     global _queue_running, _current_job_id
     _queue_running = False
     _current_job_id = None
-    db = SessionLocal()
-    try:
-        stale = db.query(AmazonMusicDownload).filter(AmazonMusicDownload.status == STATUS_RUNNING).all()
-        for job in stale:
-            job.status = STATUS_FAILED
-            job.completed_at = datetime.utcnow()
-            job.error_message = "Interrupted by application restart."
-        db.commit()
-    finally:
-        db.close()
+    jobqueue.sweep_stale(AmazonMusicDownload, running=STATUS_RUNNING, failed=STATUS_FAILED)
 
 
 def resolve_destination_root(db: Session) -> Path:
@@ -205,7 +198,7 @@ def _guess_extension(delivery_url: str) -> str:
     """
     try:
         suffix = Path(httpx.URL(delivery_url).path).suffix
-    except Exception:
+    except Exception:  # noqa: BLE001 - extension guess falls back to .mp3
         suffix = ""
     return suffix or ".mp3"
 
@@ -239,7 +232,7 @@ async def _build_session(db: Session, _retried: bool = False) -> tuple[httpx.Asy
             "in Settings before downloading."
         )
 
-    client = httpx.AsyncClient(cookies=cookies, headers=probe.BASE_HEADERS, timeout=30.0, follow_redirects=True)
+    client = async_client(cookies=cookies, headers=probe.BASE_HEADERS, timeout=30.0, follow_redirects=True)
     try:
         resp = await client.get(amc.config_url())
         if resp.status_code in (401, 403):
@@ -368,12 +361,12 @@ async def _drain_queue() -> None:
                 return
             try:
                 client, headers_field, user_hash = await _build_session(db)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - account-level failure fails the queued batch; recorded on the rows
                 # An account-level failure (no login, no template, expired
                 # session) fails the whole queued batch at once with the same
                 # message, rather than retrying the same broken session once
                 # per track — see the module docstring.
-                now = datetime.utcnow()
+                now = utcnow()
                 for job in db.query(AmazonMusicDownload).filter(AmazonMusicDownload.status == STATUS_QUEUED).all():
                     job.status = STATUS_FAILED
                     job.error_message = str(exc)
@@ -414,7 +407,7 @@ async def _run_one(job_id: int, download_id: str, client: httpx.AsyncClient, hea
     try:
         job = db.get(AmazonMusicDownload, job_id)
         job.status = STATUS_RUNNING
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
         db.commit()
 
         dest_path: Path | None = None
@@ -462,7 +455,7 @@ async def _run_one(job_id: int, download_id: str, client: httpx.AsyncClient, hea
         except Exception as exc:  # noqa: BLE001 - surfaced on the job row, never a crash
             job.status = STATUS_FAILED
             job.error_message = str(exc)
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow()
             db.commit()
             if dest_path is not None:
                 safe_unlink(dest_path)
@@ -476,7 +469,7 @@ async def _run_one(job_id: int, download_id: str, client: httpx.AsyncClient, hea
         else:
             job.status = STATUS_FAILED
             job.error_message = "Downloaded file is missing or empty."
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utcnow()
         db.commit()
     finally:
         db.close()

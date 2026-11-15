@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 STATUS_QUEUED = "queued"
 STATUS_RUNNING = "running"
@@ -32,6 +33,6 @@ class DownloadJob(Base):
     requested_formats: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=STATUS_QUEUED)
     error_message: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    queued_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    queued_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

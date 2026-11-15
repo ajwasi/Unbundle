@@ -16,14 +16,13 @@ on every ~1.5s progress tick for numbers that are only ever meant to be live.
 import asyncio
 import contextlib
 import json
-from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.asyncio_utils import spawn_background_task
 from app.config import settings
 from app.connectors.humble_connector import parse_bundle
+from app import jobqueue
 from app.db import SessionLocal
 from app.downloads import paths, relocate, runner
 from app.models.bundle import Bundle
@@ -36,6 +35,7 @@ from app.models.download_job import (
     DownloadJob,
 )
 from app.models.download_settings import DownloadSettings
+from app.timeutil import utcnow
 
 # Job ids currently executing (spawned as asyncio tasks) — bounded by the
 # configured concurrency limit; everything else waits in the DB as
@@ -128,19 +128,9 @@ def is_download_running() -> bool:
 
 def sweep_stale_jobs() -> None:
     """Call on app startup — a container restart mid-download would otherwise
-    leave a download_job stuck in 'running' forever (same reasoning as
-    refresh.sweep_stale_runs).
+    leave a download_job stuck in 'running' forever (see jobqueue.sweep_stale).
     """
-    db = SessionLocal()
-    try:
-        stale = db.query(DownloadJob).filter(DownloadJob.status == JOB_RUNNING).all()
-        for job in stale:
-            job.status = JOB_FAILED
-            job.finished_at = datetime.utcnow()
-            job.error_message = "Interrupted by application restart."
-        db.commit()
-    finally:
-        db.close()
+    jobqueue.sweep_stale(DownloadJob, running=JOB_RUNNING, failed=JOB_FAILED, finished_attr="finished_at")
 
 
 def latest_job_for_bundle(db: Session, gamekey: str) -> DownloadJob | None:
@@ -194,18 +184,17 @@ async def try_dispatch_queued_downloads() -> None:
     """
     db = SessionLocal()
     try:
-        limit = _current_concurrency_limit(db)
-        while len(_running_job_ids) < limit:
-            next_job = db.query(DownloadJob).filter(DownloadJob.status == JOB_QUEUED).order_by(DownloadJob.id).first()
-            if next_job is None:
-                break
-            next_job.status = JOB_RUNNING
-            next_job.started_at = datetime.utcnow()
-            db.commit()
-            indices = _parse_indices(next_job.requested_indices)
-            formats = _parse_formats(next_job.requested_formats)
-            _running_job_ids.add(next_job.id)
-            spawn_background_task(_run_job(next_job.id, next_job.gamekey, indices, formats))
+        jobqueue.dispatch_queued(
+            db,
+            DownloadJob,
+            queued=JOB_QUEUED,
+            running=JOB_RUNNING,
+            running_ids=_running_job_ids,
+            limit=_current_concurrency_limit(db),
+            make_task=lambda _db, job: _run_job(
+                job.id, job.gamekey, _parse_indices(job.requested_indices), _parse_formats(job.requested_formats)
+            ),
+        )
     finally:
         db.close()
 
@@ -221,7 +210,7 @@ async def _poll_progress(job_id: int, bundle_name: str, expected: list, download
     """
     bytes_total = sum(item.expected_size_bytes for item in expected)
     last_bytes = 0
-    last_time = datetime.utcnow()
+    last_time = utcnow()
     try:
         while True:
             await asyncio.sleep(1.5)
@@ -235,7 +224,7 @@ async def _poll_progress(job_id: int, bundle_name: str, expected: list, download
                 check_path = paths.long_path_safe(abs_path)
                 if check_path.is_file():
                     bytes_done += check_path.stat().st_size
-            now = datetime.utcnow()
+            now = utcnow()
             elapsed = (now - last_time).total_seconds()
             bytes_per_sec = max(0.0, (bytes_done - last_bytes) / elapsed) if elapsed > 0 else 0.0
             _progress[job_id] = {
@@ -248,6 +237,161 @@ async def _poll_progress(job_id: int, bundle_name: str, expected: list, download
         pass
 
 
+def _download_row(db: Session, *, gamekey: str, job_id: int, bundle_name: str, item) -> Download:
+    """The Download row for one expected file, created if this is its first
+    attempt, with the fields that describe *this* job refreshed.
+
+    One query per item rather than a bulk prefetch (contrast sync/refresh.py)
+    — deliberately left this way: an expected list is bounded by one bundle's
+    own subproduct count (single digits to low dozens), and this runs once per
+    file inside a job already dominated by real download I/O (seconds to
+    minutes), not by these sub-millisecond, already-indexed lookups. Worth
+    bulk-fetching if this ever processes whole-library-sized batches like
+    refresh_library does; not worth the extra state for what it does today.
+    """
+    row = (
+        db.query(Download)
+        .filter(
+            Download.gamekey == gamekey,
+            Download.item_name == item.item_name,
+            Download.original_filename == item.original_filename,
+        )
+        .one_or_none()
+    )
+    if row is None:
+        row = Download(gamekey=gamekey, item_name=item.item_name, original_filename=item.original_filename)
+        db.add(row)
+    row.download_job_id = job_id
+    row.bundle_name = bundle_name
+    row.subproduct_index = item.subproduct_index
+    row.file_format = item.file_format
+    row.source_url = item.source_url
+    return row
+
+
+def _plan_run(db: Session, gamekey: str, indices: list[int] | None, formats: list[str] | None, downloads: list):
+    """(todo, run_indices): the files this job still has to fetch, and the
+    subproduct indices to hand humble-cli.
+
+    Items already on disk (see _is_on_disk) are left out of the run entirely:
+    not handed to humble-cli, and not re-verified afterwards — their existing
+    completed rows already say where they are. When some were left out the
+    indices are narrowed to just what remains; otherwise the caller's own
+    selection is passed through untouched.
+    """
+    expected = [
+        item
+        for item in downloads
+        if (not indices or item.subproduct_index in indices) and (not formats or item.file_format in formats)
+    ]
+    completed = {
+        (d.item_name, d.original_filename): d
+        for d in db.query(Download).filter(Download.gamekey == gamekey, Download.status == FILE_COMPLETED)
+    }
+    todo = [item for item in expected if not _is_on_disk(completed.get((item.item_name, item.original_filename)))]
+    run_indices = sorted({item.subproduct_index for item in todo}) if len(todo) != len(expected) else indices
+    return todo, run_indices
+
+
+async def _run_humble_cli(
+    job_id: int, gamekey: str, bundle_name: str, todo: list, run_indices, formats, downloads_root
+) -> tuple[int, str]:
+    """(returncode, output). Nothing to fetch is a clean success, without
+    spawning the process. While it runs, a sibling task polls the predicted
+    file paths for progress (see _poll_progress) and is cancelled afterwards."""
+    if not todo:
+        return 0, ""
+    poll_task = asyncio.create_task(_poll_progress(job_id, bundle_name, todo, downloads_root))
+    try:
+        return await runner.run_download_job(settings.humble_cli_path, gamekey, run_indices, formats, downloads_root)
+    finally:
+        poll_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await poll_task
+
+
+def _verify_item(db: Session, *, gamekey: str, job_id: int, bundle_name: str, item, downloads_root) -> bool:
+    """Checks that one expected file really landed, and records the result on
+    its Download row (relocating it on first success). True when it's fine."""
+    rel_path = paths.predict_download_path(bundle_name, item.item_name, item.original_filename)
+    try:
+        abs_path = paths.resolve_within(downloads_root, rel_path)
+    except paths.PathTraversalError as exc:
+        row = _download_row(db, gamekey=gamekey, job_id=job_id, bundle_name=bundle_name, item=item)
+        row.status = FILE_FAILED
+        row.error_message = str(exc)
+        db.flush()
+        return False
+
+    check_path = paths.long_path_safe(abs_path)
+    exists = check_path.is_file()
+    actual_size = check_path.stat().st_size if exists else 0
+    # Not an exact match against item.expected_size_bytes: confirmed against a real
+    # account (2026-09-06) that Humble's own API-reported file_size can be stale
+    # relative to the file actually served (observed both directions — one book's
+    # real file was ~5x larger than its metadata, another ~20% smaller). humble-cli
+    # itself never validates size after a fresh download either, only uses it to
+    # decide whether to skip re-fetching an already-present file. Non-empty + present
+    # is the honest success signal; exact-match produced false "failed" verdicts on
+    # genuinely-successful downloads.
+    ok = exists and actual_size > 0
+
+    row = _download_row(db, gamekey=gamekey, job_id=job_id, bundle_name=bundle_name, item=item)
+    # Ground truth (the file actually on disk) once we have it, not Humble's
+    # metadata value — see the "ok" comment above on why they can disagree.
+    row.expected_size_bytes = actual_size if ok else item.expected_size_bytes
+    if ok:
+        row.status = FILE_COMPLETED
+        row.error_message = ""
+        row.progress_bytes = actual_size
+        row.original_download_path = row.original_download_path or str(rel_path)
+        row.current_location_type = row.current_location_type or "local"
+        # Only attempt relocation the first time this row completes — on a
+        # re-verify of an already-completed row, current_location_path is
+        # already set (and the file already moved away from check_path),
+        # so re-running this would just fail to find it at the old spot.
+        if not row.current_location_path:
+            final_path = abs_path
+            # humble-cli names the file straight from its download URL, which
+            # is what check_path/abs_path point at here — humanize it (pure
+            # underscore->space swap, see paths.humanize_filename) before any
+            # configured relocation, so the filename a human actually sees is
+            # legible. Best-effort: a rename failure (e.g. a same-named file
+            # already sitting there) just leaves the original name in place
+            # rather than failing an otherwise-successful download.
+            humanized_name = paths.humanize_filename(abs_path.name)
+            if humanized_name != abs_path.name:
+                candidate = abs_path.with_name(humanized_name)
+                try:
+                    check_path.rename(paths.long_path_safe(candidate))
+                    final_path = candidate
+                    check_path = paths.long_path_safe(candidate)
+                except OSError:
+                    pass
+            dest_dir = relocate.resolve_destination(db, gamekey, item.machine_name, item.file_format)
+            if dest_dir is not None:
+                try:
+                    final_path = relocate.relocate(check_path, dest_dir)
+                except OSError as exc:
+                    row.error_message = f"Downloaded but failed to relocate: {exc}"
+            row.current_location_path = str(final_path)
+        row.completed_at = utcnow()
+    else:
+        row.status = FILE_FAILED
+        row.error_message = "File not found or wrong size after download attempt."
+    db.flush()
+    return ok
+
+
+def _job_outcome(returncode: int, output: str, any_failed: bool) -> tuple[str, str]:
+    """(status, error_message) for the job as a whole; message is empty on success."""
+    if returncode != 0:
+        return JOB_FAILED, f"humble-cli exited with code {returncode}. Output tail: {output[-500:]}"
+    if any_failed:
+        return JOB_FAILED, "One or more files did not verify after download — see item statuses below."
+    return JOB_COMPLETED, ""
+
+
 async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats: list[str] | None) -> None:
     db = SessionLocal()
     try:
@@ -257,156 +401,27 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
             downloads_root = settings.downloads_dir
             bundle = db.get(Bundle, gamekey)
             normalized = parse_bundle(gamekey, json.loads(bundle.raw_json))
-            expected = [
-                item
-                for item in normalized.downloads
-                if (not indices or item.subproduct_index in indices)
-                and (not formats or item.file_format in formats)
-            ]
+            todo, run_indices = _plan_run(db, gamekey, indices, formats, normalized.downloads)
 
-            # Items already on disk (see _is_on_disk) are left out of this run
-            # entirely: not handed to humble-cli, and not re-verified below —
-            # their existing completed rows already say where they are.
-            completed = {
-                (d.item_name, d.original_filename): d
-                for d in db.query(Download).filter(Download.gamekey == gamekey, Download.status == FILE_COMPLETED)
-            }
-            todo = [item for item in expected if not _is_on_disk(completed.get((item.item_name, item.original_filename)))]
-            run_indices = sorted({item.subproduct_index for item in todo}) if len(todo) != len(expected) else indices
-
-            if todo:
-                poll_task = asyncio.create_task(_poll_progress(job_id, bundle.name, todo, downloads_root))
-                try:
-                    returncode, output = await runner.run_download_job(
-                        settings.humble_cli_path, gamekey, run_indices, formats, downloads_root
-                    )
-                finally:
-                    poll_task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await poll_task
-            else:
-                returncode, output = 0, ""
-
-            def _row_for(item) -> Download:
-                # One query per item rather than a bulk prefetch (contrast
-                # sync/refresh.py) — deliberately left this way: `expected` is
-                # bounded by one bundle's own subproduct count (single digits to
-                # low dozens), and this whole function runs once per completed
-                # file inside a job that's already dominated by real download
-                # I/O (seconds to minutes), not by these sub-millisecond,
-                # already-indexed lookups. Worth bulk-fetching if this ever
-                # processes whole-library-sized batches like refresh_library
-                # does; not worth the extra state for what it does today.
-                row = (
-                    db.query(Download)
-                    .filter(
-                        Download.gamekey == gamekey,
-                        Download.item_name == item.item_name,
-                        Download.original_filename == item.original_filename,
-                    )
-                    .one_or_none()
-                )
-                if row is None:
-                    row = Download(
-                        gamekey=gamekey,
-                        item_name=item.item_name,
-                        original_filename=item.original_filename,
-                    )
-                    db.add(row)
-                row.download_job_id = job_id
-                row.bundle_name = bundle.name
-                row.subproduct_index = item.subproduct_index
-                row.file_format = item.file_format
-                row.source_url = item.source_url
-                return row
+            returncode, output = await _run_humble_cli(
+                job_id, gamekey, bundle.name, todo, run_indices, formats, downloads_root
+            )
 
             any_failed = False
             for item in todo:
-                rel_path = paths.predict_download_path(bundle.name, item.item_name, item.original_filename)
-                try:
-                    abs_path = paths.resolve_within(downloads_root, rel_path)
-                except paths.PathTraversalError as exc:
-                    row = _row_for(item)
-                    row.status = FILE_FAILED
-                    row.error_message = str(exc)
-                    db.flush()
+                if not _verify_item(
+                    db, gamekey=gamekey, job_id=job_id, bundle_name=bundle.name, item=item, downloads_root=downloads_root
+                ):
                     any_failed = True
-                    continue
 
-                check_path = paths.long_path_safe(abs_path)
-                exists = check_path.is_file()
-                actual_size = check_path.stat().st_size if exists else 0
-                # Not an exact match against item.expected_size_bytes: confirmed against a real
-                # account (2026-09-06) that Humble's own API-reported file_size can be stale
-                # relative to the file actually served (observed both directions — one book's
-                # real file was ~5x larger than its metadata, another ~20% smaller). humble-cli
-                # itself never validates size after a fresh download either, only uses it to
-                # decide whether to skip re-fetching an already-present file. Non-empty + present
-                # is the honest success signal; exact-match produced false "failed" verdicts on
-                # genuinely-successful downloads.
-                ok = exists and actual_size > 0
-
-                row = _row_for(item)
-                # Ground truth (the file actually on disk) once we have it, not Humble's
-                # metadata value — see the "ok" comment above on why they can disagree.
-                row.expected_size_bytes = actual_size if ok else item.expected_size_bytes
-                if ok:
-                    row.status = FILE_COMPLETED
-                    row.error_message = ""
-                    row.progress_bytes = actual_size
-                    row.original_download_path = row.original_download_path or str(rel_path)
-                    row.current_location_type = row.current_location_type or "local"
-                    # Only attempt relocation the first time this row completes — on a
-                    # re-verify of an already-completed row, current_location_path is
-                    # already set (and the file already moved away from check_path),
-                    # so re-running this would just fail to find it at the old spot.
-                    if not row.current_location_path:
-                        final_path = abs_path
-                        # humble-cli names the file straight from its download URL, which
-                        # is what check_path/abs_path point at here — humanize it (pure
-                        # underscore->space swap, see paths.humanize_filename) before any
-                        # configured relocation, so the filename a human actually sees is
-                        # legible. Best-effort: a rename failure (e.g. a same-named file
-                        # already sitting there) just leaves the original name in place
-                        # rather than failing an otherwise-successful download.
-                        humanized_name = paths.humanize_filename(abs_path.name)
-                        if humanized_name != abs_path.name:
-                            candidate = abs_path.with_name(humanized_name)
-                            try:
-                                check_path.rename(paths.long_path_safe(candidate))
-                                final_path = candidate
-                                check_path = paths.long_path_safe(candidate)
-                            except OSError:
-                                pass
-                        dest_dir = relocate.resolve_destination(
-                            db, gamekey, item.machine_name, item.file_format
-                        )
-                        if dest_dir is not None:
-                            try:
-                                final_path = relocate.relocate(check_path, dest_dir)
-                            except OSError as exc:
-                                row.error_message = f"Downloaded but failed to relocate: {exc}"
-                        row.current_location_path = str(final_path)
-                    row.completed_at = datetime.utcnow()
-                else:
-                    any_failed = True
-                    row.status = FILE_FAILED
-                    row.error_message = "File not found or wrong size after download attempt."
-                db.flush()
-
-            if returncode != 0:
-                job.status = JOB_FAILED
-                job.error_message = f"humble-cli exited with code {returncode}. Output tail: {output[-500:]}"
-            elif any_failed:
-                job.status = JOB_FAILED
-                job.error_message = "One or more files did not verify after download — see item statuses below."
-            else:
-                job.status = JOB_COMPLETED
+            job.status, message = _job_outcome(returncode, output, any_failed)
+            if message:
+                job.error_message = message
         except Exception as exc:  # noqa: BLE001 - last-resort guard so download_job never hangs at 'running'
             job.status = JOB_FAILED
             job.error_message = f"Unexpected error: {exc}"
 
-        job.finished_at = datetime.utcnow()
+        job.finished_at = utcnow()
         db.commit()
     finally:
         _running_job_ids.discard(job_id)

@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import SessionLocal, engine
 from app.models.backup_settings import BackupSettings
+from app.timeutil import utcnow
 
 _SCHEDULER_POLL_SECONDS = 600  # 10 min — plenty of resolution for a once-daily schedule
 _SQLITE_MAGIC = b"SQLite format 3\x00"
@@ -81,7 +82,7 @@ def _backup_filename(now: datetime) -> str:
 
 def create_backup(db: Session) -> Path:
     backups_dir().mkdir(parents=True, exist_ok=True)
-    dest = backups_dir() / _backup_filename(datetime.utcnow())
+    dest = backups_dir() / _backup_filename(utcnow())
 
     src = sqlite3.connect(db_file_path())
     try:
@@ -94,7 +95,7 @@ def create_backup(db: Session) -> Path:
         src.close()
 
     cfg = get_or_create_backup_settings(db)
-    cfg.last_backup_at = datetime.utcnow()
+    cfg.last_backup_at = utcnow()
     db.commit()
 
     _enforce_retention(cfg.retention_count)
@@ -160,9 +161,9 @@ async def run_scheduler_loop() -> None:
         db = SessionLocal()
         try:
             cfg = get_or_create_backup_settings(db)
-            if _is_due(cfg, datetime.utcnow()):
+            if _is_due(cfg, utcnow()):
                 create_backup(db)
-        except Exception:
+        except Exception:  # noqa: BLE001 - one failed backup must not kill the scheduler loop
             # Never let one failed backup attempt kill the whole scheduler loop.
             traceback.print_exc(file=sys.stderr)
         finally:

@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class NavidromeAlbum(Base):
@@ -20,4 +21,4 @@ class NavidromeAlbum(Base):
     album_id: Mapped[str] = mapped_column(String(50), primary_key=True)
     name: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     artist: Mapped[str] = mapped_column(String(300), nullable=False, default="")
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

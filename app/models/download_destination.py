@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class DownloadDestination(Base):
@@ -30,4 +31,4 @@ class DownloadDestination(Base):
     formats: Mapped[str] = mapped_column(Text, nullable=False, default="")
     tag_id: Mapped[int | None] = mapped_column(ForeignKey("tag.id"), nullable=True)
     path: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

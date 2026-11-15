@@ -8,12 +8,12 @@ discovery (no network call until authorize_redirect/authorize_access_token
 actually run) — cheap enough to not need caching for a single-user tool.
 """
 
-import httpx
 from authlib.integrations.starlette_client import OAuth
 from sqlalchemy.orm import Session
 
 from app.models.credential import SOURCE_OIDC, Credential
 from app.security import has_db_password
+from app.http import async_client
 
 OIDC_SCOPES = "openid profile email"
 
@@ -94,7 +94,7 @@ async def discover(issuer: str) -> dict:
     Raises on any failure — callers turn that into a user-facing error message.
     """
     issuer = issuer.rstrip("/")
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with async_client(timeout=10) as client:
         resp = await client.get(f"{issuer}/.well-known/openid-configuration")
         resp.raise_for_status()
     data = resp.json()

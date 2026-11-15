@@ -19,9 +19,9 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-import httpx
 
 from app.config import settings
+from app.http import async_client
 
 CATALOG_URL = "https://catalog.gog.com/v1/catalog"
 TTL_SECONDS = 1800
@@ -148,7 +148,7 @@ async def fetch_deals(force: bool = False) -> tuple[list[GogDeal], int]:
 
     deals: list[GogDeal] = []
     total = 0
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
+    async with async_client(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
         for page in range(1, MAX_PAGES + 1):
             resp = await client.get(
                 CATALOG_URL,

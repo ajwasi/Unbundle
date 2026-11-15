@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class AudibleWishlistItem(Base):
@@ -42,8 +43,8 @@ class AudibleWishlistItem(Base):
 
     added_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     # Set when an item stops appearing — bought, or removed on Amazon's side.
     # Flagged rather than deleted so its price history survives.
     removed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -75,4 +76,4 @@ class AudibleWishlistPrice(Base):
     price: Mapped[float | None] = mapped_column(Float, nullable=True)
     list_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="")
-    captured_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    captured_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

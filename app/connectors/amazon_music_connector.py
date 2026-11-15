@@ -291,7 +291,7 @@ def parse_next_cursor(payload: dict) -> str:
             continue
         try:
             url = httpx.URL(text)
-        except Exception:
+        except Exception:  # noqa: BLE001 - skip an unparseable URL
             continue
         token = url.params.get("next")
         if token:
@@ -323,7 +323,7 @@ def find_signed_download_url(payload: Any) -> str:
             continue
         try:
             url = httpx.URL(text)
-        except Exception:
+        except Exception:  # noqa: BLE001 - skip an unparseable URL
             continue
         host = url.host or ""
         if (host == "cloudfront.net" or host.endswith(".cloudfront.net")) and "cdoid" in url.params:
@@ -348,7 +348,7 @@ def parse_delivery_url_metadata(delivery_url: str) -> dict:
     """
     try:
         url = httpx.URL(delivery_url)
-    except Exception:
+    except Exception:  # noqa: BLE001 - unparseable URL yields no metadata
         return {}
     isrc = url.params.get("isrc") or ""
     pt = url.params.get("pt") or ""

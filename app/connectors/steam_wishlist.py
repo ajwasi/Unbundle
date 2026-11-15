@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
+from app.http import async_client
 
 WISHLIST_URL = "https://api.steampowered.com/IWishlistService/GetWishlist/v1/"
 APPDETAILS_URL = "https://store.steampowered.com/api/appdetails"
@@ -136,7 +137,7 @@ def parse_app_details(appid: int, payload: dict) -> SteamAppDetails | None:
 
 
 async def fetch_wishlist(steamid: str, timeout: float = 25.0) -> list[SteamWishlistEntry]:
-    async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": USER_AGENT}) as client:
+    async with async_client(timeout=timeout, headers={"User-Agent": USER_AGENT}) as client:
         resp = await client.get(WISHLIST_URL, params={"steamid": steamid})
         if resp.status_code >= 400:
             raise SteamWishlistError(
@@ -157,5 +158,5 @@ async def fetch_app_details(
         return None
     try:
         return parse_app_details(appid, resp.json())
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort lookup; None on any failure
         return None

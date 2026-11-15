@@ -14,6 +14,7 @@ already flags Steam's.
 import httpx
 
 from app.connectors.types import CredentialStatus
+from app.http import async_client
 
 _TIMEOUT_SECONDS = 15
 
@@ -42,7 +43,7 @@ def _normalize_base_url(base_url: str) -> str:
 
 
 async def fetch_libraries(base_url: str, api_token: str) -> list[AudiobookShelfLibraryData]:
-    async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+    async with async_client(timeout=_TIMEOUT_SECONDS) as client:
         resp = await client.get(f"{_normalize_base_url(base_url)}/api/libraries", headers=_headers(api_token))
     if resp.status_code == 401:
         raise ValueError("AudiobookShelf rejected this API token.")
@@ -90,7 +91,7 @@ async def fetch_library_items(base_url: str, api_token: str, library_id: str = "
             raise ValueError("No audiobook library (mediaType \"book\") found on this AudiobookShelf server.")
         resolved_id = book_library.id
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+    async with async_client(timeout=_TIMEOUT_SECONDS) as client:
         resp = await client.get(
             f"{_normalize_base_url(base_url)}/api/libraries/{resolved_id}/items",
             headers=_headers(api_token),

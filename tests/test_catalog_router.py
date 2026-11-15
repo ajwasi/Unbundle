@@ -1,12 +1,13 @@
 from app.models.download import STATUS_COMPLETED, Download
 from app.models.tag import ItemTag, Tag
-from app.routers.catalog import _avg_item_value, _build_catalog, _rows_from_catalog
+from app.routers.catalog import _rows_from_catalog
+from app.services.catalog import avg_item_value, build_catalog
 from tests.factories import make_order, make_subproduct
 
 
 def test_build_catalog_keys_by_machine_name(db, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("A Book", machine_name="abook")]))
-    catalog = _build_catalog(db)
+    catalog = build_catalog(db)
     assert "abook" in catalog
     assert catalog["abook"]["item_name"] == "A Book"
 
@@ -14,7 +15,7 @@ def test_build_catalog_keys_by_machine_name(db, make_bundle):
 def test_build_catalog_detects_duplicate_purchase_across_bundles(db, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Same Book", machine_name="samebook")]))
     make_bundle(gamekey="GK2", order=make_order(subproducts=[make_subproduct("Same Book", machine_name="samebook")]))
-    catalog = _build_catalog(db)
+    catalog = build_catalog(db)
     assert len(catalog["samebook"]["bundles"]) == 2
 
 
@@ -23,7 +24,7 @@ def test_build_catalog_includes_item_count_per_bundle(db, make_bundle):
         gamekey="GK1",
         order=make_order(subproducts=[make_subproduct("A", machine_name="a"), make_subproduct("B", machine_name="b")]),
     )
-    catalog = _build_catalog(db)
+    catalog = build_catalog(db)
     assert catalog["a"]["bundles"][0]["item_count"] == 2
 
 
@@ -32,13 +33,13 @@ def test_build_catalog_marks_a_bundle_copy_downloaded_once_all_variants_complete
     db.add(Download(gamekey="GK1", item_name="A Book", original_filename="book.epub", status=STATUS_COMPLETED))
     db.commit()
 
-    catalog = _build_catalog(db)
+    catalog = build_catalog(db)
     assert catalog["abook"]["bundles"][0]["downloaded"] is True
 
 
 def test_build_catalog_marks_a_bundle_copy_not_downloaded_with_no_download_row(db, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("A Book", machine_name="abook")]))
-    catalog = _build_catalog(db)
+    catalog = build_catalog(db)
     assert catalog["abook"]["bundles"][0]["downloaded"] is False
 
 
@@ -50,7 +51,7 @@ def test_rows_from_catalog_counts_downloaded_copies_independently_per_bundle(db,
     db.add(Download(gamekey="GK1", item_name="Dup", original_filename="book.epub", status=STATUS_COMPLETED))
     db.commit()
 
-    catalog = _build_catalog(db)
+    catalog = build_catalog(db)
     rows = _rows_from_catalog(catalog)
     row = next(r for r in rows if r["key"] == "dup")
     assert row["count"] == 2
@@ -60,7 +61,7 @@ def test_rows_from_catalog_counts_downloaded_copies_independently_per_bundle(db,
 def test_build_catalog_skips_items_with_no_machine_name(db, make_bundle):
     order = make_order(subproducts=[{"human_name": "No Machine Name", "downloads": []}])
     make_bundle(gamekey="GK1", order=order)
-    catalog = _build_catalog(db)
+    catalog = build_catalog(db)
     assert catalog == {}
 
 
@@ -68,14 +69,14 @@ def test_build_catalog_is_cached_across_calls(db, make_bundle):
     from sqlalchemy import event
 
     make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("A Book", machine_name="abook")]))
-    _build_catalog(db)  # warm the cache
+    build_catalog(db)  # warm the cache
 
     statements = []
     engine = db.get_bind()
     listener = lambda conn, cursor, statement, *a: statements.append(statement)
     event.listen(engine, "before_cursor_execute", listener)
     try:
-        result = _build_catalog(db)
+        result = build_catalog(db)
     finally:
         event.remove(engine, "before_cursor_execute", listener)
 
@@ -86,11 +87,11 @@ def test_build_catalog_is_cached_across_calls(db, make_bundle):
 
 def test_build_catalog_cache_invalidates_when_a_bundle_is_added(db, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("First Book", machine_name="first")]))
-    first = _build_catalog(db)
+    first = build_catalog(db)
     assert "second" not in first
 
     make_bundle(gamekey="GK2", order=make_order(subproducts=[make_subproduct("Second Book", machine_name="second")]))
-    second = _build_catalog(db)
+    second = build_catalog(db)
     assert "second" in second
 
 
@@ -99,25 +100,25 @@ def test_build_catalog_cache_does_not_leak_between_tests_a(db, make_bundle):
     # _fresh_catalog_cache fixture actually resets the module-level cache,
     # not just that caching works within one test.
     make_bundle(gamekey="ONLY_IN_A", order=make_order(subproducts=[make_subproduct("Only In A", machine_name="onlyina")]))
-    assert "onlyina" in _build_catalog(db)
+    assert "onlyina" in build_catalog(db)
 
 
 def test_build_catalog_cache_does_not_leak_between_tests_b(db, make_bundle):
     make_bundle(gamekey="ONLY_IN_B", order=make_order(subproducts=[make_subproduct("Only In B", machine_name="onlyinb")]))
-    catalog = _build_catalog(db)
+    catalog = build_catalog(db)
     assert "onlyinb" in catalog
     assert "onlyina" not in catalog
 
 
 def test_avg_item_value_averages_per_bundle_effective_price():
     bundles = [{"amount_spent": 18.0, "item_count": 29}, {"amount_spent": 20.0, "item_count": 29}, {"amount_spent": 18.0, "item_count": 32}]
-    result = _avg_item_value(bundles)
+    result = avg_item_value(bundles)
     expected = (18.0 / 29 + 20.0 / 29 + 18.0 / 32) / 3
     assert abs(result - expected) < 1e-9
 
 
 def test_avg_item_value_returns_none_for_empty_list():
-    assert _avg_item_value([]) is None
+    assert avg_item_value([]) is None
 
 
 def test_catalog_page_shows_download_progress_column(authed_client, make_bundle, db):
@@ -200,7 +201,7 @@ def test_catalog_rows_respects_search_filter_across_pages(authed_client, make_bu
 
 def test_avg_item_value_ignores_zero_item_count_bundles():
     bundles = [{"amount_spent": 10.0, "item_count": 0}, {"amount_spent": 20.0, "item_count": 2}]
-    assert _avg_item_value(bundles) == 10.0
+    assert avg_item_value(bundles) == 10.0
 
 
 def test_rows_from_catalog_computes_first_purchased_as_earliest():

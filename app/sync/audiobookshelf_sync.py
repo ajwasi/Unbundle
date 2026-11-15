@@ -11,13 +11,13 @@ philosophy, and fast enough (one or two API calls) to run inline in the
 request.
 """
 
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.connectors import audiobookshelf_connector
 from app.models.audiobookshelf_item import AudiobookShelfItem
-from app.models.credential import SOURCE_AUDIOBOOKSHELF, STATUS_ERROR, STATUS_OK, Credential
+from app.models.credential import SOURCE_AUDIOBOOKSHELF, Credential
+from app.sync.media_cache import refresh_media_cache
 
 
 class NotConnectedError(Exception):
@@ -32,34 +32,25 @@ async def refresh_audiobookshelf_library(db: Session) -> int:
     """Returns the number of items fetched. Raises NotConnectedError or
     ValueError (bad token, unreachable server, no book library) — caller
     surfaces the message."""
-    payload = get_audiobookshelf_credential(db)
-    if not payload:
-        raise NotConnectedError("AudiobookShelf is not connected yet — add its server URL and API token in Settings.")
-
-    try:
-        items = await audiobookshelf_connector.fetch_library_items(
-            payload["base_url"], payload["api_token"], payload.get("library_id", "")
-        )
-    except Exception as exc:
-        Credential.set_status(db, SOURCE_AUDIOBOOKSHELF, STATUS_ERROR, str(exc))
-        raise
-
-    db.query(AudiobookShelfItem).delete()
-    now = datetime.utcnow()
-    for item in items:
-        db.add(
-            AudiobookShelfItem(
-                library_item_id=item.library_item_id,
-                asin=item.asin or None,
-                title=item.title,
-                author=item.author,
-                fetched_at=now,
-            )
-        )
-    db.commit()
-
-    Credential.set_status(db, SOURCE_AUDIOBOOKSHELF, STATUS_OK, None)
-    return len(items)
+    return await refresh_media_cache(
+        db,
+        source=SOURCE_AUDIOBOOKSHELF,
+        payload=get_audiobookshelf_credential(db),
+        not_connected=NotConnectedError(
+            "AudiobookShelf is not connected yet — add its server URL and API token in Settings."
+        ),
+        model=AudiobookShelfItem,
+        fetch=lambda p: audiobookshelf_connector.fetch_library_items(
+            p["base_url"], p["api_token"], p.get("library_id", "")
+        ),
+        to_row=lambda item, now: AudiobookShelfItem(
+            library_item_id=item.library_item_id,
+            asin=item.asin or None,
+            title=item.title,
+            author=item.author,
+            fetched_at=now,
+        ),
+    )
 
 
 def owned_asins(db: Session) -> set[str]:

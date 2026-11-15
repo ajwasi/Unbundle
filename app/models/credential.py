@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, LargeBinary, String
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 SOURCE_HUMBLE = "humble"
 SOURCE_OIDC = "oidc"  # SSO config: issuer/client_id/client_secret/enabled/disable_password
@@ -56,7 +57,7 @@ class Credential(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=STATUS_NOT_CONFIGURED)
     last_error: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, nullable=False, default=utcnow, onupdate=utcnow
     )
 
     @classmethod

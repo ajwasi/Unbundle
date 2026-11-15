@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, Date, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class ChirpAudiobook(Base):
@@ -41,7 +42,7 @@ class ChirpAudiobook(Base):
     # free title). Same denormalize-at-sync shape Bundle.purchased_at uses.
     purchased_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     paid_price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     @property
     def display_price(self) -> float | None:

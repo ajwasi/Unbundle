@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Float, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class AudibleAuthorBook(Base):
@@ -39,7 +40,7 @@ class AudibleAuthorBook(Base):
     current_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     list_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="")
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     @property
     def discount_pct(self) -> int | None:

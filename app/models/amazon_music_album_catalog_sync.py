@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class AmazonMusicAlbumCatalogSync(Base):
@@ -25,6 +26,6 @@ class AmazonMusicAlbumCatalogSync(Base):
     __tablename__ = "amazon_music_album_catalog_sync"
 
     album_asin: Mapped[str] = mapped_column(String(20), primary_key=True)
-    synced_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    synced_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     tracks_found: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tracks_matched: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

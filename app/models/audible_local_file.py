@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 SOURCE_DOWNLOAD = "download"
 SOURCE_SCAN = "scan"
@@ -26,4 +27,4 @@ class AudibleLocalFile(Base):
     path: Mapped[str] = mapped_column(String(1000), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     source: Mapped[str] = mapped_column(String(20), nullable=False, default=SOURCE_DOWNLOAD)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

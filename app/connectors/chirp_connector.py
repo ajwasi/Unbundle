@@ -78,6 +78,7 @@ import httpx
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.connectors.types import CredentialStatus
+from app.http import async_client
 
 logger = logging.getLogger(__name__)
 
@@ -663,7 +664,7 @@ async def fetch_library_preview(email: str, password: str, page: int = 1) -> tup
     ChirpRequestError/httpx.HTTPError un-caught; callers decide how to
     present each to their own UI.
     """
-    async with httpx.AsyncClient(headers={"User-Agent": _USER_AGENT}, follow_redirects=True) as client:
+    async with async_client(headers={"User-Agent": _USER_AGENT}, follow_redirects=True) as client:
         await login(client, email, password)
         return await fetch_library_page(client, page=page)
 
@@ -703,7 +704,7 @@ def client_from_cookie_header(cookie_header: str) -> httpx.AsyncClient:
     something to hardcode a guess about; forwarding whatever the browser
     itself sent is the faithful way to reuse that session.
     """
-    return httpx.AsyncClient(headers={"User-Agent": _USER_AGENT, "Cookie": cookie_header}, follow_redirects=True)
+    return async_client(headers={"User-Agent": _USER_AGENT, "Cookie": cookie_header}, follow_redirects=True)
 
 
 def describe_cookie_unicode_error(cookie_header: str, exc: UnicodeEncodeError) -> str:

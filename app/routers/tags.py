@@ -12,24 +12,10 @@ from sqlalchemy.orm import Session
 from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.tag import BundleTag, ItemTag, Tag
+from app.services.tags import get_or_create_tag
 from app.templates_env import templates
 
 router = APIRouter(prefix="/tags")
-
-
-def get_or_create_tag(db: Session, name: str) -> Tag:
-    """Shared with bundles.py/catalog.py's "add tag" endpoints — tagging
-    something with a name that doesn't exist yet creates it, the same
-    create-on-first-use convention most tagging UIs use rather than requiring
-    a separate "create the tag first" step.
-    """
-    name = name.strip()
-    tag = db.query(Tag).filter(Tag.name == name).one_or_none()
-    if tag is None:
-        tag = Tag(name=name)
-        db.add(tag)
-        db.flush()
-    return tag
 
 
 def _tag_rows(db: Session) -> list[dict]:

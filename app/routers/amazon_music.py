@@ -122,7 +122,7 @@ def _safe_filename(name: str, suffix: str) -> str:
 
 
 # Cheap in-process cache for "which URL is the freshest known cover for this
-# album", mirroring catalog.py's own _catalog_cache — the /cover route is hit
+# album", mirroring services/catalog.py's own _catalog_cache — the /cover route is hit
 # once per <img> tag (up to _ALBUMS_PAGE_SIZE per grid page), and without this
 # each of those was re-running the same full per-album track scan that
 # _album_rows already does for the grid itself, purely to re-derive a URL
@@ -659,7 +659,7 @@ def refresh_amazon_music(
         # diagnostic for an undocumented API, and far better than the
         # exception class name.
         error = str(exc)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - undocumented API: a shape change is surfaced as an error, not a 500
         # An undocumented API on a personal account: a shape change is a
         # plausible outcome, and it should read as a broken connector rather
         # than a broken app.
@@ -825,7 +825,7 @@ def sync_album_track_order_route(
             error = str(exc)
         except amazon_music_sync.NoTemplateError as exc:
             error = str(exc)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - undocumented page: a change is surfaced as an error, not a 500
             error = f"The track-order fetch failed ({type(exc).__name__}). Amazon may have changed this page."
 
     context = _context(db, q.strip(), sort, show_missing, album_key)

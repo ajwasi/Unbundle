@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import backup
-from app.db import Base, engine
+from app.db import Base
 from app.models.backup_settings import BackupSettings
 from app.models.credential import SOURCE_HUMBLE, Credential
 from tests.factories import make_order

@@ -95,6 +95,6 @@ async def refresh_steam(request: Request, view: str = Form("owned"), db: Session
         await steam_sync.refresh_steam_library(db)
     except steam_sync.NotConnectedError:
         pass  # nothing to fetch — the page already shows a "not configured" state
-    except Exception:
+    except Exception:  # noqa: BLE001 - error already recorded on the credential row
         pass  # error already recorded on the credential row by refresh_steam_library
     return templates.TemplateResponse(request, "steam/_content.html", _context(db, view=view))

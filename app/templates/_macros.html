@@ -10,3 +10,17 @@
 {% macro saved_badge(saved) -%}
 {% if saved %}<span class="badge badge-ok">Saved</span>{% endif %}
 {%- endmacro %}
+
+{# A sortable column header for an htmx-swapped table. `base_url` is the page's
+   URL with its current filters already applied (and already URL-encoded by
+   the caller — it is output unescaped so the query string stays intact);
+   this adds the sort column and flips direction on a repeat click. Not
+   imported "with context", so everything it needs is passed in. #}
+{% macro sort_link(base_url, target, col, label, sort, dir) %}
+{% set next_dir = 'desc' if sort == col and dir == 'asc' else 'asc' %}
+<a href="#"
+   hx-get="{{ base_url }}&sort={{ col }}&dir={{ next_dir }}"
+   hx-target="{{ target }}" hx-swap="outerHTML">
+  {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
+</a>
+{% endmacro %}

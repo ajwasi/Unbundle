@@ -13,7 +13,6 @@ e.g. month=12 with no year answers "how much do I spend each December,
 year over year" as a yearly-grouped chart of December-only purchases.
 """
 
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse

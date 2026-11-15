@@ -19,6 +19,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.config import settings
+from app.http import async_client
 
 WISHLIST_URL = "https://embed.gog.com/user/wishlist.json"
 PRICES_URL = "https://api.gog.com/products/prices"
@@ -123,7 +124,7 @@ def parse_product(payload: dict) -> tuple[str, str, str]:
 
 async def fetch_wishlist_ids(access_token: str, timeout: float = 25.0) -> list[int]:
     headers = {"User-Agent": USER_AGENT, "Authorization": f"Bearer {access_token}"}
-    async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
+    async with async_client(timeout=timeout, headers=headers) as client:
         resp = await client.get(WISHLIST_URL)
         if resp.status_code in (401, 403):
             raise GogWishlistError("GOG rejected the stored login. Reconnect GOG in Settings.")
@@ -137,7 +138,7 @@ async def fetch_prices(product_ids: list[int], timeout: float = 25.0) -> list[Go
     out: list[GogWishlistPriceData] = []
     if not product_ids:
         return out
-    async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": USER_AGENT}) as client:
+    async with async_client(timeout=timeout, headers={"User-Agent": USER_AGENT}) as client:
         for start in range(0, len(product_ids), PRICE_CHUNK):
             chunk = product_ids[start : start + PRICE_CHUNK]
             resp = await client.get(
@@ -156,5 +157,5 @@ async def fetch_product(client: httpx.AsyncClient, product_id: int) -> tuple[str
         return None
     try:
         return parse_product(resp.json())
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort lookup; None on any failure
         return None

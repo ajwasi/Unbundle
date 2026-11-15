@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Float, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class ChirpSeriesBook(Base):
@@ -23,7 +24,7 @@ class ChirpSeriesBook(Base):
     series_number: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     listing_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     current_price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     @property
     def series_slug(self) -> str:

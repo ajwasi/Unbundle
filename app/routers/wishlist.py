@@ -242,7 +242,7 @@ async def refresh_wishlist(
         result = await _run_refresh(source, db)
     except (audible_sync.NotConnectedError, store_wishlist_sync.NotConnectedError) as exc:
         error = str(exc)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
         error = (
             f"The {SOURCE_LABELS[source]} wishlist refresh failed ({type(exc).__name__}). "
             "Reconnect it in Settings if this persists."

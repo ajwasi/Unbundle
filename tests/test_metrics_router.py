@@ -1,4 +1,3 @@
-import re
 
 from tests.factories import make_order
 

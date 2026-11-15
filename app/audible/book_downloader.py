@@ -31,15 +31,13 @@ again.
 import asyncio
 import json
 import time
-from datetime import datetime
 from pathlib import Path
 
 import audible
 from audible.aescipher import decrypt_voucher_from_licenserequest
-import httpx
 from sqlalchemy.orm import Session
 
-from app.asyncio_utils import spawn_background_task
+from app import jobqueue
 from app.config import settings
 from app.connectors import audible_connector
 from app.db import SessionLocal
@@ -57,6 +55,8 @@ from app.models.audible_book_download import (
 from app.models.audible_download_destination import AudibleDownloadDestination
 from app.models.audible_local_file import SOURCE_DOWNLOAD, AudibleLocalFile
 from app.sync.audible_sync import NotConnectedError, get_audible_credential, save_authenticator
+from app.timeutil import utcnow
+from app.http import async_client
 
 # Audible's own iOS app's User-Agent, per the `audible` package's official
 # download example — unconfirmed whether the download URL actually requires
@@ -114,7 +114,7 @@ def record_local_file(db: Session, asin: str, path: Path, source: str = SOURCE_D
     row.path = str(path)
     row.size_bytes = size
     row.source = source
-    row.recorded_at = datetime.utcnow()
+    row.recorded_at = utcnow()
     db.commit()
 
 
@@ -185,8 +185,8 @@ def start_download(db: Session, asin: str, force: bool = False) -> AudibleBookDo
             downloaded_path=str(existing_path),
             expected_size_bytes=existing_path.stat().st_size,
             progress_bytes=existing_path.stat().st_size,
-            started_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            started_at=utcnow(),
+            completed_at=utcnow(),
         )
         db.add(job)
         db.commit()
@@ -264,20 +264,12 @@ def get_active_jobs(db: Session) -> list[dict]:
 
 def sweep_stale_downloads() -> None:
     """Call on app startup — a restart mid-download would otherwise leave a
-    row stuck 'running' forever (same reasoning as worker.sweep_stale_jobs).
-    Queued rows are left alone; try_dispatch_queued_downloads picks them up.
+    row stuck 'running' forever (see jobqueue.sweep_stale). Queued rows are
+    left alone; try_dispatch_queued_downloads picks them up.
     """
     _running_job_ids.clear()
     _progress.clear()
-    db = SessionLocal()
-    try:
-        for job in db.query(AudibleBookDownload).filter(AudibleBookDownload.status == STATUS_RUNNING).all():
-            job.status = STATUS_FAILED
-            job.completed_at = datetime.utcnow()
-            job.error_message = "Interrupted by application restart."
-        db.commit()
-    finally:
-        db.close()
+    jobqueue.sweep_stale(AudibleBookDownload, running=STATUS_RUNNING, failed=STATUS_FAILED)
 
 
 def try_dispatch_queued_downloads() -> None:
@@ -291,30 +283,26 @@ def try_dispatch_queued_downloads() -> None:
     the next loop iteration can't be handed the same row; there's no await
     between the limit check and the claim, so two calls can't over-claim.
     """
+    def _make_task(db: Session, job: AudibleBookDownload):
+        book = db.get(AudibleBook, job.asin)
+        if book is None:
+            job.status = STATUS_FAILED
+            job.error_message = "This book is no longer in your Audible library."
+            job.completed_at = utcnow()
+            return None
+        return _run(job.id, job.asin, book.title, book.author)
+
     db = SessionLocal()
     try:
-        limit = worker._current_concurrency_limit(db)
-        while len(_running_job_ids) < limit:
-            job = (
-                db.query(AudibleBookDownload)
-                .filter(AudibleBookDownload.status == STATUS_QUEUED)
-                .order_by(AudibleBookDownload.id)
-                .first()
-            )
-            if job is None:
-                break
-            job.status = STATUS_RUNNING
-            job.started_at = datetime.utcnow()
-            book = db.get(AudibleBook, job.asin)
-            if book is None:
-                job.status = STATUS_FAILED
-                job.error_message = "This book is no longer in your Audible library."
-                job.completed_at = datetime.utcnow()
-                db.commit()
-                continue
-            db.commit()
-            _running_job_ids.add(job.id)
-            spawn_background_task(_run(job.id, job.asin, book.title, book.author))
+        jobqueue.dispatch_queued(
+            db,
+            AudibleBookDownload,
+            queued=STATUS_QUEUED,
+            running=STATUS_RUNNING,
+            running_ids=_running_job_ids,
+            limit=worker._current_concurrency_limit(db),
+            make_task=_make_task,
+        )
     finally:
         db.close()
 
@@ -408,7 +396,7 @@ async def _paced_request_license(auth, asin: str) -> dict:
 
 
 async def _download_aaxc(url: str, dest_path, job: AudibleBookDownload, db: Session) -> None:
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with async_client(timeout=60) as client:
         async with client.stream("GET", url, headers={"User-Agent": _DOWNLOAD_USER_AGENT}) as resp:
             resp.raise_for_status()
             job.expected_size_bytes = int(resp.headers.get("content-length") or 0) or None
@@ -501,7 +489,7 @@ async def _run(job_id: int, asin: str, title: str, author: str) -> None:
         except Exception as exc:  # noqa: BLE001 - surfaced on the job row, never a crash
             job.status = STATUS_FAILED
             job.error_message = str(exc)
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow()
             db.commit()
             if aaxc_path is not None:
                 safe_unlink(aaxc_path)
@@ -530,7 +518,7 @@ async def _run(job_id: int, asin: str, title: str, author: str) -> None:
                 f"ffmpeg conversion failed; the raw .aaxc and its decryption key were kept at "
                 f"{aaxc_path} / {voucher_path}. {ffmpeg_output}".strip()
             )
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utcnow()
         db.commit()
     finally:
         _running_job_ids.discard(job_id)
