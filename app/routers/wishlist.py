@@ -31,6 +31,7 @@ from app.models.store_wishlist import (
     SteamWishlistPrice,
 )
 from app.ratelimit import RateLimiter, rate_limit
+from app.services import source_health
 from app.sync import audible_sync, store_wishlist_sync
 from app.templates_env import templates
 
@@ -212,6 +213,25 @@ def wishlist_page(
     return templates.TemplateResponse(request, template, context)
 
 
+# Audible's wishlist is covered by its Credential status; the store wishlists
+# are scrapes with no such thing, so their outcomes go to source_health.
+_HEALTH_SOURCES = {
+    "steam": source_health.SOURCE_WISHLIST_STEAM,
+    "gog": source_health.SOURCE_WISHLIST_GOG,
+    "chirp": source_health.SOURCE_WISHLIST_CHIRP,
+}
+
+
+def _record_health(db: Session, source: str, error: Exception | None = None) -> None:
+    health_source = _HEALTH_SOURCES.get(source)
+    if health_source is None:
+        return
+    if error is None:
+        source_health.record_success(db, health_source)
+    else:
+        source_health.record_failure(db, health_source, error)
+
+
 async def _run_refresh(source: str, db: Session):
     if source == "audible":
         return await audible_sync.refresh_audible_wishlist(db)
@@ -243,10 +263,13 @@ async def refresh_wishlist(
     except (audible_sync.NotConnectedError, store_wishlist_sync.NotConnectedError) as exc:
         error = str(exc)
     except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
+        _record_health(db, source, exc)
         error = (
             f"The {SOURCE_LABELS[source]} wishlist refresh failed ({type(exc).__name__}). "
             "Reconnect it in Settings if this persists."
         )
 
+    if result is not None:
+        _record_health(db, source)
     context = _context(db, source, q.strip(), sort, result=result, error=error)
     return templates.TemplateResponse(request, "wishlist/_table.html", context)
