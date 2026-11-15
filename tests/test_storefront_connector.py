@@ -528,3 +528,24 @@ async def test_detail_failure_without_any_known_data_raises():
     with _mock_get(_flight_html('1:"$Sreact.fragment"')):
         with pytest.raises(ValueError, match="Next.js bundle data"):
             await storefront.fetch_bundle_detail("https://www.humblebundle.com/books/x", force=True)
+
+
+@pytest.mark.asyncio
+async def test_detail_item_machine_names_drop_the_bundle_suffix_so_they_match_owned_orders():
+    # Flight data keys items "<item>_<bundle key>"; orders store the bare item
+    # machine_name, which is what the catalog (and every owned check) compares.
+    tier = {
+        "id": "1",
+        "sku": "datascienceoreilly_bookbundle_initial",
+        "price": {"amount": 5},
+        "bundleItems": [_item("datasciencefromscratch_datascienceoreilly_bookbundle", "Data Science from Scratch")],
+    }
+    with _mock_get(_flight_html(_flight_page_chunk(_bundle_page([tier])))):
+        detail = await storefront.fetch_bundle_detail("https://www.humblebundle.com/books/x", force=True)
+    assert [i.machine_name for i in detail.items] == ["datasciencefromscratch"]
+
+
+def test_bundle_key_comes_from_the_tier_skus():
+    page = {"tiers": [{"sku": "flat2vrbundle_bundle_initial"}, {"sku": "flat2vrbundle_bundle_bt16"}]}
+    assert storefront._bundle_key(page) == "flat2vrbundle_bundle"
+    assert storefront._bundle_key({"tiers": [{}]}) == ""

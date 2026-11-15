@@ -247,10 +247,29 @@ def _flight_listing(html: str) -> list[StorefrontBundle]:
     return bundles
 
 
-def _flight_item(item: dict, fallback_type: str) -> StorefrontItem | None:
+def _bundle_key(page: dict) -> str:
+    """The bundle's machine_name, recovered from its tiers' skus
+    ("<bundle key>_initial", "<bundle key>_bt18", ...) — the page has no field
+    for it, but the listing's productKey and an order's product.machine_name
+    are this same value."""
+    for tier in page.get("tiers") or []:
+        sku = tier.get("sku") if isinstance(tier, dict) else None
+        if isinstance(sku, str) and "_" in sku:
+            return sku.rsplit("_", 1)[0]
+    return ""
+
+
+def _flight_item(item: dict, fallback_type: str, bundle_key: str = "") -> StorefrontItem | None:
     key, title = item.get("key"), item.get("title")
     if not key or not title:
         return None
+    # Flight data keys an item "<item machine_name>_<bundle key>"; owned orders
+    # (and so the catalog every ownership check compares against) carry the bare
+    # item machine_name. Left suffixed, nothing ever matched and every item
+    # read as not owned.
+    suffix = f"_{bundle_key}" if bundle_key else ""
+    if suffix and key.endswith(suffix) and len(key) > len(suffix):
+        key = key[: -len(suffix)]
     msrp = item.get("msrp")
     description = _real(item.get("description"))
     platforms = [p for p in (item.get("platforms") or []) if isinstance(p, str)]
@@ -283,6 +302,7 @@ def _flight_detail(html: str) -> StorefrontBundleDetail | None:
     if page is None:
         return None
     page_type = page.get("bundleType") or ""
+    bundle_key = _bundle_key(page)
 
     def _price(tier: dict) -> float | None:
         price = tier.get("price")
@@ -298,7 +318,7 @@ def _flight_detail(html: str) -> StorefrontBundleDetail | None:
     for index, tier in enumerate(ordered):
         new_items = []
         for raw in tier.get("bundleItems") or []:
-            si = _flight_item(raw, page_type) if isinstance(raw, dict) else None
+            si = _flight_item(raw, page_type, bundle_key) if isinstance(raw, dict) else None
             if si is None or si.machine_name in seen:
                 continue
             seen.add(si.machine_name)
