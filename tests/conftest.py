@@ -72,11 +72,23 @@ from app.models import (  # noqa: E402,F401
 from tests.factories import make_order  # noqa: E402
 
 
-@pytest.fixture(autouse=True)
-def _fresh_schema():
+@pytest.fixture(scope="session", autouse=True)
+def _schema():
+    """Created once per process: dropping and recreating ~40 tables for every
+    test cost more than most tests themselves."""
     Base.metadata.create_all(engine)
     yield
     Base.metadata.drop_all(engine)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_schema(_schema):
+    """Every test starts from empty tables. Emptied after the test (children
+    first) after the test's own session has closed."""
+    yield
+    with engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(table.delete())
 
 
 @pytest.fixture(autouse=True)
