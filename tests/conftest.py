@@ -63,6 +63,7 @@ from app.models import (  # noqa: E402,F401
     download_job,
     download_settings,
     gog_game,
+    source_health,
     steam_game,
     store_wishlist,
     sync_run,
