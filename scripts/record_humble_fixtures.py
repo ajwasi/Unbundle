@@ -58,9 +58,10 @@ def record_listing(html: str) -> tuple[str, dict[str, str]]:
 
 
 def record_detail(html: str, title: str, items_per_tier: int = 2) -> str:
+    stream = storefront._flight_text(html)
     page = next(
         p
-        for p in storefront._objects_after(storefront._flight_text(html), '"bundlePage":')
+        for p in storefront._objects_after(stream, '"bundlePage":')
         if isinstance(p, dict) and isinstance(p.get("tiers"), list)
     )
     # Keep the structure the parser reads; drop the bulk it never touches.
@@ -75,7 +76,14 @@ def record_detail(html: str, title: str, items_per_tier: int = 2) -> str:
             kept.append(entry)
         # Keep back-references (strings) and the first few real items per tier.
         tier["bundleItems"] = [e for e in kept if isinstance(e, str)] + [e for e in kept if isinstance(e, dict)][:items_per_tier]
-    chunk = 'e:[["$","section",null,{"children":["$","$L6e",null,{"bundlePage":' + json.dumps(page, separators=COMPACT) + "}]}]]"
+    page_json = json.dumps(page, separators=COMPACT)
+    chunk = 'e:[["$","section",null,{"children":["$","$L6e",null,{"bundlePage":' + page_json + "}]}]]"
+    # Long strings (game descriptions) live in their own text rows, referenced
+    # as "$<id>"; keep the rows the kept records still point at, byte-length
+    # prefixed exactly as the site sends them.
+    for row_id, text in storefront._text_rows(stream).items():
+        if f'"${row_id}"' in page_json:
+            chunk += f"\n{row_id}:T{len(text.encode('utf-8')):x},{text}"
     return _page(chunk, title)
 
 

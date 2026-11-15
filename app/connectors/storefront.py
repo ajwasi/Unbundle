@@ -171,6 +171,7 @@ class StorefrontBundleDetail:
     msrp_total: float | None
     items: list[StorefrontItem]
     tiers: list[StorefrontTier]  # lowest price first
+    start_date: datetime | None = None  # only the detail page carries it; the listing doesn't
 
 
 # --- Next.js flight-stream reading (Humble's site since Nov 2026) ---------------
@@ -197,6 +198,36 @@ def _flight_text(html: str) -> str:
         if isinstance(arr, list) and len(arr) == 2 and arr[0] == 1 and isinstance(arr[1], str):
             chunks.append(arr[1])
     return "".join(chunks)
+
+
+_ROW_ID = re.compile(rb"([0-9a-f]+):")
+_TEXT_ROW = re.compile(rb"T([0-9a-f]+),")
+
+
+def _text_rows(text: str) -> dict[str, str]:
+    """The stream's long-text rows, by id: `<id>:T<hex byte length>,<text>`.
+    Long strings (game descriptions, mostly) are sent once as a row of their
+    own and referenced elsewhere as "$<id>". The length counts UTF-8 bytes and
+    the next row follows with no separator, so the stream is walked as bytes."""
+    data = text.encode("utf-8")
+    rows: dict[str, str] = {}
+    pos = 0
+    while pos < len(data):
+        if data[pos : pos + 1] == b"\n":
+            pos += 1
+            continue
+        head = _ROW_ID.match(data, pos)
+        body = _TEXT_ROW.match(data, head.end()) if head else None
+        if body:
+            end = body.end() + int(body.group(1), 16)
+            rows[head.group(1).decode()] = data[body.end() : end].decode("utf-8", errors="replace")
+            pos = end
+            continue
+        newline = data.find(b"\n", pos)
+        if newline == -1:
+            break
+        pos = newline + 1
+    return rows
 
 
 def _objects_after(text: str, marker: str):
@@ -261,7 +292,9 @@ def _bundle_key(page: dict) -> str:
     return ""
 
 
-def _flight_item(item: dict, fallback_type: str, bundle_key: str = "") -> StorefrontItem | None:
+def _flight_item(
+    item: dict, fallback_type: str, bundle_key: str = "", text_rows: dict[str, str] | None = None
+) -> StorefrontItem | None:
     key, title = item.get("key"), item.get("title")
     if not key or not title:
         return None
@@ -273,7 +306,10 @@ def _flight_item(item: dict, fallback_type: str, bundle_key: str = "") -> Storef
     if suffix and key.endswith(suffix) and len(key) > len(suffix):
         key = key[: -len(suffix)]
     msrp = item.get("msrp")
-    description = _real(item.get("description"))
+    description = item.get("description")
+    if isinstance(description, str) and description.startswith("$") and text_rows:
+        description = text_rows.get(description[1:], description)  # a reference to a long-text row
+    description = _real(description)
     platforms = [p for p in (item.get("platforms") or []) if isinstance(p, str)]
     delivery = [d for d in (item.get("deliveryMethods") or []) if isinstance(d, str)]
     return StorefrontItem(
@@ -293,10 +329,11 @@ def _flight_item(item: dict, fallback_type: str, bundle_key: str = "") -> Storef
 
 
 def _flight_detail(html: str) -> StorefrontBundleDetail | None:
+    text = _flight_text(html)
     page = next(
         (
             p
-            for p in _objects_after(_flight_text(html), '"bundlePage":')
+            for p in _objects_after(text, '"bundlePage":')
             if isinstance(p, dict) and isinstance(p.get("tiers"), list)
         ),
         None,
@@ -305,6 +342,7 @@ def _flight_detail(html: str) -> StorefrontBundleDetail | None:
         return None
     page_type = page.get("bundleType") or ""
     bundle_key = _bundle_key(page)
+    text_rows = _text_rows(text)
 
     def _price(tier: dict) -> float | None:
         price = tier.get("price")
@@ -320,7 +358,7 @@ def _flight_detail(html: str) -> StorefrontBundleDetail | None:
     for index, tier in enumerate(ordered):
         new_items = []
         for raw in tier.get("bundleItems") or []:
-            si = _flight_item(raw, page_type, bundle_key) if isinstance(raw, dict) else None
+            si = _flight_item(raw, page_type, bundle_key, text_rows) if isinstance(raw, dict) else None
             if si is None or si.machine_name in seen:
                 continue
             seen.add(si.machine_name)
@@ -346,6 +384,7 @@ def _flight_detail(html: str) -> StorefrontBundleDetail | None:
         msrp_total=value.get("amount") if isinstance(value, dict) else None,
         items=items,
         tiers=tiers,
+        start_date=_parse_datetime(_real(page.get("startDate"))),
     )
 
 

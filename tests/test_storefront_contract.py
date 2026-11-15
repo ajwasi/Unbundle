@@ -125,3 +125,14 @@ async def test_a_recorded_bundle_page_parses_into_priced_tiers_of_owned_style_it
         assert not item.machine_name.endswith("_" + bundle_key), item.machine_name
         assert item.image_url.startswith("https://"), item
         assert item.publishers or item.authors, item
+
+
+@pytest.mark.asyncio
+async def test_the_recorded_games_page_yields_item_descriptions_and_a_start_date():
+    with _mock_get(_html("detail_games.html")):
+        detail = await storefront.fetch_bundle_detail("https://www.humblebundle.com/games/x", force=True)
+
+    assert detail.start_date is not None
+    assert detail.items and all(i.description for i in detail.items), (
+        "game descriptions are sent as text rows referenced by id — a missing one means the row reader broke"
+    )
