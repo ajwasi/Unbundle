@@ -116,29 +116,29 @@ def _group_missing_by_author(rows: list[AudibleAuthorBook]) -> list[dict]:
     return list(groups.values())
 
 
-def _context(
+def _filtered_books(
     db: Session,
-    view: str = "owned",
-    title: str = "",
-    author: str = "",
-    narrator: str = "",
-    series: str = "",
-    runtime_min: str = "",
-    runtime_max: str = "",
-    purchased_from: str = "",
-    purchased_to: str = "",
-    price_min: str = "",
-    price_max: str = "",
-    rating_min: str = "",
-    rating_max: str = "",
-    owned: str = "",
-    progress: str = "",
-    sort: str = "title",
-    dir: str = "asc",
-    series_q: str = "",
-    author_q: str = "",
-) -> dict:
-    cred = Credential.get(db, SOURCE_AUDIBLE)
+    *,
+    title: str,
+    author: str,
+    narrator: str,
+    series: str,
+    runtime_min: str,
+    runtime_max: str,
+    purchased_from: str,
+    purchased_to: str,
+    price_min: str,
+    price_max: str,
+    rating_min: str,
+    rating_max: str,
+    owned: str,
+    progress: str,
+    sort: str,
+    dir: str,
+) -> tuple[list[AudibleBook], dict]:
+    """The Owned tab's books after every filter and the sort, plus the parsed
+    filter values the form echoes back (hours, dates and numbers rather than
+    the raw strings that arrived)."""
     query = db.query(AudibleBook)
     if title:
         query = query.filter(AudibleBook.title.ilike(f"%{title}%"))
@@ -188,97 +188,7 @@ def _context(
     elif owned == "plus":
         books = [b for b in books if not is_owned(b.benefit_id)]
 
-    # Library-wide total, independent of the current filters — same "stable
-    # overview vs. filtered table" split bundles/list.html's
-    # grand_total_spent (vs. the table's own filtered_total_spent) already uses.
-    total_book_count, total_runtime_minutes = db.query(
-        func.count(AudibleBook.asin), func.coalesce(func.sum(AudibleBook.runtime_minutes), 0)
-    ).one()
-
-    # Computed against the current library at read time (not just at sync
-    # time), so a book bought since the last series refresh drops off the
-    # list immediately rather than waiting for the next refresh to catch up.
-    owned_asins = {a for (a,) in db.query(AudibleBook.asin).all()}
-    missing_rows = [
-        row
-        for row in db.query(AudibleSeriesBook)
-        .order_by(AudibleSeriesBook.series_title, AudibleSeriesBook.sequence)
-        .all()
-        if row.asin not in owned_asins
-    ]
-
-    # Same read-time owned filter as missing_rows above, for the same reason.
-    author_missing_rows = [
-        row
-        for row in db.query(AudibleAuthorBook).order_by(AudibleAuthorBook.author_name).all()
-        if row.asin not in owned_asins
-    ]
-    missing_author_groups = _group_missing_by_author(author_missing_rows)
-    missing_series_groups = _group_missing_by_series(missing_rows)
-
-    # Thumbnail for the "Missing by author" listing — a separate lookup
-    # rather than a join, since AudibleAuthorProfile is cached independently
-    # (see its own docstring) and most groups share the same handful of
-    # author_asins across many missing books.
-    author_asins = {g["author_asin"] for g in missing_author_groups if g["author_asin"]}
-    if author_asins:
-        profiles_by_asin = {
-            p.author_asin: p
-            for p in db.query(AudibleAuthorProfile).filter(AudibleAuthorProfile.author_asin.in_(author_asins)).all()
-        }
-        for g in missing_author_groups:
-            profile = profiles_by_asin.get(g["author_asin"])
-            if profile is not None:
-                g["author_image_url"] = profile.image_url
-    # Captured before the search filter below (which reassigns these same
-    # names) so the tab badges stay the stable, library-wide counts — same
-    # "unaffected by the current filter" convention book_count already uses
-    # for the Owned tab.
-    missing_series_count = len(missing_series_groups)
-    missing_author_count = len(missing_author_groups)
-
-    # Search filters the GROUPS by name — whole series/author, not individual
-    # books within one — matching what the search box sits next to.
-    series_q = series_q.strip()
-    if series_q:
-        missing_series_groups = [g for g in missing_series_groups if series_q.casefold() in g["series_title"].casefold()]
-    author_q = author_q.strip()
-    if author_q:
-        missing_author_groups = [g for g in missing_author_groups if author_q.casefold() in g["author_name"].casefold()]
-
-    downloaded_asins = {a for (a,) in db.query(AudibleLocalFile.asin).all()}
-    active_asins = {job["asin"] for job in book_downloader.get_active_jobs(db)}
-    in_audiobookshelf_asins = audiobookshelf_sync.owned_asins(db)
-    in_plex_titles = plex_sync.owned_normalized_titles(db)
-
-    return {
-        "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
-        "audible_error": cred.last_error if cred else None,
-        "books": books,
-        "downloaded_asins": downloaded_asins,
-        "active_asins": active_asins,
-        "in_audiobookshelf_asins": in_audiobookshelf_asins,
-        "in_plex_titles": in_plex_titles,
-        "normalize_title": normalize,
-        # Each tab's badge shows "groups/books" — distinct series or authors,
-        # then the total missing books across all of them — computed before
-        # the search filter above, so it's the stable library-wide total,
-        # same "book_count isn't affected by the Owned tab's own filters"
-        # convention.
-        "missing_count": len(missing_rows),
-        "missing_series_count": missing_series_count,
-        "missing_series_groups": missing_series_groups,
-        "series_q": series_q,
-        "missing_author_count": missing_author_count,
-        "missing_author_book_count": len(author_missing_rows),
-        "missing_author_groups": missing_author_groups,
-        "author_q": author_q,
-        **_destinations_context(db),
-        "view": view if view in ("missing", "missing_authors") else "owned",
-        "title": title,
-        "author": author,
-        "narrator": narrator,
-        "series": series,
+    echoed = {
         "runtime_min": runtime_min_hours,
         "runtime_max": runtime_max_hours,
         "purchased_from": purchased_from_date,
@@ -287,6 +197,139 @@ def _context(
         "price_max": price_max_val,
         "rating_min": rating_min_val,
         "rating_max": rating_max_val,
+    }
+    return books, echoed
+
+
+def _missing_series_context(db: Session, owned_asins: set[str], series_q: str) -> dict:
+    """The "Missing by series" tab. Computed against the current library at
+    read time (not just at sync time), so a book bought since the last series
+    refresh drops off the list immediately rather than waiting for the next
+    refresh to catch up."""
+    missing_rows = [
+        row
+        for row in db.query(AudibleSeriesBook)
+        .order_by(AudibleSeriesBook.series_title, AudibleSeriesBook.sequence)
+        .all()
+        if row.asin not in owned_asins
+    ]
+    groups = _group_missing_by_series(missing_rows)
+    # Captured before the search filter below so the tab badge stays the
+    # stable, library-wide count — same "unaffected by the current filter"
+    # convention book_count already uses for the Owned tab.
+    group_count = len(groups)
+
+    # Search filters the GROUPS by name — whole series, not individual books
+    # within one — matching what the search box sits next to.
+    series_q = series_q.strip()
+    if series_q:
+        groups = [g for g in groups if series_q.casefold() in g["series_title"].casefold()]
+    return {
+        # Each tab's badge shows "groups/books" — distinct series, then the
+        # total missing books across all of them.
+        "missing_count": len(missing_rows),
+        "missing_series_count": group_count,
+        "missing_series_groups": groups,
+        "series_q": series_q,
+    }
+
+
+def _missing_authors_context(db: Session, owned_asins: set[str], author_q: str) -> dict:
+    """The "Missing by author" tab, with the same read-time owned filter as
+    the series tab, for the same reason."""
+    missing_rows = [
+        row
+        for row in db.query(AudibleAuthorBook).order_by(AudibleAuthorBook.author_name).all()
+        if row.asin not in owned_asins
+    ]
+    groups = _group_missing_by_author(missing_rows)
+
+    # Thumbnail for the listing — a separate lookup rather than a join, since
+    # AudibleAuthorProfile is cached independently (see its own docstring) and
+    # most groups share the same handful of author_asins across many books.
+    author_asins = {g["author_asin"] for g in groups if g["author_asin"]}
+    if author_asins:
+        profiles_by_asin = {
+            p.author_asin: p
+            for p in db.query(AudibleAuthorProfile).filter(AudibleAuthorProfile.author_asin.in_(author_asins)).all()
+        }
+        for g in groups:
+            profile = profiles_by_asin.get(g["author_asin"])
+            if profile is not None:
+                g["author_image_url"] = profile.image_url
+    group_count = len(groups)  # before the search filter, see _missing_series_context
+
+    author_q = author_q.strip()
+    if author_q:
+        groups = [g for g in groups if author_q.casefold() in g["author_name"].casefold()]
+    return {
+        "missing_author_count": group_count,
+        "missing_author_book_count": len(missing_rows),
+        "missing_author_groups": groups,
+        "author_q": author_q,
+    }
+
+
+def _context(
+    db: Session,
+    view: str = "owned",
+    title: str = "",
+    author: str = "",
+    narrator: str = "",
+    series: str = "",
+    runtime_min: str = "",
+    runtime_max: str = "",
+    purchased_from: str = "",
+    purchased_to: str = "",
+    price_min: str = "",
+    price_max: str = "",
+    rating_min: str = "",
+    rating_max: str = "",
+    owned: str = "",
+    progress: str = "",
+    sort: str = "title",
+    dir: str = "asc",
+    series_q: str = "",
+    author_q: str = "",
+) -> dict:
+    cred = Credential.get(db, SOURCE_AUDIBLE)
+    books, echoed_filters = _filtered_books(
+        db,
+        title=title, author=author, narrator=narrator, series=series,
+        runtime_min=runtime_min, runtime_max=runtime_max,
+        purchased_from=purchased_from, purchased_to=purchased_to,
+        price_min=price_min, price_max=price_max,
+        rating_min=rating_min, rating_max=rating_max,
+        owned=owned, progress=progress, sort=sort, dir=dir,
+    )
+
+    # Library-wide total, independent of the current filters — same "stable
+    # overview vs. filtered table" split bundles/list.html's
+    # grand_total_spent (vs. the table's own filtered_total_spent) already uses.
+    total_book_count, total_runtime_minutes = db.query(
+        func.count(AudibleBook.asin), func.coalesce(func.sum(AudibleBook.runtime_minutes), 0)
+    ).one()
+
+    owned_asins = {a for (a,) in db.query(AudibleBook.asin).all()}
+
+    return {
+        "audible_status": cred.status if cred else STATUS_NOT_CONFIGURED,
+        "audible_error": cred.last_error if cred else None,
+        "books": books,
+        "downloaded_asins": {a for (a,) in db.query(AudibleLocalFile.asin).all()},
+        "active_asins": {job["asin"] for job in book_downloader.get_active_jobs(db)},
+        "in_audiobookshelf_asins": audiobookshelf_sync.owned_asins(db),
+        "in_plex_titles": plex_sync.owned_normalized_titles(db),
+        "normalize_title": normalize,
+        **_missing_series_context(db, owned_asins, series_q),
+        **_missing_authors_context(db, owned_asins, author_q),
+        **_destinations_context(db),
+        "view": view if view in ("missing", "missing_authors") else "owned",
+        "title": title,
+        "author": author,
+        "narrator": narrator,
+        "series": series,
+        **echoed_filters,
         "owned": owned,
         "progress": progress,
         "sort": sort,
