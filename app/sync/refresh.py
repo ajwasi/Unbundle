@@ -16,6 +16,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app import jobqueue
 from app.asyncio_utils import spawn_background_task
 from app.connectors.base import ConnectorAuthError, LogCallback
 from app.connectors.humble_connector import HumbleConnector
@@ -46,16 +47,7 @@ def sweep_stale_runs() -> None:
     a sync_run stuck in 'running' forever (mirrors audiobook-tracker's
     sweep_stale_sync_runs, same reasoning).
     """
-    db = SessionLocal()
-    try:
-        stale = db.query(SyncRun).filter(SyncRun.status == STATUS_RUNNING).all()
-        for run in stale:
-            run.status = STATUS_FAILED
-            run.finished_at = utcnow()
-            run.error_message = "Interrupted by application restart."
-        db.commit()
-    finally:
-        db.close()
+    jobqueue.sweep_stale(SyncRun, running=STATUS_RUNNING, failed=STATUS_FAILED, finished_attr="finished_at")
 
 
 async def start_refresh() -> int:

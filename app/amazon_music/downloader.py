@@ -38,6 +38,7 @@ from pathlib import Path
 import httpx
 from sqlalchemy.orm import Session
 
+from app import jobqueue
 from app.asyncio_utils import spawn_background_task
 from app.config import settings
 from app.connectors import amazon_music_connector as amc
@@ -166,16 +167,7 @@ def sweep_stale_downloads() -> None:
     global _queue_running, _current_job_id
     _queue_running = False
     _current_job_id = None
-    db = SessionLocal()
-    try:
-        stale = db.query(AmazonMusicDownload).filter(AmazonMusicDownload.status == STATUS_RUNNING).all()
-        for job in stale:
-            job.status = STATUS_FAILED
-            job.completed_at = utcnow()
-            job.error_message = "Interrupted by application restart."
-        db.commit()
-    finally:
-        db.close()
+    jobqueue.sweep_stale(AmazonMusicDownload, running=STATUS_RUNNING, failed=STATUS_FAILED)
 
 
 def resolve_destination_root(db: Session) -> Path:

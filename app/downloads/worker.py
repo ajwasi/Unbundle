@@ -20,9 +20,9 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.asyncio_utils import spawn_background_task
 from app.config import settings
 from app.connectors.humble_connector import parse_bundle
+from app import jobqueue
 from app.db import SessionLocal
 from app.downloads import paths, relocate, runner
 from app.models.bundle import Bundle
@@ -128,19 +128,9 @@ def is_download_running() -> bool:
 
 def sweep_stale_jobs() -> None:
     """Call on app startup — a container restart mid-download would otherwise
-    leave a download_job stuck in 'running' forever (same reasoning as
-    refresh.sweep_stale_runs).
+    leave a download_job stuck in 'running' forever (see jobqueue.sweep_stale).
     """
-    db = SessionLocal()
-    try:
-        stale = db.query(DownloadJob).filter(DownloadJob.status == JOB_RUNNING).all()
-        for job in stale:
-            job.status = JOB_FAILED
-            job.finished_at = utcnow()
-            job.error_message = "Interrupted by application restart."
-        db.commit()
-    finally:
-        db.close()
+    jobqueue.sweep_stale(DownloadJob, running=JOB_RUNNING, failed=JOB_FAILED, finished_attr="finished_at")
 
 
 def latest_job_for_bundle(db: Session, gamekey: str) -> DownloadJob | None:
@@ -194,18 +184,17 @@ async def try_dispatch_queued_downloads() -> None:
     """
     db = SessionLocal()
     try:
-        limit = _current_concurrency_limit(db)
-        while len(_running_job_ids) < limit:
-            next_job = db.query(DownloadJob).filter(DownloadJob.status == JOB_QUEUED).order_by(DownloadJob.id).first()
-            if next_job is None:
-                break
-            next_job.status = JOB_RUNNING
-            next_job.started_at = utcnow()
-            db.commit()
-            indices = _parse_indices(next_job.requested_indices)
-            formats = _parse_formats(next_job.requested_formats)
-            _running_job_ids.add(next_job.id)
-            spawn_background_task(_run_job(next_job.id, next_job.gamekey, indices, formats))
+        jobqueue.dispatch_queued(
+            db,
+            DownloadJob,
+            queued=JOB_QUEUED,
+            running=JOB_RUNNING,
+            running_ids=_running_job_ids,
+            limit=_current_concurrency_limit(db),
+            make_task=lambda _db, job: _run_job(
+                job.id, job.gamekey, _parse_indices(job.requested_indices), _parse_formats(job.requested_formats)
+            ),
+        )
     finally:
         db.close()
 

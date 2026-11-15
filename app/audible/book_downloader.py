@@ -38,7 +38,7 @@ from audible.aescipher import decrypt_voucher_from_licenserequest
 import httpx
 from sqlalchemy.orm import Session
 
-from app.asyncio_utils import spawn_background_task
+from app import jobqueue
 from app.config import settings
 from app.connectors import audible_connector
 from app.db import SessionLocal
@@ -264,20 +264,12 @@ def get_active_jobs(db: Session) -> list[dict]:
 
 def sweep_stale_downloads() -> None:
     """Call on app startup — a restart mid-download would otherwise leave a
-    row stuck 'running' forever (same reasoning as worker.sweep_stale_jobs).
-    Queued rows are left alone; try_dispatch_queued_downloads picks them up.
+    row stuck 'running' forever (see jobqueue.sweep_stale). Queued rows are
+    left alone; try_dispatch_queued_downloads picks them up.
     """
     _running_job_ids.clear()
     _progress.clear()
-    db = SessionLocal()
-    try:
-        for job in db.query(AudibleBookDownload).filter(AudibleBookDownload.status == STATUS_RUNNING).all():
-            job.status = STATUS_FAILED
-            job.completed_at = utcnow()
-            job.error_message = "Interrupted by application restart."
-        db.commit()
-    finally:
-        db.close()
+    jobqueue.sweep_stale(AudibleBookDownload, running=STATUS_RUNNING, failed=STATUS_FAILED)
 
 
 def try_dispatch_queued_downloads() -> None:
@@ -291,30 +283,26 @@ def try_dispatch_queued_downloads() -> None:
     the next loop iteration can't be handed the same row; there's no await
     between the limit check and the claim, so two calls can't over-claim.
     """
+    def _make_task(db: Session, job: AudibleBookDownload):
+        book = db.get(AudibleBook, job.asin)
+        if book is None:
+            job.status = STATUS_FAILED
+            job.error_message = "This book is no longer in your Audible library."
+            job.completed_at = utcnow()
+            return None
+        return _run(job.id, job.asin, book.title, book.author)
+
     db = SessionLocal()
     try:
-        limit = worker._current_concurrency_limit(db)
-        while len(_running_job_ids) < limit:
-            job = (
-                db.query(AudibleBookDownload)
-                .filter(AudibleBookDownload.status == STATUS_QUEUED)
-                .order_by(AudibleBookDownload.id)
-                .first()
-            )
-            if job is None:
-                break
-            job.status = STATUS_RUNNING
-            job.started_at = utcnow()
-            book = db.get(AudibleBook, job.asin)
-            if book is None:
-                job.status = STATUS_FAILED
-                job.error_message = "This book is no longer in your Audible library."
-                job.completed_at = utcnow()
-                db.commit()
-                continue
-            db.commit()
-            _running_job_ids.add(job.id)
-            spawn_background_task(_run(job.id, job.asin, book.title, book.author))
+        jobqueue.dispatch_queued(
+            db,
+            AudibleBookDownload,
+            queued=STATUS_QUEUED,
+            running=STATUS_RUNNING,
+            running_ids=_running_job_ids,
+            limit=worker._current_concurrency_limit(db),
+            make_task=_make_task,
+        )
     finally:
         db.close()
 
