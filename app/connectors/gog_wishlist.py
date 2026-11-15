@@ -156,5 +156,5 @@ async def fetch_product(client: httpx.AsyncClient, product_id: int) -> tuple[str
         return None
     try:
         return parse_product(resp.json())
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort lookup; None on any failure
         return None

@@ -44,7 +44,7 @@ async def _fetch_detail_safe(bundle: storefront.StorefrontBundle) -> storefront.
     that one tile to "no ratio shown," never a broken Home page."""
     try:
         return await storefront.fetch_bundle_detail(bundle.product_url)
-    except Exception:
+    except Exception:  # noqa: BLE001 - one broken bundle detail degrades that tile only
         return None
 
 

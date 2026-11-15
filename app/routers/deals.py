@@ -56,7 +56,7 @@ async def _gog_context(
     if error is None:
         try:
             deals, total_discounted = await gog_deals.fetch_deals(force=force)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
             error = f"Could not reach GOG's catalogue ({type(exc).__name__}). It may be temporarily unavailable."
 
     # The whole point of the page: an exact product_id join, not title matching.

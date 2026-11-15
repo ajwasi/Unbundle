@@ -1,7 +1,6 @@
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 
 from app.connectors import gog_wishlist as gw

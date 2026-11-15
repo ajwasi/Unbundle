@@ -163,7 +163,7 @@ async def run_scheduler_loop() -> None:
             cfg = get_or_create_backup_settings(db)
             if _is_due(cfg, utcnow()):
                 create_backup(db)
-        except Exception:
+        except Exception:  # noqa: BLE001 - one failed backup must not kill the scheduler loop
             # Never let one failed backup attempt kill the whole scheduler loop.
             traceback.print_exc(file=sys.stderr)
         finally:

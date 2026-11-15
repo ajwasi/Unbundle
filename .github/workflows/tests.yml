@@ -32,5 +32,8 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]" # SQLite only — the suite never touches Postgres, see conftest.py
 
+      - name: Lint
+        run: ruff check app tests
+
       - name: Run tests
         run: pytest -n auto

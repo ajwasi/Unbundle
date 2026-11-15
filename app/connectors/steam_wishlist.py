@@ -157,5 +157,5 @@ async def fetch_app_details(
         return None
     try:
         return parse_app_details(appid, resp.json())
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort lookup; None on any failure
         return None

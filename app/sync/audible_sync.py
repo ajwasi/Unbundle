@@ -116,7 +116,7 @@ async def refresh_audible_library(db: Session) -> int:
 
     try:
         series_rows = await _fetch_series_rows(auth, books)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - optional enrichment: keep the previous series data
         logger.warning("audible: series refresh failed, keeping previous series data: %s", exc)
         series_rows = None
     if series_rows is not None:
@@ -127,7 +127,7 @@ async def refresh_audible_library(db: Session) -> int:
 
     try:
         author_rows = await _fetch_author_rows(auth, books)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - optional enrichment: keep the previous author data
         logger.warning("audible: author refresh failed, keeping previous author data: %s", exc)
         author_rows = None
     if author_rows is not None:
@@ -138,7 +138,7 @@ async def refresh_audible_library(db: Session) -> int:
 
         try:
             profile_rows = await _fetch_author_profiles(author_rows)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - optional enrichment: keep the previous profile data
             logger.warning("audible: author profile refresh failed, keeping previous profile data: %s", exc)
             profile_rows = None
         if profile_rows is not None:
@@ -171,7 +171,7 @@ async def _fetch_series_rows(
     for series_asin, series_title in representative.items():
         try:
             children = await audible_connector.fetch_series_children(auth, series_asin)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - one unavailable series is skipped
             logger.warning("audible: series %s unavailable, skipping: %s", series_asin, exc)
             continue
         for asin, sequence in children:
@@ -179,7 +179,7 @@ async def _fetch_series_rows(
                 continue
             try:
                 data = await audible_connector.probe_catalog_product(auth, asin)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - one unavailable book is skipped
                 logger.warning("audible: series book %s unavailable, skipping: %s", asin, exc)
                 continue
             parsed = audible_connector.parse_series_book_item(data.get("product") or {}, sequence)
@@ -246,7 +246,7 @@ async def _fetch_author_rows(
     for author_name in authors.values():
         try:
             found = await audible_connector.fetch_author_books(auth, author_name)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - one unavailable author is skipped
             logger.warning("audible: author %s unavailable, skipping: %s", author_name, exc)
             continue
         for parsed in found:
@@ -292,7 +292,7 @@ async def _fetch_one_author_profile(
     async with semaphore:
         try:
             profile = await audible_connector.fetch_author_profile(author_asin)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - one unavailable profile is skipped
             logger.warning("audible: author profile %s unavailable, skipping: %s", author_asin, exc)
             return None
     if profile is None:

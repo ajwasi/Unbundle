@@ -72,7 +72,7 @@ async def refresh_navidrome(request: Request, db: Session = Depends(get_db)):
     count = None
     try:
         count = await navidrome_sync.refresh_navidrome_library(db)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
         error = str(exc)
 
     context = navidrome_context(db, error=error)

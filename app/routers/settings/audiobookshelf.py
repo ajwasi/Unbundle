@@ -72,7 +72,7 @@ async def refresh_audiobookshelf(request: Request, db: Session = Depends(get_db)
     count = None
     try:
         count = await audiobookshelf_sync.refresh_audiobookshelf_library(db)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
         error = str(exc)
 
     context = audiobookshelf_context(db, error=error)

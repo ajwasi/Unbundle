@@ -112,7 +112,7 @@ async def restore_backup_route(request: Request, backup_file: UploadFile = File(
             backup.restore_backup(db, tmp_path)
         except backup.InvalidBackupFile as exc:
             error = str(exc)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
             error = f"Restore failed: {exc}"
 
     if error:

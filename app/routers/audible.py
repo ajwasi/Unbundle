@@ -408,7 +408,7 @@ async def refresh_audible(
         await audible_sync.refresh_audible_library(db)
     except audible_sync.NotConnectedError:
         pass
-    except Exception:
+    except Exception:  # noqa: BLE001 - error already recorded on the credential row
         pass  # error already recorded on the credential row by refresh_audible_library
     return templates.TemplateResponse(
         request, "audible/_content.html", _context(db, view=view, series_q=series_q, author_q=author_q)

@@ -205,7 +205,7 @@ def _guess_extension(delivery_url: str) -> str:
     """
     try:
         suffix = Path(httpx.URL(delivery_url).path).suffix
-    except Exception:
+    except Exception:  # noqa: BLE001 - extension guess falls back to .mp3
         suffix = ""
     return suffix or ".mp3"
 
@@ -368,7 +368,7 @@ async def _drain_queue() -> None:
                 return
             try:
                 client, headers_field, user_hash = await _build_session(db)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - account-level failure fails the queued batch; recorded on the rows
                 # An account-level failure (no login, no template, expired
                 # session) fails the whole queued batch at once with the same
                 # message, rather than retrying the same broken session once

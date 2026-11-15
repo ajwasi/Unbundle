@@ -659,7 +659,7 @@ def refresh_amazon_music(
         # diagnostic for an undocumented API, and far better than the
         # exception class name.
         error = str(exc)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - undocumented API: a shape change is surfaced as an error, not a 500
         # An undocumented API on a personal account: a shape change is a
         # plausible outcome, and it should read as a broken connector rather
         # than a broken app.
@@ -825,7 +825,7 @@ def sync_album_track_order_route(
             error = str(exc)
         except amazon_music_sync.NoTemplateError as exc:
             error = str(exc)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - undocumented page: a change is surfaced as an error, not a 500
             error = f"The track-order fetch failed ({type(exc).__name__}). Amazon may have changed this page."
 
     context = _context(db, q.strip(), sort, show_missing, album_key)

@@ -114,7 +114,7 @@ async def check_for_update() -> bool:
             resp = await client.get(f"https://api.github.com/repos/{_REPO}/tags", params={"per_page": 100})
             resp.raise_for_status()
             tags = [t["name"] for t in resp.json() if _VERSION_TAG_RE.match(t["name"])]
-    except Exception:
+    except Exception:  # noqa: BLE001 - an update check must never break the app
         print("WARNING: could not check for updates (GitHub unreachable or rate-limited)", file=sys.stderr)
         return False
 

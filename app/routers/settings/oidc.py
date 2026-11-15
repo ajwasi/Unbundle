@@ -52,7 +52,7 @@ async def save_oidc(
         else:
             try:
                 await discover(issuer)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
                 error = f"Could not verify issuer: {exc}"
 
     if disable_password and (error or not enabled):

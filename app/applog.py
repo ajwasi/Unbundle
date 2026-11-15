@@ -33,7 +33,7 @@ class _RingBufferHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             _buffer.append(self.format(record))
-        except Exception:
+        except Exception:  # noqa: BLE001 - a logging handler must never itself raise
             pass  # a logging handler must never itself raise
 
 

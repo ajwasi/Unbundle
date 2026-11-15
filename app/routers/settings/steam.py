@@ -49,7 +49,7 @@ async def save_steam(request: Request, api_key: str = Form(""), steamid: str = F
                 connected_as = result.message
             else:
                 error = result.message
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
             error = str(exc)
 
     cred.encrypted_payload = encrypt_json({"api_key": effective_key, "steamid64": resolved_steamid})

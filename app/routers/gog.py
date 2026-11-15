@@ -85,6 +85,6 @@ async def refresh_gog(request: Request, db: Session = Depends(get_db)):
         await gog_sync.refresh_gog_library(db)
     except gog_sync.NotConnectedError:
         pass
-    except Exception:
+    except Exception:  # noqa: BLE001 - error already recorded on the credential row
         pass  # error already recorded on the credential row by refresh_gog_library
     return templates.TemplateResponse(request, "gog/_content.html", _context(db))

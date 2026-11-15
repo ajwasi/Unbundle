@@ -85,7 +85,7 @@ def redact_url(value: str) -> str:
                 names.append(name)
         query = "&".join(f"{name}=<REDACTED>" for name in names)
         return f"{url.scheme}://{url.host}{url.path}?{query}"
-    except Exception:
+    except Exception:  # noqa: BLE001 - redact rather than guess at an unparseable URL
         # Unparseable but URL-shaped: blank it rather than guess.
         return "<REDACTED:url>"
 
@@ -307,7 +307,7 @@ def referenced_endpoints(node: Any, limit: int = 40) -> list[str]:
         elif isinstance(current, str) and URL_RE.match(current):
             try:
                 url = httpx.URL(current)
-            except Exception:
+            except Exception:  # noqa: BLE001 - unparseable URL contributes no parameter names
                 return
             names = sorted({name for name, _ in url.params.multi_items()})
             entry = f"{url.path}" + (f"?{'&'.join(names)}" if names else "")
@@ -471,7 +471,7 @@ def _build_result(label: str, resp: httpx.Response, secrets: set[str]) -> ProbeR
     )
     try:
         data = resp.json()
-    except Exception:
+    except Exception:  # noqa: BLE001 - probe is best-effort; return what was gathered
         return result
 
     result.is_json = True

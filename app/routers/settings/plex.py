@@ -72,7 +72,7 @@ async def refresh_plex(request: Request, db: Session = Depends(get_db)):
     count = None
     try:
         count = await plex_sync.refresh_plex_library(db)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
         error = str(exc)
 
     context = plex_context(db, error=error)
