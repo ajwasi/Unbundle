@@ -31,6 +31,10 @@ from app.models.source_health import SourceHealth
 from app.timeutil import utcnow
 
 SOURCE_STOREFRONT = "humble-storefront"  # the public bundle listing scraped for Home
+SOURCE_GOG_DEALS = "gog-deals"  # GOG's public catalogue, scraped for the Deals page
+SOURCE_WISHLIST_STEAM = "wishlist-steam"
+SOURCE_WISHLIST_GOG = "wishlist-gog"
+SOURCE_WISHLIST_CHIRP = "wishlist-chirp"
 
 # Don't write on every successful page view — a healthy source is re-confirmed
 # at most this often.
@@ -47,7 +51,17 @@ _CREDENTIAL_LABELS = {
     SOURCE_PLEX: "Plex",
     SOURCE_NAVIDROME: "Navidrome",
 }
-_SCRAPE_LABELS = {SOURCE_STOREFRONT: "Humble storefront (bundles for sale)"}
+_SCRAPE_LABELS = {
+    SOURCE_STOREFRONT: "Humble storefront (bundles for sale)",
+    SOURCE_GOG_DEALS: "GOG deals (catalogue)",
+    SOURCE_WISHLIST_STEAM: "Steam wishlist",
+    SOURCE_WISHLIST_GOG: "GOG wishlist",
+    SOURCE_WISHLIST_CHIRP: "Chirp wishlist",
+}
+# Always listed, even before the first check. The rest only appear once they
+# have reported an outcome — a user who never opens Deals or syncs a Chirp
+# wishlist shouldn't see "not checked yet" rows for them.
+_ALWAYS_SHOWN = {SOURCE_STOREFRONT}
 
 
 def get(db: Session, source: str) -> SourceHealth | None:
@@ -111,6 +125,8 @@ def overview(db: Session) -> list[dict]:
     for source, label in _SCRAPE_LABELS.items():
         health = get(db, source)
         if health is None:
+            if source not in _ALWAYS_SHOWN:
+                continue
             rows.append({"label": label, "state": "off", "detail": "Not checked yet.", "last_ok": None})
             continue
         failing = health.consecutive_failures > 0

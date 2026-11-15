@@ -24,6 +24,7 @@ from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.gog_game import GogGame
 from app.ratelimit import RateLimiter, rate_limit
+from app.services import source_health
 from app.services.bundle_tiles import CATEGORY_LABELS, build_tiles, grouped
 from app.templates_env import templates
 
@@ -56,7 +57,9 @@ async def _gog_context(
     if error is None:
         try:
             deals, total_discounted = await gog_deals.fetch_deals(force=force)
+            source_health.record_success(db, source_health.SOURCE_GOG_DEALS)
         except Exception as exc:  # noqa: BLE001 - surfaced to the user as an error message
+            source_health.record_failure(db, source_health.SOURCE_GOG_DEALS, exc)
             error = f"Could not reach GOG's catalogue ({type(exc).__name__}). It may be temporarily unavailable."
 
     # The whole point of the page: an exact product_id join, not title matching.

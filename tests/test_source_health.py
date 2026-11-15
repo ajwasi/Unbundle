@@ -127,3 +127,32 @@ def test_settings_page_shows_the_source_health_card(authed_client, db):
     assert 'id="source-health-card"' in html
     assert "Humble storefront (bundles for sale)" in html
     assert "badge-error" in html and "API key rejected" in html
+
+
+# ------------------------------------------- the other scrapes report in too
+
+
+def test_scrapes_nobody_has_used_are_not_listed(db):
+    labels = _by_label(sh.overview(db))
+    assert "GOG deals (catalogue)" not in labels and "Chirp wishlist" not in labels
+
+
+def test_gog_deals_outcomes_are_recorded(authed_client, db):
+    with patch("app.routers.deals.gog_deals.fetch_deals", new=AsyncMock(side_effect=ValueError("catalogue changed"))):
+        authed_client.get("/deals/gog")
+    row = _by_label(sh.overview(db))["GOG deals (catalogue)"]
+    assert row["state"] == "error" and row["detail"] == "catalogue changed"
+
+    with patch("app.routers.deals.gog_deals.fetch_deals", new=AsyncMock(return_value=([], 0))):
+        authed_client.get("/deals/gog")
+    assert _by_label(sh.overview(db))["GOG deals (catalogue)"]["state"] == "ok"
+
+
+def test_a_store_wishlist_refresh_is_recorded_either_way(authed_client, db):
+    with patch("app.routers.wishlist.store_wishlist_sync.refresh_steam_wishlist", new=AsyncMock(side_effect=RuntimeError("boom"))):
+        authed_client.post("/wishlist/steam/refresh")
+    assert _by_label(sh.overview(db))["Steam wishlist"]["state"] == "error"
+
+    with patch("app.routers.wishlist.store_wishlist_sync.refresh_steam_wishlist", new=AsyncMock(return_value={})):
+        authed_client.post("/wishlist/steam/refresh")
+    assert _by_label(sh.overview(db))["Steam wishlist"]["state"] == "ok"

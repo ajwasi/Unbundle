@@ -367,23 +367,32 @@ async def test_progress_polling_tracks_bytes_done_and_speed_while_running(db, ma
     target = _predicted_path(bundle.name, "Cool Book", "book.epub")
     target.parent.mkdir(parents=True, exist_ok=True)
 
+    # The fake download holds at 500 bytes until the test has seen the poller
+    # report it, so no timing margin is involved — only waiting on conditions.
+    seen_midway = asyncio.Event()
+
     async def _slow_run(*args, **kwargs):
-        await asyncio.sleep(0.1)
         target.write_bytes(b"x" * 500)
-        await asyncio.sleep(3.0)  # wide margin around _poll_progress's ~1.5s interval
+        await asyncio.wait_for(seen_midway.wait(), timeout=30)
         target.write_bytes(b"x" * 1000)
         return (0, "ok")
+
+    async def _until(predicate, timeout=30.0):
+        deadline = asyncio.get_running_loop().time() + timeout
+        while not predicate():
+            assert asyncio.get_running_loop().time() < deadline, "condition never became true"
+            await asyncio.sleep(0.05)
 
     with patch("app.downloads.worker.runner.run_download_job", new=AsyncMock(side_effect=_slow_run)):
         job_id = await worker.start_download(bundle.gamekey, bundle.name, [1], ["EPUB"])
 
-        await asyncio.sleep(2.0)  # past the poller's first check, well before _slow_run returns
+        await _until(lambda: worker.get_job_progress(job_id)["bytes_done"] == 500)
         mid_progress = worker.get_job_progress(job_id)
-        assert mid_progress["bytes_done"] == 500
         assert mid_progress["bytes_total"] == 1000
         assert mid_progress["bytes_per_sec"] > 0
+        seen_midway.set()
 
-        await asyncio.sleep(1.5)  # let the job finish
+        await _until(lambda: job_id not in worker._running_job_ids)  # let the job finish
 
     db.expire_all()
     job = db.get(DownloadJob, job_id)
