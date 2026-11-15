@@ -1,0 +1,20 @@
+{% from "_macros.html" import badge %}
+{% if source_health %}
+<table>
+  <thead>
+    <tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Last worked</th><th scope="col">Detail</th></tr>
+  </thead>
+  <tbody>
+    {% for row in source_health %}
+    <tr>
+      <td>{{ row.label }}</td>
+      <td>{{ badge(row.state, {"ok": "Working", "error": "Failing", "off": "Unknown"}[row.state]) }}</td>
+      <td>{% if row.last_ok %}<span title="{{ row.last_ok.strftime('%Y-%m-%d %H:%M') }} UTC">{{ row.last_ok | time_since }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+      <td>{% if row.detail %}<span class="muted">{{ row.detail }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">Nothing to report yet.</p>
+{% endif %}

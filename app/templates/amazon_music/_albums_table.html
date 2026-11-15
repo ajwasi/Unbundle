@@ -154,7 +154,7 @@
     <table>
       <thead>
         <tr>
-          <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#music-albums-download-form .album-check').forEach(c => c.checked = this.checked); updateMusicAlbumsSelectedButton();"></th>
+          <th class="table-lead-col"><input type="checkbox" aria-label="Select every album shown" title="Select every album shown" onclick="document.querySelectorAll('#music-albums-download-form .album-check').forEach(c => c.checked = this.checked); updateMusicAlbumsSelectedButton();"></th>
           <th></th>
           <th>Album</th>
           <th>Artist</th>

@@ -1,6 +1,7 @@
+{% from "_macros.html" import badge %}
 {% macro render_row(a) %}
 <tr class="amazon-music-album-row">
-  <td class="table-lead-col"><input type="checkbox" class="album-check" name="album_key" value="{{ a.album_key }}" onchange="updateMusicAlbumsSelectedButton();"></td>
+  <td class="table-lead-col"><input type="checkbox" class="album-check" name="album_key" value="{{ a.album_key }}" aria-label="Select {{ a.album }}" onchange="updateMusicAlbumsSelectedButton();"></td>
   <td>
     {% if a.cover_url %}
     <img src="/amazon-music/albums/{{ a.album_key }}/cover" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;"
@@ -18,10 +19,10 @@
     {{ a.track_count }}
     {% if a.missing_count %}<span class="muted" style="font-size: 0.85em;">({{ a.missing_count }} no longer listed)</span>{% endif %}
   </td>
-  <td>{% if a.in_navidrome %}<span class="badge badge-ok" title="Found in your Navidrome library by album/artist.">In Navidrome</span>{% else %}<span class="badge badge-not-configured" title="Not found in your Navidrome library — connect and refresh it in Settings if this looks wrong.">Not found</span>{% endif %}</td>
+  <td>{% if a.in_navidrome %}<span class="badge badge-ok" title="Found in your Navidrome library by album/artist.">In Navidrome</span>{% else %}{{ badge("absent", "Not found", "Not found in your Navidrome library — connect and refresh it in Settings if this looks wrong.") }}{% endif %}</td>
   <td style="white-space: nowrap;">
     {% if a.downloading %}
-    <span class="badge badge-pending">Downloading&hellip;</span>
+    {{ badge("progress", "Downloading…") }}
     {% elif a.all_downloaded %}
     <span class="badge badge-ok" title="Downloaded">&check;</span>
     {% else %}

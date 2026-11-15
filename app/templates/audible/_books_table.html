@@ -1,4 +1,4 @@
-{% from "_macros.html" import sort_link as shared_sort_link %}
+{% from "_macros.html" import sort_link as shared_sort_link, badge %}
 {# Per-page wrapper: only builds this table's own base URL (its current filters);
    the link markup itself lives in _macros.html. #}
 {% macro sort_link(col, label) %}
@@ -109,7 +109,7 @@
           <td>{% if b.cover_url %}<img class="owned-item-icon" src="{{ b.cover_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</td>
           <td>
             <a href="/audible/{{ b.asin }}">{{ b.title }}</a>
-            {% if b.asin in active_asins %}<span class="badge badge-pending">Downloading</span>
+            {% if b.asin in active_asins %}{{ badge("progress", "Downloading") }}
             {% elif b.asin in downloaded_asins %}<span class="badge badge-ok" title="This audiobook is already on disk.">On disk</span>{% endif %}
           </td>
           <td>{{ b.author }}</td>
@@ -125,9 +125,9 @@
           <td>{% if b.price_amount %}{{ "%.2f"|format(b.price_amount) }} {{ b.price_currency }}{% endif %}</td>
           <td>{% if b.rating_average %}{{ "%.1f"|format(b.rating_average) }}{% endif %}</td>
           <td>{% if b.is_finished %}<span class="badge badge-ok">Finished</span>{% elif b.percent_complete %}{{ "%.0f"|format(b.percent_complete) }}%{% endif %}</td>
-          <td><span class="badge tip {{ 'badge-ok' if is_owned(b.benefit_id) else 'badge-pending' }}" title="{{ 'Bought outright — it stays in your library permanently.' if is_owned(b.benefit_id) else 'Available with an Audible Plus subscription — it leaves your library if the subscription ends.' }}">{{ 'Owned' if is_owned(b.benefit_id) else 'Plus Catalog' }}</span></td>
-          <td>{% if b.asin in in_audiobookshelf_asins %}<span class="badge badge-ok" title="Found in your AudiobookShelf library by ASIN.">In AudiobookShelf</span>{% else %}<span class="badge badge-not-configured" title="Not found in your AudiobookShelf library — connect and refresh it in Settings if this looks wrong.">Not found</span>{% endif %}</td>
-          <td>{% if normalize_title(b.title) in in_plex_titles %}<span class="badge badge-ok" title="Found in your Plex library by title.">In Plex</span>{% else %}<span class="badge badge-not-configured" title="Not found in your Plex library — connect and refresh it in Settings if this looks wrong.">Not found</span>{% endif %}</td>
+          <td>{% if is_owned(b.benefit_id) %}{{ badge("ok", "Owned", "Bought outright — it stays in your library permanently.") }}{% else %}{{ badge("info", "Plus Catalog", "Available with an Audible Plus subscription — it leaves your library if the subscription ends.") }}{% endif %}</td>
+          <td>{% if b.asin in in_audiobookshelf_asins %}<span class="badge badge-ok" title="Found in your AudiobookShelf library by ASIN.">In AudiobookShelf</span>{% else %}{{ badge("absent", "Not found", "Not found in your AudiobookShelf library — connect and refresh it in Settings if this looks wrong.") }}{% endif %}</td>
+          <td>{% if normalize_title(b.title) in in_plex_titles %}<span class="badge badge-ok" title="Found in your Plex library by title.">In Plex</span>{% else %}{{ badge("absent", "Not found", "Not found in your Plex library — connect and refresh it in Settings if this looks wrong.") }}{% endif %}</td>
         </tr>
         {% else %}
         {% set any_filter = title or author or narrator or series or owned or progress or runtime_min is not none or runtime_max is not none

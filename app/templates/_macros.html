@@ -24,3 +24,23 @@
   {{ label }}{% if sort == col %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
 </a>
 {% endmacro %}
+
+{# The badge vocabulary. A badge says what KIND of thing a state is, not what
+   colour it should be — pick the meaning, never a colour class:
+
+     ok        done / owned / connected / present
+     error     failed
+     progress  in flight and will resolve by itself (Downloading, Queued, Running)
+     absent    not there: Missing, Not found, No longer listed
+     info      a fixed category or maturity label, not a state (Plus Catalog, Experimental)
+     off       not configured / disabled
+
+   Keeping one meaning per kind is the point: `badge-pending` used to mean
+   "downloading", "Plus Catalog" and "Experimental" on different pages.
+   `tip` (optional) becomes the hover title. The older status_badge/saved_badge
+   macros above remain for the Settings forms. #}
+{% macro badge(kind, label, tip="") -%}
+{%- if kind not in {"ok": 1, "error": 1, "progress": 1, "absent": 1, "info": 1, "off": 1} -%}{{ fail("Unknown badge kind: " ~ kind) }}{%- endif -%}
+{%- set kinds = {"ok": "ok", "error": "error", "progress": "progress", "absent": "absent", "info": "info", "off": "not-configured"} -%}
+<span class="badge badge-{{ kinds[kind] }}{{ ' tip' if tip else '' }}"{% if tip %} title="{{ tip }}"{% endif %}>{{ label }}</span>
+{%- endmacro %}

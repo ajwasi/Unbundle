@@ -1001,7 +1001,12 @@ th a { text-decoration: none; color: var(--text); }
 
 .badge-ok { background: color-mix(in srgb, var(--success) 20%, transparent); color: var(--success); }
 .badge-error { background: color-mix(in srgb, var(--error) 20%, transparent); color: var(--error); }
-.badge-pending { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+/* Semantic names (see the badge() macro in _macros.html). .badge-pending is the older
+   spelling of .badge-progress and is kept only for templates not yet migrated. */
+.badge-pending, .badge-progress { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.badge-info { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+/* Absent is outlined rather than filled so it can't be mistaken for progress or "off". */
+.badge-absent { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
 .badge-not-configured { background: color-mix(in srgb, var(--muted) 20%, transparent); color: var(--muted); }
 
 /* Audible library rows that are Plus Catalog access rather than an owned
