@@ -126,6 +126,18 @@
     then copy the resulting URL back here. Nothing is stored in plaintext: the resulting
     login is encrypted at rest the same way every other connected account here is.
   </p>
+  <details class="settings-howto"{% if audible_status == 'not_configured' %} open{% endif %}>
+    <summary>How to connect</summary>
+    <ol class="muted" style="padding-left: 1.2rem;">
+      <li>Click <strong>Connect</strong> below, pick your Audible marketplace (<code>us</code>,
+          <code>uk</code>, <code>de</code>, &hellip;) and continue.</li>
+      <li>Follow the link to log in on Amazon's own site, in a normal browser tab.</li>
+      <li>Amazon then shows a mostly blank page. Copy the <em>full</em> address from the address bar
+          &mdash; it contains <code>openid.oa2.authorization_code</code>.</li>
+      <li>Paste it into the popup and submit. Registering this device with Amazon can take up to 30
+          seconds, and the code expires quickly, so do this step soon after logging in.</li>
+    </ol>
+  </details>
   <div id="audible-card-body">
     {% include "settings/_audible_form.html" %}
   </div>
@@ -187,6 +199,18 @@
     automated Amazon login. Nothing is stored and no library is read &mdash; if these probes
     come back clean, the actual purchased-music inventory gets built next.
   </p>
+  <details class="settings-howto"{% if not music_template_captured_at %} open{% endif %}>
+    <summary>How to connect</summary>
+    <ol class="muted" style="padding-left: 1.2rem;">
+      <li>Connect <strong>Audible</strong> above first &mdash; this reuses that login instead of asking for another.</li>
+      <li>Click <strong>Test connection</strong> to check that Amazon Music answers this app with JSON.</li>
+      <li>In a logged-in <code>music.amazon.com</code> tab, open the <strong>Purchased</strong> view with
+          DevTools on the Network tab, find <code>showPurchasedTracks</code> and choose
+          <strong>Copy as cURL (bash)</strong>.</li>
+      <li>Paste it into <strong>Sync template</strong> below and save. It is replayed first and only
+          kept if Amazon answers with JSON.</li>
+    </ol>
+  </details>
   <div id="amazon-music-card-body">
     {% include "settings/_amazon_music_form.html" %}
   </div>

@@ -532,3 +532,13 @@ def test_description_disclosure_is_a_real_control_not_a_bare_marker(authed_clien
         resp = _compare(authed_client, _detailed_item(), **params)
         assert 'class="item-description disclosure"' in resp.text
         assert "Read description" in resp.text
+
+
+def test_login_page_has_no_navigation_before_sign_in(client):
+    html = client.get("/login").text
+    assert "Log in" in html
+    assert 'id="sidebar-nav"' not in html and 'id="nav-toggle"' not in html
+
+
+def test_the_sidebar_is_present_once_signed_in(authed_client):
+    assert 'id="sidebar-nav"' in authed_client.get("/").text

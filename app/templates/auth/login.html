@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% set bare_layout = true %}
 {% block title %}Log in — Unbundle{% endblock %}
 {% block content %}
 <div class="card" style="max-width: 360px; margin: 3rem auto;">
+  <p class="auth-brand">🎁 Unbundle</p>
   <h1>Log in</h1>
   {% if error %}<p class="text-error">{{ error }}</p>{% endif %}
 
