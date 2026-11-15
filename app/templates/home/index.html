@@ -24,7 +24,7 @@
     <span class="muted htmx-indicator">Refreshing&hellip;</span>
   </form>
   <span class="muted">
-    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% else %}Not refreshed yet{% endif %}
+    {% if last_synced %}Last refreshed <span title="{{ last_synced.strftime('%Y-%m-%d %H:%M') }} UTC">{{ last_synced | time_since }}</span>{% elif storefront_error %}Last refresh failed{% else %}Not refreshed yet{% endif %}
   </span>
 </div>
 
