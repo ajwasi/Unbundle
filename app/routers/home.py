@@ -5,6 +5,7 @@ the user's own Catalog via the shared machine_name identity key.
 """
 
 import logging
+from datetime import datetime
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -16,6 +17,7 @@ from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.credential import SOURCE_HUMBLE, Credential
 from app.ratelimit import RateLimiter, rate_limit
+from app.services import source_health
 from app.services.bundle_tiles import CATEGORY_LABELS, build_tiles, grouped
 from app.services.catalog import avg_item_value, build_catalog
 from app.templates_env import templates
@@ -27,20 +29,30 @@ _ALLOWED_STOREFRONT_HOST = urlparse(storefront.BASE_URL).hostname
 _refresh_limiter = RateLimiter(max_calls=5, period_seconds=60)
 
 
-async def _fetch_listing_safe(force: bool = False) -> tuple[list[storefront.StorefrontBundle], str | None]:
-    """(bundles, error). Humble's markup isn't a contract (it moved to Next.js
-    in Nov 2026 and broke the parser) — a listing that can't be fetched or
-    parsed must show a notice on Home, not a 500 for the whole page."""
+async def _fetch_listing_safe(
+    db: Session, force: bool = False
+) -> tuple[list[storefront.StorefrontBundle], str | None, datetime | None]:
+    """(bundles, error, last_ok). Humble's markup isn't a contract (it moved to
+    Next.js in Nov 2026 and broke the parser) — a listing that can't be fetched
+    or parsed must show a notice on Home, not a 500 for the whole page. Every
+    outcome is recorded (services/source_health.py) so Settings can show it
+    and the notice can say when the listing last worked."""
     try:
-        return await storefront.fetch_current_bundles(force=force), None
+        bundles = await storefront.fetch_current_bundles(force=force)
     except Exception as exc:  # noqa: BLE001 - surfaced as a notice, never a crash
         logger.warning("Storefront listing unavailable: %s", exc)
-        return [], "Couldn't read Humble's bundle listing right now (their page may have changed)."
+        source_health.record_failure(db, source_health.SOURCE_STOREFRONT, exc)
+        health = source_health.get(db, source_health.SOURCE_STOREFRONT)
+        return [], "Couldn't read Humble's bundle listing right now (their page may have changed).", (
+            health.last_success_at if health else None
+        )
+    source_health.record_success(db, source_health.SOURCE_STOREFRONT, at=storefront.last_fetched_at())
+    return bundles, None, None
 
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request, db: Session = Depends(get_db)):
-    bundles, storefront_error = await _fetch_listing_safe()
+    bundles, storefront_error, storefront_last_ok = await _fetch_listing_safe(db)
     tiles = await build_tiles(bundles, db)
     return templates.TemplateResponse(
         request,
@@ -50,6 +62,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
             "category_labels": CATEGORY_LABELS,
             "last_synced": storefront.last_fetched_at(),
             "storefront_error": storefront_error,
+            "storefront_last_ok": storefront_last_ok,
             # Absence of the row, not its status — a saved-but-failing key means
             # the user has already been through setup and gets the error on the
             # Settings card instead of a getting-started banner here.
@@ -60,7 +73,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/storefront/refresh", response_class=HTMLResponse, dependencies=[Depends(rate_limit(_refresh_limiter, "storefront-refresh")), Depends(require_csrf)])
 async def refresh_storefront(request: Request, db: Session = Depends(get_db)):
-    bundles, storefront_error = await _fetch_listing_safe(force=True)
+    bundles, storefront_error, storefront_last_ok = await _fetch_listing_safe(db, force=True)
     tiles = await build_tiles(bundles, db)
     return templates.TemplateResponse(
         request,
@@ -70,6 +83,7 @@ async def refresh_storefront(request: Request, db: Session = Depends(get_db)):
             "category_labels": CATEGORY_LABELS,
             "last_synced": storefront.last_fetched_at(),
             "storefront_error": storefront_error,
+            "storefront_last_ok": storefront_last_ok,
         },
     )
 

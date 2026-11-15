@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Settings — Unbundle{% endblock %}
 {% block content %}
+{% from "_macros.html" import badge %}
 <h1>Settings</h1>
 
 <div class="store-tabs" id="settings-tabs" role="tablist" aria-label="Settings section">
@@ -39,6 +40,12 @@
 <h2 id="accounts-section">Connected Accounts</h2>
 
 <div class="settings-grid">
+<div class="card" id="source-health-card">
+  <h3>Source health</h3>
+  <p class="muted">Whether each connected source — and the public Humble storefront — last worked.</p>
+  {% include "settings/_source_health.html" %}
+</div>
+
 <div class="card{% if humble_status == 'ok' %} is-connected{% elif humble_status == 'error' %} has-error{% endif %}" id="humble-card">
   <h3>Humble Bundle</h3>
   <details class="settings-howto"{% if humble_status == 'not_configured' %} open{% endif %}>
@@ -173,7 +180,7 @@
 </div>
 
 <div class="card" id="amazon-music-card">
-  <h3>Amazon Music <span class="badge badge-pending">Experimental</span></h3>
+  <h3>Amazon Music {{ badge("info", "Experimental") }}</h3>
   <p class="muted">
     Not a connector yet. This checks one thing: whether <code>music.amazon.com</code> answers
     this app with JSON, or blocks it with the same kind of challenge page that stops an

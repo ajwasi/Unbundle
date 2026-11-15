@@ -2,6 +2,7 @@
   <p class="muted">
     {{ rows|length }} download(s){% if q %} matching "{{ q }}"{% endif %}{% if status %} with status "{{ status }}"{% endif %}{% if file_format %} in format "{{ file_format }}"{% endif %}
   </p>
+  <div class="table-scroll">
   <table>
     <thead>
       <tr>
@@ -43,4 +44,5 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>

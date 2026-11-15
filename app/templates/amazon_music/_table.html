@@ -1,3 +1,4 @@
+{% from "_macros.html" import badge %}
 <div id="amazon-music-table">
   {% if track_order_error %}<p class="text-error">{{ track_order_error }}</p>{% endif %}
   {% if album_key and album_key != "none" %}
@@ -65,7 +66,7 @@
     <table>
       <thead>
         <tr>
-          <th class="table-lead-col"><input type="checkbox" onclick="document.querySelectorAll('#music-download-form .track-check').forEach(c => c.checked = this.checked); updateMusicSelectedButton();"></th>
+          <th class="table-lead-col"><input type="checkbox" aria-label="Select every track shown" title="Select every track shown" onclick="document.querySelectorAll('#music-download-form .track-check').forEach(c => c.checked = this.checked); updateMusicSelectedButton();"></th>
           <th>#</th>
           <th>Title</th>
           <th>Artist</th>
@@ -77,7 +78,7 @@
       <tbody>
         {% for t in tracks %}
         <tr class="{{ 'row-expired' if t.missing_since else '' }}">
-          <td class="table-lead-col"><input type="checkbox" class="track-check" name="download_id" value="{{ t.download_id }}" onchange="updateMusicSelectedButton();"></td>
+          <td class="table-lead-col"><input type="checkbox" class="track-check" name="download_id" value="{{ t.download_id }}" aria-label="Select {{ t.title }}" onchange="updateMusicSelectedButton();"></td>
           <td class="muted">{{ t.track_number or "—" }}</td>
           <td>
             {{ t.title }}
@@ -91,9 +92,9 @@
           <td>{{ t.duration_display or "—" }}</td>
           <td style="white-space: nowrap;">
             {% if t.missing_since %}
-            <span class="badge badge-pending tip" title="This track was in a previous sync but Amazon no longer lists it. The row is kept, never deleted.">No longer listed</span>
+            {{ badge("absent", "No longer listed", "This track was in a previous sync but Amazon no longer lists it. The row is kept, never deleted.") }}
             {% elif t.download_id in active_download_ids %}
-            <span class="badge badge-pending">Downloading&hellip;</span>
+            {{ badge("progress", "Downloading…") }}
             {% elif track_status.get(t.download_id) == "completed" %}
             <span class="badge badge-ok" title="Downloaded">&check;</span>
             {% else %}

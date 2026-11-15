@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ series_name }} — Unbundle{% endblock %}
 {% block content %}
+{% from "_macros.html" import badge %}
 <p><a href="/chirp">&larr; Back to library</a></p>
 <h1>{{ series_name }}</h1>
 <div class="card">
@@ -15,7 +16,7 @@
         <td>{{ r.sequence }}</td>
         <td><a href="https://www.chirpbooks.com{{ r.url_path }}" target="_blank" rel="noopener">{{ r.title }}</a></td>
         <td>{{ r.authors }}</td>
-        <td>{% if r.owned %}<span class="badge badge-ok">Owned</span>{% else %}<span class="badge badge-pending">Missing</span>{% endif %}</td>
+        <td>{% if r.owned %}<span class="badge badge-ok">Owned</span>{% else %}{{ badge("absent", "Missing") }}{% endif %}</td>
         <td>
           {% if not r.owned and r.current_price is not none %}
           {{ "%.2f"|format(r.current_price) }}

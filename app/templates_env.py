@@ -18,6 +18,15 @@ templates.env.globals["is_tagged_build"] = is_tagged_build
 templates.env.globals["update_last_checked_at"] = last_checked_at
 
 
+def _fail(message: str):
+    """Lets a template refuse bad input (e.g. an unknown badge kind) loudly,
+    rather than Jinja silently rendering an empty string."""
+    raise ValueError(message)
+
+
+templates.env.globals["fail"] = _fail
+
+
 def human_size(num_bytes: int) -> str:
     size = float(num_bytes or 0)
     for unit in ("B", "KB", "MB", "GB"):

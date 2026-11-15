@@ -63,6 +63,7 @@ from app.models import (  # noqa: E402,F401
     download_job,
     download_settings,
     gog_game,
+    source_health,
     steam_game,
     store_wishlist,
     sync_run,
@@ -101,11 +102,12 @@ def _no_real_storefront_fetches(request, monkeypatch):
     """GET / renders Humble's live storefront listing; any test that loads the
     Home page would otherwise hit humblebundle.com — and fail the moment their
     markup changes (it did, 2026-11-14, taking the whole CI run down).
-    Tests that exercise the connector itself (test_storefront_connector.py)
-    drive it with their own mock transport and need the real functions; tests
-    that care about listing contents patch these again themselves.
+    Tests that exercise the connector itself (test_storefront_connector.py,
+    the recorded-page contract tests, the opt-in live canary) need the real
+    functions; tests that care about listing contents patch these again
+    themselves.
     """
-    if request.module.__name__.endswith("test_storefront_connector"):
+    if request.module.__name__.endswith(("test_storefront_connector", "test_storefront_contract", "test_storefront_live")):
         yield
         return
 

@@ -25,6 +25,7 @@ from app.connectors import chirp_connector, gog_connector, steam_connector  # no
 from app.connectors.humble_connector import HumbleConnector  # noqa: F401 — re-exported, see module docstring
 from app.deps import get_db
 from app.models.credential import STATUS_NOT_CONFIGURED
+from app.services import source_health
 from app.templates_env import templates
 
 from . import (
@@ -66,6 +67,7 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     context.update(backups.backup_context(db))
     context.update(amazon_music.amazon_music_context(db))
     context.update(navidrome.navidrome_context(db))
+    context["source_health"] = source_health.overview(db)
     context.update(deployment_context(request))
     context.update(api_tokens.api_context(db))
     return templates.TemplateResponse(request, "settings/index.html", context)
