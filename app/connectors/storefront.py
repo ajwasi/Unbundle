@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 import httpx
 import nh3
 from app.timeutil import utcnow
+from app.http import async_client
 
 logger = logging.getLogger(__name__)
 
@@ -416,7 +417,7 @@ async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
     if _listing_cache and not force and time.monotonic() - _listing_cache[0] < LISTING_TTL_SECONDS:
         return _listing_cache[1]
 
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
+    async with async_client(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
         resp = await client.get(f"{BASE_URL}/bundles")
         resp.raise_for_status()
 
@@ -599,7 +600,7 @@ async def fetch_bundle_detail(product_url: str, force: bool = False) -> Storefro
     if parsed.fragment:
         safe_url = f"{safe_url}#{parsed.fragment}"
 
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
+    async with async_client(timeout=20, headers={"User-Agent": USER_AGENT}) as client:
         resp = await client.get(safe_url)
         resp.raise_for_status()
 

@@ -35,7 +35,6 @@ from pathlib import Path
 
 import audible
 from audible.aescipher import decrypt_voucher_from_licenserequest
-import httpx
 from sqlalchemy.orm import Session
 
 from app import jobqueue
@@ -57,6 +56,7 @@ from app.models.audible_download_destination import AudibleDownloadDestination
 from app.models.audible_local_file import SOURCE_DOWNLOAD, AudibleLocalFile
 from app.sync.audible_sync import NotConnectedError, get_audible_credential, save_authenticator
 from app.timeutil import utcnow
+from app.http import async_client
 
 # Audible's own iOS app's User-Agent, per the `audible` package's official
 # download example — unconfirmed whether the download URL actually requires
@@ -396,7 +396,7 @@ async def _paced_request_license(auth, asin: str) -> dict:
 
 
 async def _download_aaxc(url: str, dest_path, job: AudibleBookDownload, db: Session) -> None:
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with async_client(timeout=60) as client:
         async with client.stream("GET", url, headers={"User-Agent": _DOWNLOAD_USER_AGENT}) as resp:
             resp.raise_for_status()
             job.expected_size_bytes = int(resp.headers.get("content-length") or 0) or None

@@ -59,6 +59,7 @@ from app.models.amazon_music_download import (
 from app.models.amazon_music_track import AmazonMusicTrack
 from app.sync.amazon_music_sync import AmazonMusicRequestError, NoTemplateError, NotConnectedError
 from app.timeutil import utcnow
+from app.http import async_client
 
 # Same courtesy as amazon_music_sync.PAGE_DELAY_SECONDS, applied between
 # tracks instead of between pages.
@@ -231,7 +232,7 @@ async def _build_session(db: Session, _retried: bool = False) -> tuple[httpx.Asy
             "in Settings before downloading."
         )
 
-    client = httpx.AsyncClient(cookies=cookies, headers=probe.BASE_HEADERS, timeout=30.0, follow_redirects=True)
+    client = async_client(cookies=cookies, headers=probe.BASE_HEADERS, timeout=30.0, follow_redirects=True)
     try:
         resp = await client.get(amc.config_url())
         if resp.status_code in (401, 403):

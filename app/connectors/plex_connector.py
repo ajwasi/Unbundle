@@ -26,6 +26,7 @@ can find the right one.
 import httpx
 
 from app.connectors.types import CredentialStatus
+from app.http import async_client
 
 _TIMEOUT_SECONDS = 15
 _TYPE_ALBUM = 9
@@ -54,7 +55,7 @@ def _normalize_base_url(base_url: str) -> str:
 
 
 async def fetch_libraries(base_url: str, token: str) -> list[PlexLibraryData]:
-    async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+    async with async_client(timeout=_TIMEOUT_SECONDS) as client:
         resp = await client.get(f"{_normalize_base_url(base_url)}/library/sections", headers=_headers(token))
     if resp.status_code == 401:
         raise ValueError("Plex rejected this token.")
@@ -96,7 +97,7 @@ async def fetch_audiobook_items(base_url: str, token: str, library_id: str) -> l
             "libraries and their keys, and enter the one that holds your audiobooks."
         )
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+    async with async_client(timeout=_TIMEOUT_SECONDS) as client:
         resp = await client.get(
             f"{_normalize_base_url(base_url)}/library/sections/{library_id}/all",
             headers=_headers(token),

@@ -45,6 +45,7 @@ from datetime import datetime
 import audible
 import httpx
 import nh3
+from app.http import async_client
 
 # Amazon's own Plus Catalog access marker — the one value confirmed from
 # community reverse-engineering references (not yet confirmed against this
@@ -687,7 +688,7 @@ async def fetch_author_profile(author_asin: str) -> AudibleAuthorProfileData | N
     error — the caller still logs+skips on a genuine network failure, same
     as every other per-item fetch in this module.
     """
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with async_client(timeout=10) as client:
         resp = await client.get(f"{AUDNEXUS_BASE_URL}/authors/{author_asin}")
     if resp.status_code != 200:
         return None

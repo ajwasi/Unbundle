@@ -17,8 +17,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-import httpx
 from app.timeutil import utcnow
+from app.http import async_client
 
 _VERSION_FILE = Path(__file__).resolve().parent.parent / "VERSION"
 _REPO = "ajwasi/Unbundle"
@@ -110,7 +110,7 @@ async def check_for_update() -> bool:
 
     _last_checked_at = utcnow()
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with async_client(timeout=10) as client:
             resp = await client.get(f"https://api.github.com/repos/{_REPO}/tags", params={"per_page": 100})
             resp.raise_for_status()
             tags = [t["name"] for t in resp.json() if _VERSION_TAG_RE.match(t["name"])]

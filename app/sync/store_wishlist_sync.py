@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 
-import httpx
 from sqlalchemy.orm import Session
 
 from app.connectors import chirp_connector, gog_connector, gog_wishlist, steam_wishlist
@@ -28,6 +27,7 @@ from app.models.store_wishlist import (
 )
 from app.sync.wishlist_common import flag_removed, record_price_if_changed
 from app.timeutil import utcnow
+from app.http import async_client
 
 
 class NotConnectedError(Exception):
@@ -48,7 +48,7 @@ async def refresh_steam_wishlist(db: Session) -> dict:
     seen: set[int] = set()
     new = price_changes = detail_fetches = 0
 
-    async with httpx.AsyncClient(
+    async with async_client(
         timeout=25.0, headers={"User-Agent": steam_wishlist.USER_AGENT}
     ) as client:
         for index, entry in enumerate(entries):
@@ -117,7 +117,7 @@ async def refresh_gog_wishlist(db: Session) -> dict:
     now = utcnow()
     new = price_changes = detail_fetches = 0
 
-    async with httpx.AsyncClient(
+    async with async_client(
         timeout=25.0, headers={"User-Agent": gog_wishlist.USER_AGENT}
     ) as client:
         for product_id in product_ids:

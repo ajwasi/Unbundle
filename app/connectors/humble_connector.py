@@ -27,6 +27,7 @@ from app.connectors.base import (
     NormalizedEntitlement,
 )
 from app.connectors.types import CredentialStatus
+from app.http import async_client
 
 BASE_URL = "https://www.humblebundle.com/api/v1"
 SITE_BASE_URL = "https://www.humblebundle.com"
@@ -64,7 +65,7 @@ class HumbleConnector(BaseConnector):
 
     async def check_credentials(self) -> CredentialStatus:
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with async_client(timeout=15) as client:
                 resp = await client.get(f"{_base_url()}/user/order", headers=self._headers())
         except ConnectorAuthError as exc:
             return CredentialStatus(ok=False, message=str(exc))
@@ -93,7 +94,7 @@ class HumbleConnector(BaseConnector):
         return CredentialStatus(ok=True, message="Connected")
 
     async def sync(self, log: LogCallback) -> list[NormalizedBundle]:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with async_client(timeout=30) as client:
             headers = self._headers()
 
             resp = await client.get(f"{_base_url()}/user/order", headers=headers)

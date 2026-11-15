@@ -19,6 +19,7 @@ import secrets
 import httpx
 
 from app.connectors.types import CredentialStatus
+from app.http import async_client
 
 _TIMEOUT_SECONDS = 15
 _API_VERSION = "1.16.1"
@@ -56,7 +57,7 @@ async def _get(base_url: str, username: str, password: str, path: str, extra_par
     params = _auth_params(username, password)
     if extra_params:
         params.update(extra_params)
-    async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+    async with async_client(timeout=_TIMEOUT_SECONDS) as client:
         resp = await client.get(f"{_normalize_base_url(base_url)}/rest/{path}", params=params)
     if resp.status_code != 200:
         raise ValueError(f"Navidrome request failed: HTTP {resp.status_code}")

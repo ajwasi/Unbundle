@@ -14,7 +14,6 @@ task getting garbage-collected mid-run.
 
 import time
 
-import httpx
 from sqlalchemy.orm import Session
 
 from app.asyncio_utils import spawn_background_task
@@ -31,6 +30,7 @@ from app.models.audible_pdf_download import (
     AudiblePdfDownload,
 )
 from app.timeutil import utcnow
+from app.http import async_client
 
 _active_asins: set[str] = set()
 
@@ -84,7 +84,7 @@ async def _run(job_id: int, asin: str, pdf_url: str, title: str) -> None:
             dest_dir.mkdir(parents=True, exist_ok=True)
             dest_path = dest_dir / f"{sanitize_dir_name(title)}.pdf"
 
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with async_client(timeout=60) as client:
                 async with client.stream("GET", pdf_url) as resp:
                     resp.raise_for_status()
                     job.expected_size_bytes = int(resp.headers.get("content-length") or 0) or None

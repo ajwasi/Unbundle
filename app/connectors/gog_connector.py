@@ -58,6 +58,7 @@ import httpx
 
 from app.browser import fetch_rendered_html
 from app.config import settings
+from app.http import async_client
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ async def exchange_code(code: str) -> dict:
     on any failure — the code is single-use and short-lived (confirmed real
     HTTP 400 from a garbage/expired code), so this normally only fails from a
     slow user or a reused/stale one."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with async_client(timeout=15) as client:
         resp = await client.get(
             _token_url(),
             params={
@@ -177,7 +178,7 @@ async def refresh_access_token(refresh_token: str) -> dict:
     """Returns a fresh {"access_token": ..., "refresh_token": ...} — GOG may
     rotate the refresh token on each use, so callers must persist whatever
     comes back, not just reuse the original indefinitely."""
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with async_client(timeout=15) as client:
         resp = await client.get(
             _token_url(),
             params={
@@ -218,7 +219,7 @@ async def fetch_owned_games(access_token: str) -> list[GogGameData]:
     games: list[GogGameData] = []
     headers = {"Authorization": f"Bearer {access_token}"}
     page, total_pages = 1, 1
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with async_client(timeout=30) as client:
         while page <= total_pages:
             resp = await client.get(f"{_api_base()}/account/getFilteredProducts", params={"page": page}, headers=headers)
             if resp.status_code != 200:

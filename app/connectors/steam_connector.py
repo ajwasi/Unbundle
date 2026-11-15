@@ -22,6 +22,7 @@ import httpx
 
 from app.config import settings
 from app.connectors.types import CredentialStatus
+from app.http import async_client
 
 BASE_URL = "https://api.steampowered.com"
 _STEAM_ID_RE = re.compile(r"^\d{17}$")
@@ -66,7 +67,7 @@ async def resolve_steamid(api_key: str, steamid_or_url: str) -> str:
         return candidate
 
     vanity = _extract_vanity_name(candidate)
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with async_client(timeout=15) as client:
         resp = await client.get(f"{_base_url()}/ISteamUser/ResolveVanityURL/v0001/", params={"key": api_key, "vanityurl": vanity})
     if resp.status_code != 200:
         raise ValueError(f"Steam rejected the profile lookup (HTTP {resp.status_code}).")
@@ -78,7 +79,7 @@ async def resolve_steamid(api_key: str, steamid_or_url: str) -> str:
 
 async def check_credentials(api_key: str, steamid64: str) -> CredentialStatus:
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with async_client(timeout=15) as client:
             resp = await client.get(f"{_base_url()}/ISteamUser/GetPlayerSummaries/v0002/", params={"key": api_key, "steamids": steamid64})
     except httpx.HTTPError as exc:
         return CredentialStatus(ok=False, message=f"Could not reach Steam: {exc}")
@@ -105,7 +106,7 @@ async def check_credentials(api_key: str, steamid64: str) -> CredentialStatus:
 async def fetch_owned_games(api_key: str, steamid64: str) -> list[SteamGameData]:
     # See resolve_steamid's docstring: no raise_for_status() here either, for the
     # same reason — this request also carries `api_key` in the query string.
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with async_client(timeout=30) as client:
         resp = await client.get(
             f"{_base_url()}/IPlayerService/GetOwnedGames/v0001/",
             params={"key": api_key, "steamid": steamid64, "include_appinfo": "true", "include_played_free_games": "true", "format": "json"},
