@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Settings — Unbundle{% endblock %}
 {% block content %}
+{% from "_macros.html" import badge %}
 <h1>Settings</h1>
 
 <div class="store-tabs" id="settings-tabs" role="tablist" aria-label="Settings section">
@@ -173,7 +174,7 @@
 </div>
 
 <div class="card" id="amazon-music-card">
-  <h3>Amazon Music <span class="badge badge-pending">Experimental</span></h3>
+  <h3>Amazon Music {{ badge("info", "Experimental") }}</h3>
   <p class="muted">
     Not a connector yet. This checks one thing: whether <code>music.amazon.com</code> answers
     this app with JSON, or blocks it with the same kind of challenge page that stops an

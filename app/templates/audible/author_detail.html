@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ author_name }} — Unbundle{% endblock %}
 {% block content %}
+{% from "_macros.html" import badge %}
 <p><a href="/audible">&larr; Back to library</a></p>
 
 {% if author_image_url or author_bio %}
@@ -35,7 +36,7 @@
           {% else %}<a href="https://www.audible.com/pd/{{ r.asin }}" target="_blank" rel="noopener">{{ r.title }}</a>{% endif %}
         </td>
         <td>{% if r.series_title %}{{ r.series_title }}{% if r.series_sequence %} #{{ r.series_sequence }}{% endif %}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
-        <td>{% if r.owned %}<span class="badge badge-ok">Owned</span>{% else %}<span class="badge badge-pending">Missing</span>{% endif %}</td>
+        <td>{% if r.owned %}<span class="badge badge-ok">Owned</span>{% else %}{{ badge("absent", "Missing") }}{% endif %}</td>
         <td>
           {% if r.price is not none %}
           {{ "%.2f"|format(r.price) }} {{ r.currency }}
