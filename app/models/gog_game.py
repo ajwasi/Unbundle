@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class GogGame(Base):
@@ -32,4 +33,4 @@ class GogGame(Base):
     content_type: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     purchased_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     paid_price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

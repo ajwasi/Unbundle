@@ -38,6 +38,7 @@ from app.connectors.amazon_music_probe import NotConnectedError as _ProbeNotConn
 from app.connectors import amazon_music_template as tmpl
 from app.models.amazon_music_album_catalog_sync import AmazonMusicAlbumCatalogSync
 from app.models.amazon_music_track import AmazonMusicTrack
+from app.timeutil import utcnow
 
 # One page is 50 rows (confirmed: multiSelectBar.itemCount). A pause between
 # pages keeps a full-library sync from looking like a scrape of an
@@ -131,7 +132,7 @@ def mark_compilations(db: Session) -> None:
 def upsert_tracks(db: Session, tracks: list[amc.PurchasedTrack], now: datetime | None = None) -> tuple[int, int]:
     """Returns (new, updated). Rows that disappear are flagged by
     flag_missing(), never deleted here."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     new = updated = 0
     for parsed in tracks:
         row = db.get(AmazonMusicTrack, parsed.download_id)
@@ -161,7 +162,7 @@ def upsert_tracks(db: Session, tracks: list[amc.PurchasedTrack], now: datetime |
 
 
 def flag_missing(db: Session, seen_ids: set[str], now: datetime | None = None) -> int:
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     query = db.query(AmazonMusicTrack).filter(AmazonMusicTrack.missing_since.is_(None))
     if seen_ids:
         query = query.filter(~AmazonMusicTrack.download_id.in_(seen_ids))
@@ -329,7 +330,7 @@ def refresh_purchased_tracks(db: Session) -> dict:
     no Audible login to derive cookies from, and AmazonMusicAuthError when
     Amazon rejects what it derives — neither is a 500.
     """
-    started = datetime.utcnow()
+    started = utcnow()
     client, headers_field, template = _open_authenticated_client(db)
 
     with client:
@@ -363,7 +364,7 @@ def refresh_purchased_tracks(db: Session) -> dict:
         "updated": first["updated"] + second["updated"],
         "missing": missing,
         "second_pass_only_tracks": second_pass_only,
-        "finished_at": datetime.utcnow(),
+        "finished_at": utcnow(),
     }
     if unmatched_shapes:
         result["unmatched_item_shapes"] = unmatched_shapes
@@ -432,7 +433,7 @@ def sync_album_track_order(db: Session, album_asin: str) -> dict:
     if sync_row is None:
         sync_row = AmazonMusicAlbumCatalogSync(album_asin=album_asin)
         db.add(sync_row)
-    sync_row.synced_at = datetime.utcnow()
+    sync_row.synced_at = utcnow()
     sync_row.tracks_found = len(titles)
     sync_row.tracks_matched = matched
     db.commit()

@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class Bundle(Base):
@@ -60,4 +61,4 @@ class Bundle(Base):
     purchased_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     amount_spent: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     raw_json: Mapped[str] = mapped_column(Text, nullable=False)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

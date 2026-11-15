@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 
 import httpx
 import nh3
+from app.timeutil import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -430,7 +431,7 @@ async def fetch_current_bundles(force: bool = False) -> list[StorefrontBundle]:
         bundles = _legacy_listing(payload, resp)
 
     _listing_cache = (time.monotonic(), bundles)
-    _listing_fetched_at = datetime.utcnow()
+    _listing_fetched_at = utcnow()
     return bundles
 
 

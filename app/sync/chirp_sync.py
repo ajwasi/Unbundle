@@ -14,7 +14,6 @@ instead of spinning forever or double-counting the same page.
 """
 
 import logging
-from datetime import datetime
 
 import httpx
 from sqlalchemy.orm import Session
@@ -24,6 +23,7 @@ from app.models.chirp_audiobook import ChirpAudiobook
 from app.models.chirp_series_book import ChirpSeriesBook
 from app.models.credential import SOURCE_CHIRP, STATUS_ERROR, STATUS_OK, Credential
 from app.security import decrypt_json
+from app.timeutil import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ async def _fetch_series_rows(client, books) -> list[ChirpSeriesBook]:
                         series_number=entry.series_number,
                         listing_price=entry.listing_price,
                         current_price=entry.current_price,
-                        fetched_at=datetime.utcnow(),
+                        fetched_at=utcnow(),
                     )
                 )
         except (chirp_connector.ChirpRequestError, httpx.HTTPError) as exc:
@@ -135,7 +135,7 @@ async def refresh_chirp_library(db: Session) -> int:
 
     earliest = _earliest_purchase_by_url(purchases) if purchases is not None else previous
     db.query(ChirpAudiobook).delete()
-    now = datetime.utcnow()
+    now = utcnow()
     for b in books:
         purchased_at, paid_price = earliest.get(b.url_path, (None, None))
         db.add(

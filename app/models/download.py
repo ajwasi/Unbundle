@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstr
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 STATUS_QUEUED = "queued"
 STATUS_RUNNING = "running"
@@ -47,7 +48,7 @@ class Download(Base):
     current_location_type: Mapped[str] = mapped_column(String(20), nullable=False, default=LOCATION_LOCAL)
     current_location_path: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    queued_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    queued_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

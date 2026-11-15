@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 STATUS_QUEUED = "queued"
 STATUS_RUNNING = "running"
@@ -30,6 +31,6 @@ class AudiblePdfDownload(Base):
     expected_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error_message: Mapped[str] = mapped_column(Text, nullable=False, default="")
     downloaded_path: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
-    queued_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    queued_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

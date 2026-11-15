@@ -30,6 +30,7 @@ from app.models.credential import SOURCE_AUDIBLE, STATUS_ERROR, STATUS_OK, Crede
 from app.security import encrypt_json
 
 import audible
+from app.timeutil import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ async def refresh_audible_library(db: Session) -> int:
     # common case (the same books, refreshed); only a book that's actually
     # left the account gets its row deleted at all.
     existing_books = {b.asin: b for b in db.query(AudibleBook).all()}
-    now = datetime.utcnow()
+    now = utcnow()
     for b in books:
         row = existing_books.get(b.asin)
         if row is None:
@@ -166,7 +167,7 @@ async def _fetch_series_rows(
             representative[b.series_asin] = b.series_title
 
     rows: list[AudibleSeriesBook] = []
-    now = datetime.utcnow()
+    now = utcnow()
     for series_asin, series_title in representative.items():
         try:
             children = await audible_connector.fetch_series_children(auth, series_asin)
@@ -241,7 +242,7 @@ async def _fetch_author_rows(
             authors.setdefault(name.casefold(), name)
 
     rows: list[AudibleAuthorBook] = []
-    now = datetime.utcnow()
+    now = utcnow()
     for author_name in authors.values():
         try:
             found = await audible_connector.fetch_author_books(auth, author_name)
@@ -317,7 +318,7 @@ async def _fetch_author_profiles(author_rows: list[AudibleAuthorBook]) -> list[A
     if not author_asins:
         return []
     semaphore = asyncio.Semaphore(_AUDNEXUS_CONCURRENCY)
-    now = datetime.utcnow()
+    now = utcnow()
     results = await asyncio.gather(*(_fetch_one_author_profile(semaphore, asin, now) for asin in author_asins))
     return [row for row in results if row is not None]
 
@@ -367,7 +368,7 @@ async def refresh_audible_wishlist(db: Session) -> dict:
         _set_credential_status(db, STATUS_ERROR, str(exc))
         raise
 
-    now = datetime.utcnow()
+    now = utcnow()
     seen: set[str] = set()
     new = price_changes = 0
 

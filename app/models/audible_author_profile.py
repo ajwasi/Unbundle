@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class AudibleAuthorProfile(Base):
@@ -30,4 +31,4 @@ class AudibleAuthorProfile(Base):
     name: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     image_url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     bio: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

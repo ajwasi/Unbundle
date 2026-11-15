@@ -3,7 +3,6 @@ audiobookshelf_sync.py plays for AudiobookShelf. Manual, on-demand
 (POST /settings/plex/refresh), "nothing runs automatically".
 """
 
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -11,6 +10,7 @@ from app.audible.scan import normalize
 from app.connectors import plex_connector
 from app.models.credential import SOURCE_PLEX, STATUS_ERROR, STATUS_OK, Credential
 from app.models.plex_audiobook_item import PlexAudiobookItem
+from app.timeutil import utcnow
 
 
 class NotConnectedError(Exception):
@@ -38,7 +38,7 @@ async def refresh_plex_library(db: Session) -> int:
         raise
 
     db.query(PlexAudiobookItem).delete()
-    now = datetime.utcnow()
+    now = utcnow()
     for item in items:
         db.add(PlexAudiobookItem(rating_key=item.rating_key, title=item.title, author=item.author, fetched_at=now))
     db.commit()

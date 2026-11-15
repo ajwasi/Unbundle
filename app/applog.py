@@ -23,7 +23,7 @@ handler anywhere.
 
 import logging
 from collections import deque
-from datetime import datetime
+from app.timeutil import utcnow
 
 _MAX_LINES = 2000
 _buffer: deque[str] = deque(maxlen=_MAX_LINES)
@@ -73,4 +73,4 @@ def clear() -> None:
 
 
 def download_filename() -> str:
-    return f"unbundle-logs-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.txt"
+    return f"unbundle-logs-{utcnow().strftime('%Y%m%d-%H%M%S')}.txt"

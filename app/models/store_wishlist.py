@@ -16,6 +16,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class _WishlistPriceMixin:
@@ -23,7 +24,7 @@ class _WishlistPriceMixin:
     price: Mapped[float | None] = mapped_column(Float, nullable=True)
     list_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="")
-    captured_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    captured_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
 
 class SteamWishlistItem(Base):
@@ -60,8 +61,8 @@ class SteamWishlistItem(Base):
     metacritic: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     details_fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     removed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
@@ -90,8 +91,8 @@ class GogWishlistItem(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="")
 
     details_fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     removed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     @property
@@ -128,8 +129,8 @@ class ChirpWishlistItem(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
 
     details_fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     removed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     @property

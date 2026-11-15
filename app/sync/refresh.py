@@ -24,6 +24,7 @@ from app.models.bundle import Bundle
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import SOURCE_HUMBLE, STATUS_ERROR, STATUS_OK, Credential
 from app.models.sync_run import STATUS_FAILED, STATUS_RUNNING, STATUS_SUCCESS, SyncRun
+from app.timeutil import utcnow
 
 _refresh_lock = asyncio.Lock()
 
@@ -50,7 +51,7 @@ def sweep_stale_runs() -> None:
         stale = db.query(SyncRun).filter(SyncRun.status == STATUS_RUNNING).all()
         for run in stale:
             run.status = STATUS_FAILED
-            run.finished_at = datetime.utcnow()
+            run.finished_at = utcnow()
             run.error_message = "Interrupted by application restart."
         db.commit()
     finally:
@@ -99,7 +100,7 @@ async def _run_refresh(run_id: int) -> None:
             except Exception as exc:  # noqa: BLE001 - last-resort guard so sync_run never hangs at 'running'
                 run.status = STATUS_FAILED
                 run.error_message = f"Unexpected error: {exc}"
-            run.finished_at = datetime.utcnow()
+            run.finished_at = utcnow()
             db.commit()
         finally:
             db.close()
@@ -144,7 +145,7 @@ async def refresh_library(db: Session, log: LogCallback) -> int:
         bundle = existing_bundles.get(normalized.gamekey)
         if bundle is None:
             bundle = Bundle(gamekey=normalized.gamekey, name=normalized.name, raw_json="{}",
-                             fetched_at=datetime.utcnow())
+                             fetched_at=utcnow())
             db.add(bundle)
         bundle.name = normalized.name
         bundle.category = normalized.category
@@ -162,7 +163,7 @@ async def refresh_library(db: Session, log: LogCallback) -> int:
             except ValueError:
                 bundle.purchased_at = None
         bundle.raw_json = json.dumps(normalized.raw_json, default=str)
-        bundle.fetched_at = datetime.utcnow()
+        bundle.fetched_at = utcnow()
 
         for ent in normalized.entitlements:
             # existing_entitlements doubles as this bundle's own dedup cache: a

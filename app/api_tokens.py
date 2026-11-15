@@ -13,11 +13,11 @@ the kind of timing attack hmac.compare_digest exists for either.
 
 import hashlib
 import secrets
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.models.api_token import ApiToken
+from app.timeutil import utcnow
 
 TOKEN_PREFIX = "unbundle_"
 
@@ -41,7 +41,7 @@ def verify_token(db: Session, raw_token: str) -> ApiToken | None:
         return None
     row = db.query(ApiToken).filter(ApiToken.token_hash == _hash(raw_token)).one_or_none()
     if row is not None:
-        row.last_used_at = datetime.utcnow()
+        row.last_used_at = utcnow()
         db.commit()
     return row
 

@@ -3,7 +3,6 @@ plays for Plex. Manual, on-demand (POST /settings/navidrome/refresh),
 "nothing runs automatically".
 """
 
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -11,6 +10,7 @@ from app.audible.scan import normalize
 from app.connectors import navidrome_connector
 from app.models.credential import SOURCE_NAVIDROME, STATUS_ERROR, STATUS_OK, Credential
 from app.models.navidrome_album import NavidromeAlbum
+from app.timeutil import utcnow
 
 
 class NotConnectedError(Exception):
@@ -36,7 +36,7 @@ async def refresh_navidrome_library(db: Session) -> int:
         raise
 
     db.query(NavidromeAlbum).delete()
-    now = datetime.utcnow()
+    now = utcnow()
     for album in albums:
         db.add(NavidromeAlbum(album_id=album.album_id, name=album.name, artist=album.artist, fetched_at=now))
     db.commit()

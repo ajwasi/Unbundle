@@ -33,7 +33,6 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -58,6 +57,7 @@ from app.models.amazon_music_download import (
 )
 from app.models.amazon_music_track import AmazonMusicTrack
 from app.sync.amazon_music_sync import AmazonMusicRequestError, NoTemplateError, NotConnectedError
+from app.timeutil import utcnow
 
 # Same courtesy as amazon_music_sync.PAGE_DELAY_SECONDS, applied between
 # tracks instead of between pages.
@@ -171,7 +171,7 @@ def sweep_stale_downloads() -> None:
         stale = db.query(AmazonMusicDownload).filter(AmazonMusicDownload.status == STATUS_RUNNING).all()
         for job in stale:
             job.status = STATUS_FAILED
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow()
             job.error_message = "Interrupted by application restart."
         db.commit()
     finally:
@@ -373,7 +373,7 @@ async def _drain_queue() -> None:
                 # session) fails the whole queued batch at once with the same
                 # message, rather than retrying the same broken session once
                 # per track — see the module docstring.
-                now = datetime.utcnow()
+                now = utcnow()
                 for job in db.query(AmazonMusicDownload).filter(AmazonMusicDownload.status == STATUS_QUEUED).all():
                     job.status = STATUS_FAILED
                     job.error_message = str(exc)
@@ -414,7 +414,7 @@ async def _run_one(job_id: int, download_id: str, client: httpx.AsyncClient, hea
     try:
         job = db.get(AmazonMusicDownload, job_id)
         job.status = STATUS_RUNNING
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
         db.commit()
 
         dest_path: Path | None = None
@@ -462,7 +462,7 @@ async def _run_one(job_id: int, download_id: str, client: httpx.AsyncClient, hea
         except Exception as exc:  # noqa: BLE001 - surfaced on the job row, never a crash
             job.status = STATUS_FAILED
             job.error_message = str(exc)
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow()
             db.commit()
             if dest_path is not None:
                 safe_unlink(dest_path)
@@ -476,7 +476,7 @@ async def _run_one(job_id: int, download_id: str, client: httpx.AsyncClient, hea
         else:
             job.status = STATUS_FAILED
             job.error_message = "Downloaded file is missing or empty."
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utcnow()
         db.commit()
     finally:
         db.close()

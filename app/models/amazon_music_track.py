@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class AmazonMusicTrack(Base):
@@ -72,8 +73,8 @@ class AmazonMusicTrack(Base):
     isrc: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     purchased_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     # Set when a track stops appearing in a full sync. Rows are flagged, never
     # deleted — a disappearance may be an Amazon-side glitch, and losing local
     # history to one bad sync is not recoverable.

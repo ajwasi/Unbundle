@@ -13,7 +13,6 @@ task getting garbage-collected mid-run.
 """
 
 import time
-from datetime import datetime
 
 import httpx
 from sqlalchemy.orm import Session
@@ -31,6 +30,7 @@ from app.models.audible_pdf_download import (
     STATUS_RUNNING,
     AudiblePdfDownload,
 )
+from app.timeutil import utcnow
 
 _active_asins: set[str] = set()
 
@@ -75,7 +75,7 @@ async def _run(job_id: int, asin: str, pdf_url: str, title: str) -> None:
     try:
         job = db.get(AudiblePdfDownload, job_id)
         job.status = STATUS_RUNNING
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
         db.commit()
 
         dest_path = None
@@ -105,7 +105,7 @@ async def _run(job_id: int, asin: str, pdf_url: str, title: str) -> None:
         except Exception as exc:  # noqa: BLE001 - surfaced on the job row, never a crash
             job.status = STATUS_FAILED
             job.error_message = str(exc)
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow()
             db.commit()
             if dest_path is not None:
                 safe_unlink(dest_path)
@@ -119,7 +119,7 @@ async def _run(job_id: int, asin: str, pdf_url: str, title: str) -> None:
         else:
             job.status = STATUS_FAILED
             job.error_message = "Downloaded file is missing or empty."
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utcnow()
         db.commit()
     finally:
         _active_asins.discard(asin)

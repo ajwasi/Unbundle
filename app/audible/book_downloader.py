@@ -31,7 +31,6 @@ again.
 import asyncio
 import json
 import time
-from datetime import datetime
 from pathlib import Path
 
 import audible
@@ -57,6 +56,7 @@ from app.models.audible_book_download import (
 from app.models.audible_download_destination import AudibleDownloadDestination
 from app.models.audible_local_file import SOURCE_DOWNLOAD, AudibleLocalFile
 from app.sync.audible_sync import NotConnectedError, get_audible_credential, save_authenticator
+from app.timeutil import utcnow
 
 # Audible's own iOS app's User-Agent, per the `audible` package's official
 # download example — unconfirmed whether the download URL actually requires
@@ -114,7 +114,7 @@ def record_local_file(db: Session, asin: str, path: Path, source: str = SOURCE_D
     row.path = str(path)
     row.size_bytes = size
     row.source = source
-    row.recorded_at = datetime.utcnow()
+    row.recorded_at = utcnow()
     db.commit()
 
 
@@ -185,8 +185,8 @@ def start_download(db: Session, asin: str, force: bool = False) -> AudibleBookDo
             downloaded_path=str(existing_path),
             expected_size_bytes=existing_path.stat().st_size,
             progress_bytes=existing_path.stat().st_size,
-            started_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            started_at=utcnow(),
+            completed_at=utcnow(),
         )
         db.add(job)
         db.commit()
@@ -273,7 +273,7 @@ def sweep_stale_downloads() -> None:
     try:
         for job in db.query(AudibleBookDownload).filter(AudibleBookDownload.status == STATUS_RUNNING).all():
             job.status = STATUS_FAILED
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow()
             job.error_message = "Interrupted by application restart."
         db.commit()
     finally:
@@ -304,12 +304,12 @@ def try_dispatch_queued_downloads() -> None:
             if job is None:
                 break
             job.status = STATUS_RUNNING
-            job.started_at = datetime.utcnow()
+            job.started_at = utcnow()
             book = db.get(AudibleBook, job.asin)
             if book is None:
                 job.status = STATUS_FAILED
                 job.error_message = "This book is no longer in your Audible library."
-                job.completed_at = datetime.utcnow()
+                job.completed_at = utcnow()
                 db.commit()
                 continue
             db.commit()
@@ -501,7 +501,7 @@ async def _run(job_id: int, asin: str, title: str, author: str) -> None:
         except Exception as exc:  # noqa: BLE001 - surfaced on the job row, never a crash
             job.status = STATUS_FAILED
             job.error_message = str(exc)
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow()
             db.commit()
             if aaxc_path is not None:
                 safe_unlink(aaxc_path)
@@ -530,7 +530,7 @@ async def _run(job_id: int, asin: str, title: str, author: str) -> None:
                 f"ffmpeg conversion failed; the raw .aaxc and its decryption key were kept at "
                 f"{aaxc_path} / {voucher_path}. {ffmpeg_output}".strip()
             )
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utcnow()
         db.commit()
     finally:
         _running_job_ids.discard(job_id)

@@ -12,7 +12,6 @@ price on later refreshes.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 
 import httpx
 from sqlalchemy.orm import Session
@@ -28,6 +27,7 @@ from app.models.store_wishlist import (
     SteamWishlistPrice,
 )
 from app.sync.wishlist_common import flag_removed, record_price_if_changed
+from app.timeutil import utcnow
 
 
 class NotConnectedError(Exception):
@@ -44,7 +44,7 @@ async def refresh_steam_wishlist(db: Session) -> dict:
 
     entries = await steam_wishlist.fetch_wishlist(payload["steamid64"])
 
-    now = datetime.utcnow()
+    now = utcnow()
     seen: set[int] = set()
     new = price_changes = detail_fetches = 0
 
@@ -114,7 +114,7 @@ async def refresh_gog_wishlist(db: Session) -> dict:
     product_ids = await gog_wishlist.fetch_wishlist_ids(tokens["access_token"])
     prices = {p.product_id: p for p in await gog_wishlist.fetch_prices(product_ids)}
 
-    now = datetime.utcnow()
+    now = utcnow()
     new = price_changes = detail_fetches = 0
 
     async with httpx.AsyncClient(
@@ -178,7 +178,7 @@ async def refresh_chirp_wishlist(db: Session) -> dict:
     async with chirp_connector.client_from_cookie_header(payload["cookie"]) as client:
         entries = await chirp_connector.fetch_wishlist(client)
 
-    now = datetime.utcnow()
+    now = utcnow()
     seen: set[str] = set()
     new = price_changes = 0
     for entry in entries:

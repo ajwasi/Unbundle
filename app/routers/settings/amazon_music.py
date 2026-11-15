@@ -1,4 +1,3 @@
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -10,6 +9,7 @@ from app.deps import get_db
 from app.models.credential import SOURCE_AUDIBLE, Credential
 from app.ratelimit import RateLimiter, rate_limit
 from app.templates_env import templates
+from app.timeutil import utcnow
 
 router = APIRouter()
 
@@ -96,7 +96,7 @@ def save_amazon_music_template(request: Request, curl_text: str = Form(""), db: 
     """
     try:
         template = amazon_music_template.build_template(
-            curl_text, datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+            curl_text, utcnow().strftime("%Y-%m-%d %H:%M UTC")
         )
         cookies = amazon_music_probe.cookies_from_audible_credential(db)
         result = amazon_music_probe.replay_curl(curl_text, cookies)

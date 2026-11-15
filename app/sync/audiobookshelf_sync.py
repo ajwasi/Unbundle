@@ -11,13 +11,13 @@ philosophy, and fast enough (one or two API calls) to run inline in the
 request.
 """
 
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.connectors import audiobookshelf_connector
 from app.models.audiobookshelf_item import AudiobookShelfItem
 from app.models.credential import SOURCE_AUDIOBOOKSHELF, STATUS_ERROR, STATUS_OK, Credential
+from app.timeutil import utcnow
 
 
 class NotConnectedError(Exception):
@@ -45,7 +45,7 @@ async def refresh_audiobookshelf_library(db: Session) -> int:
         raise
 
     db.query(AudiobookShelfItem).delete()
-    now = datetime.utcnow()
+    now = utcnow()
     for item in items:
         db.add(
             AudiobookShelfItem(

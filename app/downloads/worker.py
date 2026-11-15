@@ -16,7 +16,6 @@ on every ~1.5s progress tick for numbers that are only ever meant to be live.
 import asyncio
 import contextlib
 import json
-from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -36,6 +35,7 @@ from app.models.download_job import (
     DownloadJob,
 )
 from app.models.download_settings import DownloadSettings
+from app.timeutil import utcnow
 
 # Job ids currently executing (spawned as asyncio tasks) — bounded by the
 # configured concurrency limit; everything else waits in the DB as
@@ -136,7 +136,7 @@ def sweep_stale_jobs() -> None:
         stale = db.query(DownloadJob).filter(DownloadJob.status == JOB_RUNNING).all()
         for job in stale:
             job.status = JOB_FAILED
-            job.finished_at = datetime.utcnow()
+            job.finished_at = utcnow()
             job.error_message = "Interrupted by application restart."
         db.commit()
     finally:
@@ -200,7 +200,7 @@ async def try_dispatch_queued_downloads() -> None:
             if next_job is None:
                 break
             next_job.status = JOB_RUNNING
-            next_job.started_at = datetime.utcnow()
+            next_job.started_at = utcnow()
             db.commit()
             indices = _parse_indices(next_job.requested_indices)
             formats = _parse_formats(next_job.requested_formats)
@@ -221,7 +221,7 @@ async def _poll_progress(job_id: int, bundle_name: str, expected: list, download
     """
     bytes_total = sum(item.expected_size_bytes for item in expected)
     last_bytes = 0
-    last_time = datetime.utcnow()
+    last_time = utcnow()
     try:
         while True:
             await asyncio.sleep(1.5)
@@ -235,7 +235,7 @@ async def _poll_progress(job_id: int, bundle_name: str, expected: list, download
                 check_path = paths.long_path_safe(abs_path)
                 if check_path.is_file():
                     bytes_done += check_path.stat().st_size
-            now = datetime.utcnow()
+            now = utcnow()
             elapsed = (now - last_time).total_seconds()
             bytes_per_sec = max(0.0, (bytes_done - last_bytes) / elapsed) if elapsed > 0 else 0.0
             _progress[job_id] = {
@@ -387,7 +387,7 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
                             except OSError as exc:
                                 row.error_message = f"Downloaded but failed to relocate: {exc}"
                         row.current_location_path = str(final_path)
-                    row.completed_at = datetime.utcnow()
+                    row.completed_at = utcnow()
                 else:
                     any_failed = True
                     row.status = FILE_FAILED
@@ -406,7 +406,7 @@ async def _run_job(job_id: int, gamekey: str, indices: list[int] | None, formats
             job.status = JOB_FAILED
             job.error_message = f"Unexpected error: {exc}"
 
-        job.finished_at = datetime.utcnow()
+        job.finished_at = utcnow()
         db.commit()
     finally:
         _running_job_ids.discard(job_id)

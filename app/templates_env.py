@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 
 from app.version import get_version, is_tagged_build, is_update_available, last_checked_at
+from app.timeutil import utcnow
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -58,13 +59,13 @@ templates.env.filters["format_category"] = format_category
 
 def time_since(value: datetime | None) -> str:
     """Renders a per-row/-page "last pulled from Humble/Steam/GOG" timestamp
-    (all stored as naive UTC via datetime.utcnow(), see e.g. Bundle.fetched_at)
+    (all stored as naive UTC via utcnow(), see e.g. Bundle.fetched_at)
     as a short relative string. Callers pair this with a title="" attribute
     showing the exact timestamp for anyone who wants precision.
     """
     if value is None:
         return "never"
-    seconds = (datetime.utcnow() - value).total_seconds()
+    seconds = (utcnow() - value).total_seconds()
     if seconds < 60:
         return "just now"
     minutes = int(seconds // 60)

@@ -17,6 +17,7 @@ from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import SOURCE_GOG, STATUS_ERROR, STATUS_OK, Credential
 from app.models.gog_game import GogGame
 from app.security import encrypt_json
+from app.timeutil import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ async def refresh_gog_library(db: Session) -> int:
             logger.warning("gog: order history unavailable, continuing without purchase data: %s", exc)
 
     db.query(GogGame).delete()
-    now = datetime.utcnow()
+    now = utcnow()
     for g in games:
         purchased_at, paid_price = purchase_rows.get(g.title.strip().casefold(), (None, None))
         db.add(

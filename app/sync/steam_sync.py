@@ -7,7 +7,6 @@ as the Humble refresh — and fast enough (one API call) that it doesn't need
 that refresh's background-task/polling treatment.
 """
 
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +14,7 @@ from app.connectors import steam_connector
 from app.models.bundle_entitlement import BundleEntitlement
 from app.models.credential import SOURCE_STEAM, STATUS_ERROR, STATUS_OK, Credential
 from app.models.steam_game import SteamGame
+from app.timeutil import utcnow
 
 
 class NotConnectedError(Exception):
@@ -58,7 +58,7 @@ async def refresh_steam_library(db: Session) -> int:
         raise
 
     db.query(SteamGame).delete()
-    now = datetime.utcnow()
+    now = utcnow()
     for g in games:
         db.add(SteamGame(appid=g.appid, name=g.name, playtime_forever_minutes=g.playtime_forever_minutes, img_icon_url=g.img_icon_url, fetched_at=now))
     db.commit()

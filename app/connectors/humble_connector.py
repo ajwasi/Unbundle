@@ -14,7 +14,6 @@ the parsing below before trusting it fully; adjust `_parse_bundle` if fields
 come back differently than expected.
 """
 
-import asyncio
 
 import httpx
 
