@@ -40,6 +40,8 @@
     Set <code>APP_PASSWORD</code> or configure SSO in <a href="/settings">Settings</a>.
   </div>
   {% endif %}
+  {# Pages that run before sign-in (login, first-run setup) set bare_layout: there is nothing to navigate to yet. #}
+  {% if not bare_layout %}
   <div class="mobile-bar">
     <button type="button" id="nav-toggle" class="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar-nav">
       <span></span><span></span><span></span>
@@ -47,7 +49,12 @@
     <span class="mobile-bar-brand">🎁 Unbundle</span>
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  {% endif %}
+  {% if bare_layout %}
+  <button type="button" id="theme-toggle" class="theme-toggle-corner" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
+  {% endif %}
   <div class="app-shell">
+    {% if not bare_layout %}
     <nav class="sidebar" id="sidebar-nav">
       <div class="brand">
         <span>🎁 Unbundle</span>
@@ -73,6 +80,7 @@
       <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') else '' }}">Settings</a>
       {% include "_version_box.html" %}
     </nav>
+    {% endif %}
     <div class="page-wrapper">
       {% if request.state.identity_label %}
       <header class="topbar">

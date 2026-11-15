@@ -153,3 +153,12 @@ def test_docs_and_redoc_require_auth_like_everything_else(client):
     # so they get the same session-cookie gate as the rest of the app.
     assert client.get("/docs", follow_redirects=False).status_code == 303
     assert client.get("/redoc", follow_redirects=False).status_code == 303
+
+
+def test_every_connector_card_with_fiddly_setup_has_a_how_to_disclosure(authed_client):
+    html = authed_client.get("/settings").text
+    for card in ("humble", "steam", "audible", "audiobookshelf", "plex", "amazon-music", "navidrome", "chirp"):
+        start = html.index(f'id="{card}-card"')
+        end = html.find('<div class="card', start + 1)
+        section = html[start : end if end != -1 else len(html)]
+        assert '<details class="settings-howto"' in section, f"{card} card has no how-to disclosure"

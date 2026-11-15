@@ -94,7 +94,7 @@ def test_audible_page_shows_audiobookshelf_presence_badge(authed_client, db):
     db.commit()
 
     resp = authed_client.get("/audible")
-    assert "In AudiobookShelf" in resp.text
+    assert "Found in your AudiobookShelf library by ASIN" in resp.text
     assert "Not found" in resp.text
 
 
@@ -109,7 +109,7 @@ def test_audible_page_shows_plex_presence_badge_matched_by_normalized_title(auth
     db.commit()
 
     resp = authed_client.get("/audible")
-    assert "In Plex" in resp.text
+    assert "Found in your Plex library by title" in resp.text
     assert "Not found" in resp.text
 
 

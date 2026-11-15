@@ -124,6 +124,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   font-weight: 600;
 }
 
+.auth-brand { margin: 0 0 0.25rem; font-weight: 700; color: var(--muted); }
+
 .auth-warning-banner a { color: white; text-decoration: underline; }
 
 nav.sidebar {
@@ -172,6 +174,9 @@ nav.sidebar .brand {
    exclusive, so this never fights the rule above on the same page). Needs
    the extra specificity from the parent class to win over the plain #id
    rule above. */
+/* On the pre-sign-in pages there is no sidebar to hold it. */
+.theme-toggle-corner { position: fixed; top: 0.9rem; right: 0.9rem; }
+
 .user-menu-panel #theme-toggle {
   border: none;
   border-radius: var(--radius);
@@ -999,6 +1004,8 @@ th a { text-decoration: none; color: var(--text); }
   text-decoration: none;
   white-space: nowrap; /* a pill that wraps onto two lines reads as two broken ones */
 }
+
+.badge-stack { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
 
 .badge-ok { background: color-mix(in srgb, var(--success) 20%, transparent); color: var(--success); }
 .badge-error { background: color-mix(in srgb, var(--error) 20%, transparent); color: var(--error); }
