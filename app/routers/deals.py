@@ -24,7 +24,7 @@ from app.csrf import require_csrf
 from app.deps import get_db
 from app.models.gog_game import GogGame
 from app.ratelimit import RateLimiter, rate_limit
-from app.routers.home import CATEGORY_LABELS, _build_tiles, _grouped
+from app.services.bundle_tiles import CATEGORY_LABELS, build_tiles, grouped
 from app.templates_env import templates
 
 router = APIRouter(prefix="/deals")
@@ -98,12 +98,12 @@ async def _gog_context(
 
 async def _humble_context(db: Session, force: bool = False) -> dict:
     bundles = await storefront.fetch_current_bundles(force=force)
-    tiles = await _build_tiles(bundles, db)
+    tiles = await build_tiles(bundles, db)
     return {
         "source": "humble",
         "sources": SOURCES,
         "source_labels": SOURCE_LABELS,
-        "by_category": _grouped(tiles),
+        "by_category": grouped(tiles),
         "category_labels": CATEGORY_LABELS,
         "last_synced": storefront.last_fetched_at(),
     }

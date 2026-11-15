@@ -122,7 +122,7 @@ def _safe_filename(name: str, suffix: str) -> str:
 
 
 # Cheap in-process cache for "which URL is the freshest known cover for this
-# album", mirroring catalog.py's own _catalog_cache — the /cover route is hit
+# album", mirroring services/catalog.py's own _catalog_cache — the /cover route is hit
 # once per <img> tag (up to _ALBUMS_PAGE_SIZE per grid page), and without this
 # each of those was re-running the same full per-album track scan that
 # _album_rows already does for the grid itself, purely to re-derive a URL

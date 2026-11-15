@@ -27,7 +27,7 @@ from app.models.download_job import (
 from app.models.sync_run import STATUS_FAILED, STATUS_SUCCESS
 from app.models.tag import BundleTag, Tag
 from app.ratelimit import RateLimiter, rate_limit
-from app.routers.tags import get_or_create_tag
+from app.services.tags import get_or_create_tag
 from app.sync import refresh
 from app.templates_env import templates
 
