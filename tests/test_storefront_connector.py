@@ -549,3 +549,37 @@ def test_bundle_key_comes_from_the_tier_skus():
     page = {"tiers": [{"sku": "flat2vrbundle_bundle_initial"}, {"sku": "flat2vrbundle_bundle_bt16"}]}
     assert storefront._bundle_key(page) == "flat2vrbundle_bundle"
     assert storefront._bundle_key({"tiers": [{}]}) == ""
+
+
+# ---------------------------------------------- long-text rows and start date
+
+
+def test_text_rows_are_read_by_utf8_byte_length_with_no_separator_after_them():
+    text = "5:[1]\n70:T" + format(len("Café ☕".encode()), "x") + ",Café ☕71:T3,abc\n6:[2]"
+    assert storefront._text_rows(text) == {"70": "Café ☕", "71": "abc"}
+
+
+def test_text_rows_ignores_a_stream_with_none():
+    assert storefront._text_rows('e:[["$","a",null,{}]]\n') == {}
+
+
+@pytest.mark.asyncio
+async def test_a_game_description_sent_as_a_text_row_is_resolved():
+    page = _bundle_page([{"id": "1", "sku": "gamebundle_bundle_initial", "price": {"amount": 5}, "bundleItems": [_item("game_gamebundle_bundle", "Game", description="$70")]}])
+    page["bundlePage"]["startDate"] = "2026-10-26T18:00:00.000Z"
+    body = "<p>It's a <b>great</b> game — really.</p><script>x</script>"
+    html = _flight_html(_flight_page_chunk(page) + f"\n70:T{len(body.encode()):x},{body}")
+    with _mock_get(html):
+        detail = await storefront.fetch_bundle_detail("https://www.humblebundle.com/games/x", force=True)
+
+    item = detail.items[0]
+    assert "great" in item.description and "<script>" not in item.description
+    assert detail.start_date == datetime(2026, 10, 26, 18, 0)
+
+
+@pytest.mark.asyncio
+async def test_an_unresolvable_description_reference_leaves_it_empty():
+    page = _bundle_page([{"id": "1", "sku": "b_bundle_initial", "price": {"amount": 5}, "bundleItems": [_item("i_b_bundle", "Item", description="$99")]}])
+    with _mock_get(_flight_html(_flight_page_chunk(page))):
+        detail = await storefront.fetch_bundle_detail("https://www.humblebundle.com/books/x", force=True)
+    assert detail.items[0].description == "" and detail.start_date is None
