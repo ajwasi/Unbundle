@@ -17,7 +17,7 @@
         <div class="bundle-tile-body">
           <strong>{{ b.name }}</strong>
           {% if t.already_purchased or t.total_count %}
-          <p class="muted" style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+          <p class="muted" style="display: flex; gap: var(--space-2); flex-wrap: wrap">
             {% if t.already_purchased %}<a class="badge badge-ok" href="/bundles/{{ t.owned_gamekey }}">Already purchased</a>{% endif %}
             {% if t.total_count %}
             <span class="badge {{ 'badge-ok' if t.owned_count == t.total_count else 'badge-pending' }}">{{ t.owned_count }}/{{ t.total_count }} owned</span>
@@ -39,8 +39,8 @@
   {% if not ns.any_items %}
   {% if storefront_error %}
   <div class="card has-error" role="status">
-    <p style="margin: 0;">{{ storefront_error }}{% if storefront_last_ok %} It last worked <span title="{{ storefront_last_ok.strftime('%Y-%m-%d %H:%M') }} UTC">{{ storefront_last_ok | time_since }}</span>.{% endif %}</p>
-    <p class="muted" style="margin: 0.4rem 0 0;">Your own library isn't affected. <a href="/settings#accounts-section">See source health</a></p>
+    <p class="m-0">{{ storefront_error }}{% if storefront_last_ok %} It last worked <span title="{{ storefront_last_ok.strftime('%Y-%m-%d %H:%M') }} UTC">{{ storefront_last_ok | time_since }}</span>.{% endif %}</p>
+    <p class="muted" style="margin: var(--space-2) 0 0">Your own library isn't affected. <a href="/settings#accounts-section">See source health</a></p>
   </div>
   {% else %}<p class="muted">Nothing currently listed for sale, in any category.</p>{% endif %}
   {% endif %}

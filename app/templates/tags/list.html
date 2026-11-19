@@ -13,7 +13,7 @@
   <form hx-post="/tags" hx-target="#tags-table" hx-swap="outerHTML" class="form-row" style="max-width: 420px;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <label for="new-tag-name" class="sr-only">New tag name</label>
-    <input id="new-tag-name" type="text" name="name" placeholder="New tag name..." required style="flex: 1;">
+    <input class="flex-1" id="new-tag-name" type="text" name="name" placeholder="New tag name..." required>
     <button type="submit">Create</button>
   </form>
 </div>

@@ -15,14 +15,14 @@
         <td>
           <span id="tag-name-view-{{ t.id }}">
             {{ t.name }}
-            <button type="button" class="secondary" style="padding: 0.1rem 0.5rem; margin-left: 0.4rem;"
+            <button type="button" class="secondary" style="padding: var(--space-0) var(--space-2); margin-left: var(--space-2)"
                     onclick="document.getElementById('tag-name-view-{{ t.id }}').style.display = 'none'; document.getElementById('tag-name-form-{{ t.id }}').style.display = 'flex'; document.getElementById('tag-name-input-{{ t.id }}').focus();">Rename</button>
           </span>
-          <form id="tag-name-form-{{ t.id }}" hx-post="/tags/{{ t.id }}/rename" hx-target="#tags-table" hx-swap="outerHTML" style="display: none; gap: 0.4rem; max-width: 260px; align-items: center;">
+          <form id="tag-name-form-{{ t.id }}" hx-post="/tags/{{ t.id }}/rename" hx-target="#tags-table" hx-swap="outerHTML" style="display: none; gap: var(--space-2); max-width: 260px; align-items: center">
             <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-            <input type="text" id="tag-name-input-{{ t.id }}" name="name" value="{{ t.name }}" required style="flex: 1;">
-            <button type="submit" class="secondary" style="padding: 0.2rem 0.6rem;">Save</button>
-            <button type="button" class="secondary" style="padding: 0.2rem 0.6rem;"
+            <input class="flex-1" type="text" id="tag-name-input-{{ t.id }}" name="name" value="{{ t.name }}" required>
+            <button type="submit" class="secondary" style="padding: var(--space-1) var(--space-2)">Save</button>
+            <button type="button" class="secondary" style="padding: var(--space-1) var(--space-2)"
                     onclick="var inp = document.getElementById('tag-name-input-{{ t.id }}'); inp.value = inp.defaultValue; document.getElementById('tag-name-form-{{ t.id }}').style.display = 'none'; document.getElementById('tag-name-view-{{ t.id }}').style.display = '';">Cancel</button>
           </form>
         </td>

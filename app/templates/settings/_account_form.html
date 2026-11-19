@@ -3,25 +3,25 @@
 
 <form hx-post="/settings/account" hx-target="#account-card-body" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+  <div class="stack stack-form">
     <label>
       Username
-      <input type="email" name="email" value="{{ account_email }}" placeholder="you@example.com" style="width: 100%;">
+      <input class="w-full" type="email" name="email" value="{{ account_email }}" placeholder="you@example.com">
     </label>
-    <p class="muted" style="margin: 0;">Shown in the user menu, top-right. Doesn't affect how you sign in.</p>
+    <p class="muted m-0">Shown in the user menu, top-right. Doesn't affect how you sign in.</p>
 
     {% if account_password_active %}
     <label>
       Current password
-      <input type="password" name="current_password" style="width: 100%;">
+      <input class="w-full" type="password" name="current_password">
     </label>
     <label>
       New password
-      <input type="password" name="new_password" style="width: 100%;">
+      <input class="w-full" type="password" name="new_password">
     </label>
     <label>
       Confirm new password
-      <input type="password" name="confirm_password" style="width: 100%;">
+      <input class="w-full" type="password" name="confirm_password">
     </label>
     {% else %}
     <p class="muted">
@@ -30,7 +30,7 @@
     </p>
     {% endif %}
 
-    <p class="form-row" style="margin: 0;">
+    <p class="form-row m-0">
       <button type="submit">Save</button>
       {{ saved_badge(account_saved) }}
     </p>

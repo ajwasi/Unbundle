@@ -1,3 +1,4 @@
+import re
 import json
 from unittest.mock import patch
 
@@ -558,4 +559,4 @@ def test_probe_result_carries_referenced_endpoints():
 def test_probe_card_disclosures_are_styled_controls(authed_client, db):
     _connect_audible(db)
     resp = authed_client.get("/settings")
-    assert 'class="disclosure"' in resp.text
+    assert re.search(r'class="disclosure[" ]', resp.text)

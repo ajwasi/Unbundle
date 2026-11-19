@@ -13,8 +13,8 @@
 </div>
 
 <div class="card">
-  <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem;">
-    <h2 style="margin: 0;">Downloadable items ({{ item_groups|length }})</h2>
+  <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: var(--space-2)">
+    <h2 class="m-0">Downloadable items ({{ item_groups|length }})</h2>
     <div>
       <strong>${{ "%.2f"|format(bundle.amount_spent) }}</strong> <span class="muted">total</span>
       {%- if avg_item_price is not none %}

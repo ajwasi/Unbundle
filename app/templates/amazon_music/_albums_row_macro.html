@@ -4,7 +4,7 @@
   <td class="table-lead-col"><input type="checkbox" class="album-check" name="album_key" value="{{ a.album_key }}" aria-label="Select {{ a.album }}" onchange="updateMusicAlbumsSelectedButton();"></td>
   <td>
     {% if a.cover_url %}
-    <img src="/amazon-music/albums/{{ a.album_key }}/cover" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;"
+    <img class="rounded-sm" src="/amazon-music/albums/{{ a.album_key }}/cover" alt="" width="40" height="40" loading="lazy"
          onerror="this.style.display='none';">
     {% endif %}
   </td>
@@ -17,16 +17,16 @@
   <td>{{ a.artist }}</td>
   <td>
     {{ a.track_count }}
-    {% if a.missing_count %}<span class="muted" style="font-size: 0.85em;">({{ a.missing_count }} no longer listed)</span>{% endif %}
+    {% if a.missing_count %}<span class="muted text-sm">({{ a.missing_count }} no longer listed)</span>{% endif %}
   </td>
   <td>{% if a.in_navidrome %}<span class="badge badge-ok" title="Found in your Navidrome library by album/artist.">In Navidrome</span>{% else %}{{ badge("absent", "Not found", "Not found in your Navidrome library — connect and refresh it in Settings if this looks wrong.") }}{% endif %}</td>
-  <td style="white-space: nowrap;">
+  <td class="nowrap">
     {% if a.downloading %}
     {{ badge("progress", "Downloading…") }}
     {% elif a.all_downloaded %}
     <span class="badge badge-ok" title="Downloaded">&check;</span>
     {% else %}
-    <button type="button" class="secondary" style="padding: 0.15rem 0.5rem; font-size: 0.85em;"
+    <button type="button" class="secondary" style="padding: var(--space-0) var(--space-2); font-size: 0.85em"
             hx-post="/amazon-music/albums/{{ a.album_key }}/download" hx-target="closest tr" hx-swap="outerHTML"
             hx-include="#music-albums-download-form input[name=csrf_token], #music-albums-download-form input[name=show_missing]">
       Download

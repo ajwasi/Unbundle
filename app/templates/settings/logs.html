@@ -13,10 +13,10 @@
   <label for="logs-filter" class="sr-only">Filter log lines</label>
   <input type="search" id="logs-filter" placeholder="Filter (e.g. a log line's own text, or a component name)"
          oninput="filterLogs()" style="flex: 1; min-width: 240px;">
-  <label class="muted" style="display: flex; align-items: center; gap: 0.3rem; white-space: nowrap;">
+  <label class="muted" style="display: flex; align-items: center; gap: var(--space-1); white-space: nowrap">
     <input type="checkbox" id="logs-wrap" checked onchange="toggleWrap()"> Wrap lines
   </label>
-  <label class="muted" style="display: flex; align-items: center; gap: 0.3rem; white-space: nowrap;">
+  <label class="muted" style="display: flex; align-items: center; gap: var(--space-1); white-space: nowrap">
     <input type="checkbox" id="logs-paused" onchange="togglePause()"> Pause
   </label>
   <label for="logs-order" class="sr-only">Line order</label>
@@ -26,7 +26,7 @@
   </select>
   <a href="/settings/logs/download" class="secondary">Download as .txt</a>
   <button type="button" class="secondary" onclick="copyVisibleLogs()">Copy visible</button>
-  <form hx-post="/settings/logs/clear" hx-target="#logs-content" hx-swap="outerHTML" hx-confirm="Clear the log buffer?" style="margin: 0;">
+  <form class="m-0" hx-post="/settings/logs/clear" hx-target="#logs-content" hx-swap="outerHTML" hx-confirm="Clear the log buffer?">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="danger">Clear</button>
   </form>

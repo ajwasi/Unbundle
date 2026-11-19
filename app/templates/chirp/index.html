@@ -10,7 +10,7 @@
   {% if q %}
   <a href="/chirp" hx-get="/chirp" hx-target="#chirp-books-table" hx-swap="outerHTML">Clear filters</a>
   {% endif %}
-  <form hx-post="/chirp/refresh" hx-target="#chirp-content" hx-swap="outerHTML" style="margin: 0;">
+  <form class="m-0" hx-post="/chirp/refresh" hx-target="#chirp-content" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="secondary">Refresh</button>
     <span class="muted htmx-indicator">Fetching your library&hellip;</span>

@@ -4,9 +4,9 @@
   <a class="badge badge-pending" href="https://github.com/ajwasi/Unbundle/tags" target="_blank" rel="noopener">Update available</a>
   {% endif %}
   {% if is_tagged_build() %}
-  <form hx-post="/version/check" hx-target="#version-box" hx-swap="outerHTML" style="margin: 0;">
+  <form class="m-0" hx-post="/version/check" hx-target="#version-box" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-    <button type="submit" class="secondary" style="font-size: 0.7rem; padding: 0.05rem 0.35rem;">Check for updates</button>
+    <button type="submit" class="secondary" style="font-size: var(--text-xs); padding: 0.05rem var(--space-1)">Check for updates</button>
   </form>
   {% if check_failed %}
   <span class="muted">Check failed &mdash; GitHub unreachable.</span>

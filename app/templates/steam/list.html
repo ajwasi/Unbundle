@@ -10,7 +10,7 @@
   {% if name or playtime_min is not none or playtime_max is not none %}
   <a href="/steam" hx-get="/steam" hx-target="#steam-games-table" hx-swap="outerHTML">Clear filters</a>
   {% endif %}
-  <form hx-post="/steam/refresh" hx-target="#steam-content" hx-swap="outerHTML" style="margin: 0;">
+  <form class="m-0" hx-post="/steam/refresh" hx-target="#steam-content" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <input type="hidden" name="view" value="{{ view }}">
     <button type="submit" class="secondary">Refresh</button>

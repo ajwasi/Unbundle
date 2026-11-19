@@ -2,9 +2,9 @@
 <div id="amazon-music-table">
   {% if track_order_error %}<p class="text-error">{{ track_order_error }}</p>{% endif %}
   {% if album_key and album_key != "none" %}
-  <div class="toolbar" style="margin-bottom: 0.75rem;">
-    <form hx-post="/amazon-music/albums/{{ album_key }}/sync-track-order" hx-target="#amazon-music-table" hx-swap="outerHTML"
-          style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+  <div class="toolbar mb-3">
+    <form class="m-0 row" hx-post="/amazon-music/albums/{{ album_key }}/sync-track-order" hx-target="#amazon-music-table" hx-swap="outerHTML"
+         >
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="q" value="{{ q }}">
       <input type="hidden" name="sort" value="{{ sort }}">
@@ -36,7 +36,7 @@
       <option value="duration" {{ "selected" if sort == "duration" else "" }}>Duration</option>
     </select>
     {% if missing_count %}
-    <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
+    <label class="label-inline">
       <input type="checkbox" id="music-show-missing" name="show_missing" value="true" {{ "checked" if show_missing else "" }}
              hx-get="/amazon-music/albums/{{ album_key }}" hx-trigger="change" hx-target="#amazon-music-table" hx-swap="outerHTML"
              hx-include="#music-q,#music-sort">
@@ -53,7 +53,7 @@
     <input type="hidden" name="show_missing" value="{{ 'true' if show_missing else '' }}">
     <input type="hidden" name="album_key" value="{{ album_key }}">
     {% if tracks %}
-    <div class="toolbar" style="margin-bottom: 0.5rem;">
+    <div class="toolbar mb-2">
       <button type="submit" id="music-download-selected-btn" disabled>Download selected</button>
       <button type="submit" id="music-download-all-btn"
               onclick="document.querySelectorAll('#music-download-form .track-check').forEach(function (c) { c.checked = false; })">
@@ -90,7 +90,7 @@
           <td>{{ t.artist }}{% if t.is_compilation %} <span class="tip" title="Tracks on this album have different artists, so it is treated as a compilation.">(compilation)</span>{% endif %}</td>
           <td>{{ t.album }}</td>
           <td>{{ t.duration_display or "—" }}</td>
-          <td style="white-space: nowrap;">
+          <td class="nowrap">
             {% if t.missing_since %}
             {{ badge("absent", "No longer listed", "This track was in a previous sync but Amazon no longer lists it. The row is kept, never deleted.") }}
             {% elif t.download_id in active_download_ids %}
@@ -98,7 +98,7 @@
             {% elif track_status.get(t.download_id) == "completed" %}
             <span class="badge badge-ok" title="Downloaded">&check;</span>
             {% else %}
-            <button type="button" class="secondary" style="padding: 0.15rem 0.5rem; font-size: 0.85em;"
+            <button type="button" class="secondary" style="padding: var(--space-0) var(--space-2); font-size: 0.85em"
                     hx-post="/amazon-music/downloads/{{ t.download_id }}" hx-target="#amazon-music-table" hx-swap="outerHTML"
                     hx-include="#music-download-form input[name=csrf_token], #music-download-form input[name=q], #music-download-form input[name=sort], #music-download-form input[name=album_key]">
               Download

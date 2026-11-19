@@ -2,7 +2,7 @@
   {% if error %}<p class="text-error">{{ error }}</p>{% endif %}
 
   <div class="toolbar">
-    <form hx-post="/deals/gog/refresh" hx-target="#deals-table" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+    <form class="m-0 row" hx-post="/deals/gog/refresh" hx-target="#deals-table" hx-swap="outerHTML">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="q" value="{{ q }}">
       <input type="hidden" name="sort" value="{{ sort }}">
@@ -44,7 +44,7 @@
       <option value="90" {{ "selected" if min_discount == 90 else "" }}>90%+</option>
     </select>
     {% if gog_connected %}
-    <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
+    <label class="label-inline">
       <input type="checkbox" id="deals-hide-owned" name="hide_owned" value="true" {{ "checked" if hide_owned else "" }}
              hx-get="/deals/gog" hx-trigger="change" hx-target="#deals-table" hx-swap="outerHTML"
              hx-include="#deals-q,#deals-sort,#deals-min">

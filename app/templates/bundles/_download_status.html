@@ -3,7 +3,7 @@
   Downloading&hellip; this can take a while depending on file sizes.
   {% if bytes_total %}
   <br><progress value="{{ bytes_done }}" max="{{ bytes_total }}" style="width: 220px;"></progress>
-  <span class="muted" style="font-size: 0.85em;">
+  <span class="muted text-sm">
     {{ bytes_done | human_size }} / {{ bytes_total | human_size }}{% if bytes_per_sec %} &mdash; {{ bytes_per_sec | human_size }}/s{% endif %}
   </span>
   {% endif %}

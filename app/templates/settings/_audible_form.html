@@ -5,13 +5,13 @@
 </p>
 {% if audible_error %}<p class="text-error">{{ audible_error }}</p>{% endif %}
 
-<div class="toolbar" style="justify-content: flex-start;">
+<div class="toolbar justify-start">
   <button type="button" onclick="document.getElementById('audible-login-modal').showModal()">
     {{ 'Reconnect' if audible_status != 'not_configured' else 'Connect' }}
   </button>
   {% if audible_status != 'not_configured' %}
-  <form hx-post="/settings/audible/disconnect" hx-target="#audible-modal-content" hx-swap="innerHTML"
-        hx-confirm="Disconnect Audible? This removes the saved login; your cached library list is kept." style="margin: 0;">
+  <form class="m-0" hx-post="/settings/audible/disconnect" hx-target="#audible-modal-content" hx-swap="innerHTML"
+        hx-confirm="Disconnect Audible? This removes the saved login; your cached library list is kept.">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="danger">Disconnect</button>
   </form>

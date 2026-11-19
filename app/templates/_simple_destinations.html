@@ -9,15 +9,15 @@
         {% if dest.is_default %}
         <span class="badge badge-ok">Default</span>
         {% else %}
-        <form hx-post="{{ destinations_url_prefix }}/destinations/{{ dest.id }}/set-default" hx-target="#{{ destinations_dom_id }}" hx-swap="innerHTML" style="display: inline;">
+        <form class="inline" hx-post="{{ destinations_url_prefix }}/destinations/{{ dest.id }}/set-default" hx-target="#{{ destinations_dom_id }}" hx-swap="innerHTML">
           <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
           <button type="submit" class="secondary">Make default</button>
         </form>
         {% endif %}
       </td>
       <td>
-        <form hx-post="{{ destinations_url_prefix }}/destinations/{{ dest.id }}/delete" hx-target="#{{ destinations_dom_id }}" hx-swap="innerHTML"
-              hx-confirm="Delete this destination? Files already downloaded there are not affected." style="display: inline;">
+        <form class="inline" hx-post="{{ destinations_url_prefix }}/destinations/{{ dest.id }}/delete" hx-target="#{{ destinations_dom_id }}" hx-swap="innerHTML"
+              hx-confirm="Delete this destination? Files already downloaded there are not affected.">
           <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
           <button type="submit" class="danger">Delete</button>
         </form>
@@ -30,7 +30,7 @@
 </table>
 
 <form hx-post="{{ destinations_url_prefix }}/destinations" hx-target="#{{ destinations_dom_id }}" hx-swap="innerHTML"
-      style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 0.75rem;">
+      style="display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-top: var(--space-3)">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <label for="{{ destinations_dom_id }}-name" class="sr-only">Destination name</label>
   <input id="{{ destinations_dom_id }}-name" type="text" name="name" placeholder="Name (e.g. {{ destinations_name_placeholder }})" required style="flex: 1; min-width: 10rem;">

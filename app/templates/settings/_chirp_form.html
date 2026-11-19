@@ -15,8 +15,8 @@
 </form>
 
 {% if chirp_status != 'not_configured' %}
-<form hx-post="/settings/chirp/disconnect" hx-target="#chirp-card-body" hx-swap="innerHTML"
-      hx-confirm="Disconnect Chirp? This removes the saved cookie." style="margin-top: 0.6rem;">
+<form class="mt-2" hx-post="/settings/chirp/disconnect" hx-target="#chirp-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect Chirp? This removes the saved cookie.">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <button type="submit" class="danger">Disconnect</button>
 </form>

@@ -11,30 +11,30 @@
 
 <form hx-post="/settings/plex" hx-target="#plex-card-body" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+  <div class="stack stack-form">
     <label>
       Server URL
-      <input type="text" name="base_url" value="{{ plex_base_url }}" placeholder="http://plex.example.com:32400" style="width: 100%;">
+      <input class="w-full" type="text" name="base_url" value="{{ plex_base_url }}" placeholder="http://plex.example.com:32400">
     </label>
     <label>
       Token {% if plex_has_token %}<span class="muted">(leave blank to keep the saved one)</span>{% endif %}
-      <input type="password" name="token" placeholder="{{ '••••••••' if plex_has_token else '' }}" style="width: 100%;">
+      <input class="w-full" type="password" name="token" placeholder="{{ '••••••••' if plex_has_token else '' }}">
     </label>
     <label>
       Library section ID <span class="muted">(required — save with this blank first to see the list below)</span>
-      <input type="text" name="library_id" value="{{ plex_library_id }}" placeholder="e.g. 3" style="width: 100%;">
+      <input class="w-full" type="text" name="library_id" value="{{ plex_library_id }}" placeholder="e.g. 3">
     </label>
-    <button type="submit" style="align-self: flex-start;">{{ 'Reconnect' if plex_status == 'error' else 'Save' }}</button>
+    <button class="self-start" type="submit">{{ 'Reconnect' if plex_status == 'error' else 'Save' }}</button>
   </div>
 </form>
 
 {% if plex_status != 'not_configured' %}
-<form hx-post="/settings/plex/refresh" hx-target="#plex-card-body" hx-swap="innerHTML" style="margin-top: 0.6rem; display: inline;">
+<form class="mt-2 inline" hx-post="/settings/plex/refresh" hx-target="#plex-card-body" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <button type="submit">Refresh library</button>
 </form>
-<form hx-post="/settings/plex/disconnect" hx-target="#plex-card-body" hx-swap="innerHTML"
-      hx-confirm="Disconnect Plex? This removes the saved server URL and token; already-matched data is kept until the next refresh." style="margin-top: 0.6rem; display: inline;">
+<form class="mt-2 inline" hx-post="/settings/plex/disconnect" hx-target="#plex-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect Plex? This removes the saved server URL and token; already-matched data is kept until the next refresh.">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <button type="submit" class="danger">Disconnect</button>
 </form>

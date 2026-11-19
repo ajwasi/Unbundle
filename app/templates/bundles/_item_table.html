@@ -11,10 +11,10 @@
   {% endif %}
 
   {% if all_formats %}
-  <div class="toolbar" style="margin-bottom: 0.5rem;">
-    <strong style="font-size: 0.9rem;">Bulk by format:</strong>
+  <div class="toolbar mb-2">
+    <strong style="font-size: var(--text-md)">Bulk by format:</strong>
     {% for key, label in all_formats %}
-    <label style="font-weight: normal; display: flex; gap: 0.3rem; align-items: center;">
+    <label style="font-weight: normal; display: flex; gap: var(--space-1); align-items: center">
       <input type="checkbox" name="formats" value="{{ key }}"> {{ label }}
     </label>
     {% endfor %}
@@ -39,13 +39,13 @@
           <td>{{ g.item_name }}</td>
           {% for key, label in all_formats %}
           {% set info = g.by_format.get(key) %}
-          <td style="white-space: nowrap;">
+          <td class="nowrap">
             {% if info %}
               {{ info.size_bytes | human_size }}
               {% if info.status == "completed" %}
                 <span class="badge badge-ok" title="Downloaded">&check;</span>
               {% else %}
-                <button type="button" class="secondary" style="padding: 0.05rem 0.4rem; margin-left: 0.3rem;"
+                <button type="button" class="secondary" style="padding: 0.05rem var(--space-2); margin-left: var(--space-1)"
                         hx-post="/bundles/{{ bundle.gamekey }}/download/item/{{ g.subproduct_index }}"
                         hx-vals='{"format": {{ info.raw_format | tojson }}}'
                         hx-target="#download-status" hx-swap="outerHTML"
@@ -56,10 +56,10 @@
             {% endif %}
           </td>
           {% endfor %}
-          <td style="white-space: nowrap;">
+          <td class="nowrap">
             {{ g.total_size_bytes | human_size }}
             {% if g.summary != "downloaded" %}
-            <button type="button" class="secondary" style="padding: 0.05rem 0.4rem; margin-left: 0.3rem;"
+            <button type="button" class="secondary" style="padding: 0.05rem var(--space-2); margin-left: var(--space-1)"
                     hx-post="/bundles/{{ bundle.gamekey }}/download/item/{{ g.subproduct_index }}"
                     hx-target="#download-status" hx-swap="outerHTML"
                     title="Download all formats for {{ g.item_name }}">&darr;</button>

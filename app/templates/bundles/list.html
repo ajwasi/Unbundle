@@ -5,7 +5,7 @@
 
 <div class="card">
   <strong>${{ "%.2f"|format(grand_total_spent) }} total spent</strong> across {{ total_count }} bundle(s)
-  <div class="toolbar" style="margin-top: 0.5rem; margin-bottom: 0;">
+  <div class="toolbar" style="margin-top: var(--space-2); margin-bottom: 0">
     {% for row in category_breakdown %}
     <span class="muted">{{ row.category | format_category }}: ${{ "%.2f"|format(row.total) }} ({{ row.count }})</span>
     {% endfor %}
@@ -15,11 +15,11 @@
 <div class="toolbar">
   <form hx-get="/bundles" hx-target="#bundle-table" hx-swap="outerHTML"
         hx-trigger="keyup changed delay:300ms from:input, change from:select"
-        style="display: flex; gap: 0.75rem; flex: 1; margin: 0;">
+        style="display: flex; gap: var(--space-3); flex: 1; margin: 0">
     <input type="hidden" name="sort" value="{{ sort }}">
     <input type="hidden" name="dir" value="{{ dir }}">
     <label for="bundle-search" class="sr-only">Search bundle name</label>
-    <input id="bundle-search" type="search" name="q" placeholder="Search bundle name..." value="{{ q }}" style="flex: 1;">
+    <input class="flex-1" id="bundle-search" type="search" name="q" placeholder="Search bundle name..." value="{{ q }}">
     <select name="category">
       <option value="">All categories</option>
       {% for c in categories %}
@@ -45,7 +45,7 @@
   {% if q or category or redeemed or min_items or tag_id %}
   <a href="/bundles" hx-get="/bundles" hx-target="#bundle-table" hx-swap="outerHTML">Clear filters</a>
   {% endif %}
-  <form hx-post="/bundles/refresh" hx-target="#refresh-status" hx-swap="outerHTML" style="margin: 0;">
+  <form class="m-0" hx-post="/bundles/refresh" hx-target="#refresh-status" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit">Refresh from Humble</button>
   </form>

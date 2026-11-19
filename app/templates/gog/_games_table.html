@@ -24,12 +24,12 @@
             <input type="hidden" name="dir" value="{{ dir }}" class="gog-filter">
           </th>
           <th>
-            <input type="search" name="title" value="{{ title }}" placeholder="Filter..." class="gog-filter" style="width: 100%;"
+            <input type="search" name="title" value="{{ title }}" placeholder="Filter..." class="gog-filter w-full"
                    hx-get="/gog" hx-target="#gog-games-table" hx-swap="outerHTML"
                    hx-trigger="keyup changed delay:300ms" hx-include=".gog-filter">
           </th>
           <th>
-            <select name="content_type" class="gog-filter" style="width: 100%;"
+            <select name="content_type" class="gog-filter w-full"
                     hx-get="/gog" hx-target="#gog-games-table" hx-swap="outerHTML"
                     hx-trigger="change" hx-include=".gog-filter">
               <option value="">All types</option>

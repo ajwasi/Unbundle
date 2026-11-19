@@ -8,22 +8,22 @@
 
 <form hx-post="/settings/steam" hx-target="#steam-card-body" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+  <div class="stack stack-form">
     <label>
       API Key {% if steam_has_key %}<span class="muted">(leave blank to keep the saved one)</span>{% endif %}
-      <input type="password" name="api_key" placeholder="{{ '••••••••' if steam_has_key else '' }}" style="width: 100%;">
+      <input class="w-full" type="password" name="api_key" placeholder="{{ '••••••••' if steam_has_key else '' }}">
     </label>
     <label>
       SteamID64 or profile URL
-      <input type="text" name="steamid" value="{{ steam_id_display }}" placeholder="76561198... or steamcommunity.com/id/yourname" style="width: 100%;">
+      <input class="w-full" type="text" name="steamid" value="{{ steam_id_display }}" placeholder="76561198... or steamcommunity.com/id/yourname">
     </label>
-    <button type="submit" style="align-self: flex-start;">{{ 'Reconnect' if steam_status == 'error' else 'Save' }}</button>
+    <button class="self-start" type="submit">{{ 'Reconnect' if steam_status == 'error' else 'Save' }}</button>
   </div>
 </form>
 
 {% if steam_status != 'not_configured' %}
-<form hx-post="/settings/steam/disconnect" hx-target="#steam-card-body" hx-swap="innerHTML"
-      hx-confirm="Disconnect Steam? This removes the saved API key and SteamID; already-matched ownership data is kept." style="margin-top: 0.6rem;">
+<form class="mt-2" hx-post="/settings/steam/disconnect" hx-target="#steam-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect Steam? This removes the saved API key and SteamID; already-matched ownership data is kept.">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <button type="submit" class="danger">Disconnect</button>
 </form>
