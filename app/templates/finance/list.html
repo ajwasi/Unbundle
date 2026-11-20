@@ -6,7 +6,7 @@
 
 <div class="toolbar">
   <form id="finance-filters" hx-get="/finance" hx-target="#finance-results" hx-swap="innerHTML" hx-trigger="change"
-        style="display: flex; gap: var(--space-3); margin: 0">
+        class="filter-row">
     <select name="year">
       <option value="">All years</option>
       {% for y in all_years %}

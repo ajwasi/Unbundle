@@ -543,3 +543,10 @@ def test_plus_catalog_badge_explains_itself_in_a_tooltip(authed_client, db):
     resp = authed_client.get("/audible")
     assert "leaves your library if the subscription ends" in resp.text
     assert "stays in your library permanently" in resp.text
+
+
+def test_date_filters_have_accessible_names(authed_client, db):
+    _connect_audible(db)
+    body = authed_client.get("/audible").text
+    assert 'name="purchased_from"' in body and 'aria-label="Purchased from"' in body
+    assert 'aria-label="Purchased to"' in body
