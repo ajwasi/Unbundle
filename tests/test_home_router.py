@@ -542,3 +542,9 @@ def test_login_page_has_no_navigation_before_sign_in(client):
 
 def test_the_sidebar_is_present_once_signed_in(authed_client):
     assert 'id="sidebar-nav"' in authed_client.get("/").text
+
+
+def test_filter_forms_wrap_instead_of_overflowing(authed_client):
+    """A fixed-width flex row of filters pushed Bundles/Finance past a phone's width."""
+    assert 'class="filter-row' in authed_client.get("/bundles").text
+    assert 'class="filter-row' in authed_client.get("/finance").text
