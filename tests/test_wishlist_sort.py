@@ -90,3 +90,64 @@ def test_gog_has_no_author_or_rating_columns_to_sort(authed_client):
     html = authed_client.get("/wishlist/gog").text
     assert "sort=author" not in html and "sort=rating" not in html
     assert "sort=title" in html and "sort=price" in html and "sort=lowest" in html
+
+
+# ---- Owned through a different service: the row is highlighted red ----------
+
+
+def _wl(db, appid, name):
+    now = datetime.utcnow()
+    db.add(SteamWishlistItem(appid=appid, name=name, priority=appid, first_seen_at=now, last_seen_at=now))
+
+
+def test_steam_wishlist_item_owned_on_gog_is_flagged(authed_client, db):
+    from app.models.gog_game import GogGame
+
+    _wl(db, 1, "Hollow Knight")
+    _wl(db, 2, "Something Else")
+    db.add(GogGame(product_id=9, title="Hollow  Knight!", content_type="game"))
+    db.commit()
+    html = authed_client.get("/wishlist/steam").text
+    flagged = [r for r in html.split("<tr") if "Hollow Knight" in r][0]
+    assert 'class="row-owned-elsewhere"' in flagged
+    assert "Owned on GOG" in flagged
+    other = [r for r in html.split("<tr") if "Something Else" in r][0]
+    assert "row-owned-elsewhere" not in other and "Owned on" not in other
+
+
+def test_unredeemed_humble_key_counts_as_owned(authed_client, db, make_bundle):
+    from app.models.bundle_entitlement import BundleEntitlement
+
+    _wl(db, 1, "Celeste")
+    bundle = make_bundle()
+    db.add(BundleEntitlement(gamekey=bundle.gamekey, key_name="Celeste", redeemed_on_humble=False))
+    db.commit()
+    html = authed_client.get("/wishlist/steam").text
+    assert "Owned on Humble Bundle" in html and "row-owned-elsewhere" in html
+
+
+def test_a_stores_own_library_does_not_count_as_elsewhere(authed_client, db):
+    from app.models.steam_game import SteamGame
+
+    _wl(db, 1, "Portal")
+    db.add(SteamGame(appid=1, name="Portal"))
+    db.commit()
+    assert "row-owned-elsewhere" not in authed_client.get("/wishlist/steam").text
+
+
+def test_audiobook_owned_on_another_service_is_flagged_and_movies_are_not_games(authed_client, db):
+    from app.models.audible_wishlist import AudibleWishlistItem
+    from app.models.chirp_audiobook import ChirpAudiobook
+
+    now = datetime.utcnow()
+    db.add(AudibleWishlistItem(asin="B1", title="Project Hail Mary", first_seen_at=now, last_seen_at=now))
+    db.add(ChirpAudiobook(purchase_id="p1", title="Project Hail Mary"))
+    db.commit()
+    html = authed_client.get("/wishlist/audible").text
+    assert "Owned on Chirp" in html and "row-owned-elsewhere" in html
+
+    from app.models.gog_game import GogGame
+    _wl(db, 7, "Blade Runner")
+    db.add(GogGame(product_id=70, title="Blade Runner", content_type="movie"))
+    db.commit()
+    assert "row-owned-elsewhere" not in authed_client.get("/wishlist/steam").text

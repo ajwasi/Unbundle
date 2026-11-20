@@ -49,6 +49,7 @@
      progress  in flight and will resolve by itself (Downloading, Queued, Running)
      absent    not there: Missing, Not found, No longer listed
      info      a fixed category or maturity label, not a state (Plus Catalog, Experimental)
+     duplicate you already have this some other way (a wishlist item owned on another store)
      off       not configured / disabled
 
    Keeping one meaning per kind is the point: `badge-pending` used to mean
@@ -56,7 +57,7 @@
    `tip` (optional) becomes the hover title. The older status_badge/saved_badge
    macros above remain for the Settings forms. #}
 {% macro badge(kind, label, tip="") -%}
-{%- if kind not in {"ok": 1, "error": 1, "progress": 1, "absent": 1, "info": 1, "off": 1} -%}{{ fail("Unknown badge kind: " ~ kind) }}{%- endif -%}
-{%- set kinds = {"ok": "ok", "error": "error", "progress": "progress", "absent": "absent", "info": "info", "off": "not-configured"} -%}
+{%- if kind not in {"ok": 1, "error": 1, "progress": 1, "absent": 1, "info": 1, "off": 1, "duplicate": 1} -%}{{ fail("Unknown badge kind: " ~ kind) }}{%- endif -%}
+{%- set kinds = {"ok": "ok", "error": "error", "progress": "progress", "absent": "absent", "info": "info", "off": "not-configured", "duplicate": "duplicate"} -%}
 <span class="badge badge-{{ kinds[kind] }}{{ ' tip' if tip else '' }}"{% if tip %} title="{{ tip }}"{% endif %}>{{ label }}</span>
 {%- endmacro %}

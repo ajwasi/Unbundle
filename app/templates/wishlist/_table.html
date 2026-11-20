@@ -1,4 +1,4 @@
-{% from "_macros.html" import cycle_sort_th %}
+{% from "_macros.html" import cycle_sort_th, badge %}
 <div id="wishlist-table">
   <div class="store-tabs">
     {% for src in sources %}
@@ -74,7 +74,8 @@
     <tbody>
       {% for i in items %}
       {% set key = i[key_field] %}
-      <tr>
+      {% set elsewhere = owned_elsewhere.get(key) %}
+      <tr{% if elsewhere %} class="row-owned-elsewhere"{% endif %}>
         <td>
           {% if source == "audible" and i.cover_url %}<img class="rounded-sm" src="{{ i.cover_url }}" alt="" height="44" loading="lazy">
           {% elif source == "steam" and i.header_image %}<img class="rounded-sm" src="{{ i.header_image }}" alt="" height="44" loading="lazy">
@@ -87,6 +88,9 @@
           {% if source == "audible" and i.subtitle %}<br><span class="muted">{{ i.subtitle }}</span>{% endif %}
           {% if key in owned_keys %}
           <span class="badge badge-ok tip" title="Already in your synced library for this store — you can probably remove it from the wishlist.">Owned</span>
+          {% endif %}
+          {% if elsewhere %}
+          {{ badge('duplicate', 'Owned on ' ~ elsewhere | join(', '), 'You already own this through ' ~ (elsewhere | join(', ')) ~ ', so you likely do not need to buy it here.') }}
           {% endif %}
         </td>
         <td class="muted">
