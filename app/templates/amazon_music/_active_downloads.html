@@ -19,8 +19,8 @@
         </td>
         <td style="min-width: 12rem;">
           {% if job.status == "running" and job.expected_size_bytes %}
-          <progress value="{{ job.progress_bytes }}" max="{{ job.expected_size_bytes }}" style="width: 100%; display: block; margin-bottom: 0.2rem;"></progress>
-          <span class="muted" style="font-size: 0.85em;">{{ job.progress_bytes | human_size }} / {{ job.expected_size_bytes | human_size }}</span>
+          <progress value="{{ job.progress_bytes }}" max="{{ job.expected_size_bytes }}" style="width: 100%; display: block; margin-bottom: var(--space-1)"></progress>
+          <span class="muted text-sm">{{ job.progress_bytes | human_size }} / {{ job.expected_size_bytes | human_size }}</span>
           {% elif job.status == "running" %}
           <span class="muted">Starting&hellip;</span>
           {% else %}

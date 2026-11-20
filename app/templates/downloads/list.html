@@ -4,21 +4,21 @@
 <h1>Downloads</h1>
 
 <div class="card">
-  <h2 style="margin-top: 0;">Active</h2>
-  <div style="margin-bottom: 0.75rem;">
+  <h2 class="mt-0">Active</h2>
+  <div class="mb-3">
     {% include "downloads/_concurrency_form.html" %}
   </div>
   {% include "downloads/_active.html" %}
 </div>
 
-<div class="card table-scroll" style="margin-top: 1rem;">
-  <h2 style="margin-top: 0;">History</h2>
+<div class="card table-scroll mt-4">
+  <h2 class="mt-0">History</h2>
   <div class="toolbar">
     <form hx-get="/downloads/history" hx-target="#download-history" hx-swap="outerHTML"
           hx-trigger="keyup changed delay:300ms from:input, change from:select"
-          style="display: flex; gap: 0.75rem; flex: 1; margin: 0;">
+          style="display: flex; gap: var(--space-3); flex: 1; margin: 0">
       <label for="download-history-search" class="sr-only">Search bundle name</label>
-      <input id="download-history-search" type="search" name="q" placeholder="Search bundle name..." value="{{ q }}" style="flex: 1;">
+      <input class="flex-1" id="download-history-search" type="search" name="q" placeholder="Search bundle name..." value="{{ q }}">
       <select name="status">
         <option value="">All statuses</option>
         {% for s in ["queued", "running", "verifying", "completed", "failed", "canceled"] %}
@@ -36,8 +36,8 @@
   {% include "downloads/_history.html" %}
 </div>
 
-<div class="card table-scroll" style="margin-top: 1rem;">
-  <h2 style="margin-top: 0;">Destinations</h2>
+<div class="card table-scroll mt-4">
+  <h2 class="mt-0">Destinations</h2>
   <p class="muted">
     Where a completed download moves to, based on its format and (optionally) one of its
     tags. A rule with no tag and no formats acts as the default location for anything not
@@ -49,14 +49,14 @@
   </div>
 </div>
 
-<div class="card table-scroll" style="margin-top: 1rem;">
-  <h2 style="margin-top: 0;">Scan a folder</h2>
+<div class="card table-scroll mt-4">
+  <h2 class="mt-0">Scan a folder</h2>
   <p class="muted">
     Mark files that already exist on disk as downloaded, without re-downloading or moving
     them — useful for files that predate this feature. Matches by filename against every
     item in your library. Nothing is changed until you commit.
   </p>
-  <form hx-post="/downloads/scan" hx-target="#scan-result" hx-swap="innerHTML" style="display: flex; gap: 0.75rem;">
+  <form hx-post="/downloads/scan" hx-target="#scan-result" hx-swap="innerHTML" style="display: flex; gap: var(--space-3)">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     {% if scan_roots|length > 1 %}
     <select name="root_index" style="flex: 0 0 auto;">
@@ -67,21 +67,21 @@
     {% else %}
     <input type="hidden" name="root_index" value="0">
     {% endif %}
-    <input type="text" name="folder" placeholder="subfolder (optional — blank scans the whole root)" style="flex: 1;">
+    <input class="flex-1" type="text" name="folder" placeholder="subfolder (optional — blank scans the whole root)">
     <button type="submit" class="secondary">Preview</button>
   </form>
-  <div id="scan-result" style="margin-top: 0.75rem;"></div>
+  <div class="mt-3" id="scan-result"></div>
 </div>
 
-<div class="card table-scroll" style="margin-top: 1rem;">
-  <h2 style="margin-top: 0;">Scan a folder for Audible audiobooks</h2>
+<div class="card table-scroll mt-4">
+  <h2 class="mt-0">Scan a folder for Audible audiobooks</h2>
   <p class="muted">
     Finds .m4b / .m4a files already on disk and remembers where they are, so those books
     aren't downloaded again. Matches a file's name to a book title in your Audible library
     (ignoring case and punctuation). Nothing is moved or renamed, and nothing is recorded
     until you commit.
   </p>
-  <form hx-post="/downloads/scan/audible" hx-target="#audible-scan-result" hx-swap="innerHTML" style="display: flex; gap: 0.75rem;">
+  <form hx-post="/downloads/scan/audible" hx-target="#audible-scan-result" hx-swap="innerHTML" style="display: flex; gap: var(--space-3)">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     {% if scan_roots|length > 1 %}
     <select name="root_index" style="flex: 0 0 auto;">
@@ -92,9 +92,9 @@
     {% else %}
     <input type="hidden" name="root_index" value="0">
     {% endif %}
-    <input type="text" name="folder" placeholder="subfolder (optional — blank scans the whole root)" style="flex: 1;">
+    <input class="flex-1" type="text" name="folder" placeholder="subfolder (optional — blank scans the whole root)">
     <button type="submit" class="secondary">Preview</button>
   </form>
-  <div id="audible-scan-result" style="margin-top: 0.75rem;"></div>
+  <div class="mt-3" id="audible-scan-result"></div>
 </div>
 {% endblock %}

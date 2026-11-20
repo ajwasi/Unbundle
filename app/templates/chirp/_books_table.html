@@ -33,7 +33,7 @@
       <tbody>
         {% for b in books %}
         <tr>
-          <td>{% if b.cover_url %}<img src="{{ b.cover_url }}" alt="" width="40" height="40" loading="lazy" style="border-radius: 4px;">{% endif %}</td>
+          <td>{% if b.cover_url %}<img class="rounded-sm" src="{{ b.cover_url }}" alt="" width="40" height="40" loading="lazy">{% endif %}</td>
           <td><a href="https://www.chirpbooks.com{{ b.url_path }}" target="_blank" rel="noopener">{{ b.title }}</a></td>
           <td>{{ b.authors }}</td>
           <td>{{ b.narrators }}</td>
@@ -49,7 +49,7 @@
             {% if b.display_price is not none %}
             {{ "%.2f"|format(b.display_price) }}
             {% if b.discount_price is not none and b.listing_price is not none and b.discount_price < b.listing_price %}
-            <br><span class="muted" style="text-decoration: line-through;">{{ "%.2f"|format(b.listing_price) }}</span>
+            <br><span class="muted line-through">{{ "%.2f"|format(b.listing_price) }}</span>
             {% endif %}
             {% else %}<span class="muted">&mdash;</span>{% endif %}
           </td>

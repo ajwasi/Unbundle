@@ -7,19 +7,19 @@
     Downloading&hellip;
     {% if book_job.expected_size_bytes %}
     <progress value="{{ book_job.progress_bytes }}" max="{{ book_job.expected_size_bytes }}" style="width: 220px;"></progress>
-    <span class="muted" style="font-size: 0.85em;">
+    <span class="muted text-sm">
       {{ book_job.progress_bytes | human_size }} / {{ book_job.expected_size_bytes | human_size }}
     </span>
     {% else %}
-    <span class="muted" style="font-size: 0.85em;">{{ book_job.progress_bytes | human_size }}</span>
+    <span class="muted text-sm">{{ book_job.progress_bytes | human_size }}</span>
     {% endif %}
     {% endif %}
   </span>
   {% elif book_completed %}
   <span class="badge badge-ok">Downloaded</span>
-  {% if book_local %}<span class="muted path-cell" style="font-size: 0.85em;">{{ book_local.path }}</span>{% endif %}
+  {% if book_local %}<span class="muted path-cell text-sm">{{ book_local.path }}</span>{% endif %}
   <a href="/audible/{{ asin }}/book/file">Download .m4b</a>
-  <form hx-post="/audible/{{ asin }}/book/download" hx-target="#book-status" hx-swap="outerHTML" style="display: inline;">
+  <form class="inline" hx-post="/audible/{{ asin }}/book/download" hx-target="#book-status" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <input type="hidden" name="force" value="true">
     <button type="submit" class="secondary">Re-download</button>

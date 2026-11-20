@@ -10,7 +10,7 @@
   {% if title or content_type %}
   <a href="/gog" hx-get="/gog" hx-target="#gog-games-table" hx-swap="outerHTML">Clear filters</a>
   {% endif %}
-  <form hx-post="/gog/refresh" hx-target="#gog-content" hx-swap="outerHTML" style="margin: 0;">
+  <form class="m-0" hx-post="/gog/refresh" hx-target="#gog-content" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <button type="submit" class="secondary">Refresh</button>
   </form>

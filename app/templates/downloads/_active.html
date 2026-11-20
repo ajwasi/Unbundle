@@ -8,7 +8,7 @@
     <tbody>
       {% for job in active_jobs %}
       <tr>
-        <td><a href="{{ job.href }}">{{ job.label }}</a> <span class="muted" style="font-size: 0.85em;">{{ job.kind }}</span></td>
+        <td><a href="{{ job.href }}">{{ job.label }}</a> <span class="muted text-sm">{{ job.kind }}</span></td>
         <td>
           {% if job.status == "running" %}
           {{ badge("progress", "Running") }}
@@ -18,8 +18,8 @@
         </td>
         <td style="min-width: 12rem;">
           {% if job.status == "running" and job.bytes_total %}
-          <progress value="{{ job.bytes_done }}" max="{{ job.bytes_total }}" style="width: 100%; display: block; margin-bottom: 0.2rem;"></progress>
-          <span class="muted" style="font-size: 0.85em;">{{ job.bytes_done | human_size }} / {{ job.bytes_total | human_size }}</span>
+          <progress value="{{ job.bytes_done }}" max="{{ job.bytes_total }}" style="width: 100%; display: block; margin-bottom: var(--space-1)"></progress>
+          <span class="muted text-sm">{{ job.bytes_done | human_size }} / {{ job.bytes_total | human_size }}</span>
           {% elif job.status == "running" %}
           <span class="muted">Starting&hellip;</span>
           {% else %}

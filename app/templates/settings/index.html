@@ -50,7 +50,7 @@
   <h3>Humble Bundle</h3>
   <details class="settings-howto"{% if humble_status == 'not_configured' %} open{% endif %}>
     <summary>How to get your session cookie</summary>
-    <ol class="muted" style="padding-left: 1.2rem;">
+    <ol class="muted pl-list">
       <li>Log in at <a href="https://www.humblebundle.com" target="_blank" rel="noopener">humblebundle.com</a> in this browser, if you aren't already.</li>
       <li>Open developer tools (press <code>F12</code>, or right-click the page &rarr; Inspect), then find
           <strong>Application</strong> (Chrome/Edge) or <strong>Storage</strong> (Firefox) &rarr; Cookies &rarr;
@@ -79,7 +79,7 @@
   </p>
   <details class="settings-howto"{% if steam_status == 'not_configured' %} open{% endif %}>
     <summary>How to get an API key</summary>
-    <ol class="muted" style="padding-left: 1.2rem;">
+    <ol class="muted pl-list">
       <li>Get a free API key at
           <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a>
           &mdash; any domain name works for personal use, e.g. <code>localhost</code>.</li>
@@ -128,7 +128,7 @@
   </p>
   <details class="settings-howto"{% if audible_status == 'not_configured' %} open{% endif %}>
     <summary>How to connect</summary>
-    <ol class="muted" style="padding-left: 1.2rem;">
+    <ol class="muted pl-list">
       <li>Click <strong>Connect</strong> below, pick your Audible marketplace (<code>us</code>,
           <code>uk</code>, <code>de</code>, &hellip;) and continue.</li>
       <li>Follow the link to log in on Amazon's own site, in a normal browser tab.</li>
@@ -152,7 +152,7 @@
   </p>
   <details class="settings-howto"{% if audiobookshelf_status == 'not_configured' %} open{% endif %}>
     <summary>How to get an API token</summary>
-    <ol class="muted" style="padding-left: 1.2rem;">
+    <ol class="muted pl-list">
       <li>In AudiobookShelf, go to Settings &rarr; Users &rarr; your account &rarr; API Keys, and
           create a new key.</li>
       <li>Enter your server's URL (e.g. <code>https://audiobookshelf.example.com</code>) and that
@@ -174,7 +174,7 @@
   </p>
   <details class="settings-howto"{% if plex_status == 'not_configured' %} open{% endif %}>
     <summary>How to connect</summary>
-    <ol class="muted" style="padding-left: 1.2rem;">
+    <ol class="muted pl-list">
       <li>Find your Plex token &mdash; the simplest way is to open any item in Plex Web, click the
           &hellip; menu &rarr; Get Info &rarr; View XML, and copy the <code>X-Plex-Token</code> value
           from that page's URL.</li>
@@ -201,7 +201,7 @@
   </p>
   <details class="settings-howto"{% if not music_template_captured_at %} open{% endif %}>
     <summary>How to connect</summary>
-    <ol class="muted" style="padding-left: 1.2rem;">
+    <ol class="muted pl-list">
       <li>Connect <strong>Audible</strong> above first &mdash; this reuses that login instead of asking for another.</li>
       <li>Click <strong>Test connection</strong> to check that Amazon Music answers this app with JSON.</li>
       <li>In a logged-in <code>music.amazon.com</code> tab, open the <strong>Purchased</strong> view with
@@ -225,7 +225,7 @@
   </p>
   <details class="settings-howto"{% if navidrome_status == 'not_configured' %} open{% endif %}>
     <summary>How to connect</summary>
-    <ol class="muted" style="padding-left: 1.2rem;">
+    <ol class="muted pl-list">
       <li>Enter your server's URL (e.g. <code>https://navidrome.example.com</code>) and your
           regular Navidrome username and password below.</li>
       <li>Your password is only ever sent as a salted, single-use token (the Subsonic API's
@@ -249,7 +249,7 @@
   </p>
   <details class="settings-howto"{% if chirp_status == 'not_configured' %} open{% endif %}>
     <summary>How to get a fresh cookie</summary>
-    <ol class="muted" style="padding-left: 1.2rem;">
+    <ol class="muted pl-list">
       <li>Log in at <a href="https://www.chirpbooks.com/library" target="_blank" rel="noopener">chirpbooks.com/library</a> in this browser, if you aren't already.</li>
       <li>Open developer tools (press <code>F12</code>, or right-click the page &rarr; Inspect), go to the
           <strong>Network</strong> tab, and reload the page.</li>
@@ -331,7 +331,7 @@
     talks to (e.g. Audible's own login library) — without needing to find and read the
     container's own logs separately. Useful when diagnosing a connection issue.
   </p>
-  <div class="toolbar" style="margin-top: 0;">
+  <div class="toolbar mt-0">
     <a href="/settings/logs">View logs</a>
   </div>
 </div>
@@ -346,11 +346,11 @@
     <code>Authorization: Bearer &lt;token&gt;</code> header instead — it can reach every
     route a logged-in session can, with no CSRF token needed.
   </p>
-  <div class="toolbar" style="margin-top: 0;">
+  <div class="toolbar mt-0">
     <a href="/docs" target="_blank" rel="noopener">Swagger UI (/docs)</a>
     <a href="/redoc" target="_blank" rel="noopener">ReDoc (/redoc)</a>
   </div>
-  <div id="api-card-body" style="margin-top: 0.75rem;">
+  <div class="mt-3" id="api-card-body">
     {% include "settings/_api_form.html" %}
   </div>
 </div>

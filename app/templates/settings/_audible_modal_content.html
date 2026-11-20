@@ -3,7 +3,7 @@
   {% if audible_pending.answered %}
   <p class="muted">Verifying and registering this device with Amazon&hellip; this can take up to 30 seconds.</p>
   {% else %}
-  <ol class="muted" style="padding-left: 1.2rem;">
+  <ol class="muted pl-list">
     <li><a href="{{ audible_pending.login_url }}" target="_blank" rel="noopener">Log in to Amazon &rarr;</a> (opens in a new tab)</li>
     <li>After logging in, Amazon shows a mostly-blank page. Copy the full URL from your
         browser's address bar — it will contain <code>openid.oa2.authorization_code</code>.</li>
@@ -12,10 +12,10 @@
   <form hx-post="/settings/audible/login/answer" hx-target="#audible-modal-content" hx-swap="innerHTML" class="form-row" style="max-width: 480px;">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <label for="audible-pasted-url" class="sr-only">Pasted Amazon redirect URL</label>
-    <input id="audible-pasted-url" type="text" name="pasted_url" placeholder="Paste the redirected URL here" autocomplete="off" required
+    <input class="flex-1" id="audible-pasted-url" type="text" name="pasted_url" placeholder="Paste the redirected URL here" autocomplete="off" required
            pattern=".*openid\.oa2\.authorization_code.*"
            title="This doesn't look like the right URL — make sure you copied the FULL address bar contents (e.g. click the address bar, Ctrl+A, Ctrl+C) right after Amazon's redirect, not a partial selection. It must contain openid.oa2.authorization_code."
-           style="flex: 1;">
+          >
     <button type="submit">Submit</button>
   </form>
   {% endif %}
@@ -27,7 +27,7 @@
 {% if audible_error %}<p class="text-error">{{ audible_error }}</p>{% endif %}
 <form hx-post="/settings/audible/login" hx-target="#audible-modal-content" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <div style="display: flex; flex-direction: column; gap: 0.5rem; max-width: 320px;">
+  <div style="display: flex; flex-direction: column; gap: var(--space-2); max-width: 320px">
     <label for="audible-locale" class="sr-only">Audible marketplace locale</label>
     <input id="audible-locale" type="text" name="locale" placeholder="Marketplace (e.g. us, uk, de)" value="us">
     <button type="submit">Connect</button>

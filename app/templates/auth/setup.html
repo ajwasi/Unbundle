@@ -2,7 +2,7 @@
 {% set bare_layout = true %}
 {% block title %}Set up — Unbundle{% endblock %}
 {% block content %}
-<div class="card" style="max-width: 360px; margin: 3rem auto;">
+<div class="card" style="max-width: 360px; margin: var(--space-8) auto">
   <h1>Welcome to Unbundle</h1>
   <p class="muted">
     No login is configured yet. Set a password to secure this instance before
@@ -13,14 +13,14 @@
 
   <form method="post" action="/setup" id="setup-form">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-    <input type="email" name="username" value="{{ username | default('') }}" placeholder="Username (email address, optional)" autofocus style="width: 100%; margin-bottom: 0.5rem;">
-    <input type="password" name="password" id="setup-password" placeholder="Password" required style="width: 100%; margin-bottom: 0.5rem;">
-    <input type="password" name="confirm_password" id="setup-confirm-password" placeholder="Confirm password" required style="width: 100%; margin-bottom: 0.5rem;">
+    <input class="w-full mb-2" type="email" name="username" value="{{ username | default('') }}" placeholder="Username (email address, optional)" autofocus>
+    <input class="w-full mb-2" type="password" name="password" id="setup-password" placeholder="Password" required>
+    <input class="w-full mb-2" type="password" name="confirm_password" id="setup-confirm-password" placeholder="Confirm password" required>
     <p id="setup-password-mismatch" style="display: none; color: var(--error);">Passwords do not match.</p>
-    <button type="submit" style="width: 100%;">Set password &amp; continue</button>
+    <button class="w-full" type="submit">Set password &amp; continue</button>
   </form>
 
-  <p class="muted" style="margin-top: 1rem;">
+  <p class="muted mt-4">
     Prefer SSO instead? Set a password now to get in, then configure OIDC from
     Settings — password login can be turned off there once SSO is verified working.
   </p>

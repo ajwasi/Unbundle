@@ -6,9 +6,9 @@
 {% if audible_status == "not_configured" %}
 <p class="muted">Audible isn't connected yet. Connect it in <a href="/settings">Settings</a>.</p>
 {% else %}
-<details class="disclosure" style="margin-bottom: 1rem;">
+<details class="disclosure mb-4">
   <summary>Audiobook download destinations</summary>
-  <div id="audible-destinations" style="margin-top: 0.75rem;">
+  <div class="mt-3" id="audible-destinations">
     {% include "_simple_destinations.html" %}
   </div>
 </details>
@@ -20,7 +20,7 @@
   {% if any_filter %}
   <a href="/audible" hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML">Clear filters</a>
   {% endif %}
-  <form hx-post="/audible/refresh" hx-target="#audible-content" hx-swap="outerHTML" style="margin: 0;">
+  <form class="m-0" hx-post="/audible/refresh" hx-target="#audible-content" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     <input type="hidden" name="view" value="{{ view }}">
     <input type="hidden" name="series_q" value="{{ series_q }}">

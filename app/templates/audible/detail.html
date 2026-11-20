@@ -5,14 +5,14 @@
 <p><a href="/audible">&larr; Back to library</a></p>
 
 <div class="card">
-  <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+  <div style="display: flex; gap: var(--space-6); flex-wrap: wrap">
     {% if book.cover_url %}
-    <img src="{{ book.cover_url }}" alt="" loading="lazy" onerror="this.remove()" style="max-width: 200px; border-radius: 4px;">
+    <img src="{{ book.cover_url }}" alt="" loading="lazy" onerror="this.remove()" style="max-width: 200px; border-radius: var(--radius-sm)">
     {% endif %}
     <div style="flex: 1; min-width: 240px;">
-      <h1 style="margin-top: 0;">{{ book.title }}</h1>
-      <p class="muted" style="margin: 0 0 0.5rem;">{{ book.author }}</p>
-      {% if book.narrator %}<p class="muted" style="margin: 0 0 0.5rem;">Narrated by {{ book.narrator }}</p>{% endif %}
+      <h1 class="mt-0">{{ book.title }}</h1>
+      <p class="muted" style="margin: 0 0 var(--space-2)">{{ book.author }}</p>
+      {% if book.narrator %}<p class="muted" style="margin: 0 0 var(--space-2)">Narrated by {{ book.narrator }}</p>{% endif %}
 
       <p>
         {% if owned %}{{ badge("ok", "Owned", "Bought outright — it stays in your library permanently.") }}{% else %}{{ badge("info", "Plus Catalog", "Available with an Audible Plus subscription — it leaves your library if the subscription ends.") }}{% endif %}
@@ -28,7 +28,7 @@
         {% if book.price_amount %}<dt class="muted">List price</dt><dd>{{ "%.2f"|format(book.price_amount) }} {{ book.price_currency }}</dd>{% endif %}
       </dl>
 
-      {% if book.description %}<p style="margin-top: 1rem;">{{ book.description }}</p>{% endif %}
+      {% if book.description %}<p class="mt-4">{{ book.description }}</p>{% endif %}
     </div>
   </div>
 </div>

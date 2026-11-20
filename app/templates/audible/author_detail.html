@@ -6,14 +6,14 @@
 
 {% if author_image_url or author_bio %}
 <div class="card">
-  <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+  <div style="display: flex; gap: var(--space-6); flex-wrap: wrap">
     {% if author_image_url %}
-    <img src="{{ author_image_url }}" alt="" loading="lazy" onerror="this.remove()" style="max-width: 160px; border-radius: 4px;">
+    <img src="{{ author_image_url }}" alt="" loading="lazy" onerror="this.remove()" style="max-width: 160px; border-radius: var(--radius-sm)">
     {% endif %}
     <div style="flex: 1; min-width: 240px;">
-      <h1 style="margin-top: 0;">{{ author_name }}</h1>
-      <p class="muted" style="margin: 0 0 0.5rem;">{{ owned_count }} owned &mdash; {{ missing_count }} missing</p>
-      {% if author_bio %}<p style="margin-top: 1rem;">{{ author_bio }}</p>{% endif %}
+      <h1 class="mt-0">{{ author_name }}</h1>
+      <p class="muted" style="margin: 0 0 var(--space-2)">{{ owned_count }} owned &mdash; {{ missing_count }} missing</p>
+      {% if author_bio %}<p class="mt-4">{{ author_bio }}</p>{% endif %}
     </div>
   </div>
 </div>

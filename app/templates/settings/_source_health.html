@@ -7,7 +7,7 @@
   <tbody>
     {% for row in source_health %}
     <tr>
-      <td>{{ row.label }}{% if row.detail %}<div class="muted" style="font-size: 0.85em; margin-top: 0.15rem;">{{ row.detail }}</div>{% endif %}</td>
+      <td>{{ row.label }}{% if row.detail %}<div class="muted" style="font-size: 0.85em; margin-top: var(--space-0)">{{ row.detail }}</div>{% endif %}</td>
       <td>{{ badge(row.state, {"ok": "Working", "error": "Failing", "off": "Unknown"}[row.state]) }}</td>
       <td>{% if row.last_ok %}<span title="{{ row.last_ok.strftime('%Y-%m-%d %H:%M') }} UTC">{{ row.last_ok | time_since }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
     </tr>

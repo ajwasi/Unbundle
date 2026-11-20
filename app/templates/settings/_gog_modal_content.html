@@ -15,7 +15,7 @@
   <button type="submit">Connect with demo data</button>
 </form>
 {% else %}
-<ol class="muted" style="padding-left: 1.2rem;">
+<ol class="muted pl-list">
   <li><a href="{{ gog_login_url }}" target="_blank" rel="noopener">Log in to GOG &rarr;</a> (opens in a new tab)</li>
   <li>After logging in, GOG shows a mostly-blank page. Copy the full URL from your
       browser's address bar — it will contain <code>on_login_success</code> and a
@@ -28,7 +28,7 @@
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <div class="form-row" style="max-width: 480px;">
     <label for="gog-pasted-code" class="sr-only">Pasted GOG redirect URL or code</label>
-    <input id="gog-pasted-code" type="text" name="pasted_code" placeholder="Paste the redirected URL or code here" style="flex: 1;">
+    <input class="flex-1" id="gog-pasted-code" type="text" name="pasted_code" placeholder="Paste the redirected URL or code here">
     <button type="submit">Connect</button>
   </div>
 </form>

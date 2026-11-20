@@ -1,7 +1,7 @@
 {% if new_token_plaintext %}
-<div class="card" style="border-color: var(--success); margin-bottom: 0.75rem;">
+<div class="card" style="border-color: var(--success); margin-bottom: var(--space-3)">
   <strong>Token created — copy it now, it won't be shown again:</strong>
-  <div class="form-row" style="margin-top: 0.4rem;">
+  <div class="form-row mt-2">
     <code id="new-api-token" style="flex: 1; overflow-wrap: anywhere;">{{ new_token_plaintext }}</code>
     <button type="button" class="secondary"
             onclick="var t = document.getElementById('new-api-token').textContent; if (navigator.clipboard) { navigator.clipboard.writeText(t); this.textContent = 'Copied!'; }">Copy</button>
@@ -33,9 +33,9 @@
 </table>
 </div>
 
-<form hx-post="/settings/api-tokens" hx-target="#api-card-body" hx-swap="innerHTML" class="form-row" style="margin-top: 0.75rem;">
+<form hx-post="/settings/api-tokens" hx-target="#api-card-body" hx-swap="innerHTML" class="form-row mt-3">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <label for="api-token-name" class="sr-only">Token name</label>
-  <input id="api-token-name" type="text" name="name" placeholder="Token name (e.g. Homelab script)" required style="flex: 1;">
+  <input class="flex-1" id="api-token-name" type="text" name="name" placeholder="Token name (e.g. Homelab script)" required>
   <button type="submit">Create token</button>
 </form>

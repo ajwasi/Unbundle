@@ -18,7 +18,7 @@
   {% endif %}
 
   <div class="toolbar">
-    <form hx-post="/wishlist/{{ source }}/refresh" hx-target="#wishlist-table" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+    <form class="m-0 row" hx-post="/wishlist/{{ source }}/refresh" hx-target="#wishlist-table" hx-swap="outerHTML">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="q" value="{{ q }}">
       <input type="hidden" name="sort" value="{{ sort }}">
@@ -51,7 +51,7 @@
       </option>
       {% endfor %}
     </select>
-    <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
+    <label class="label-inline">
       <input type="checkbox" id="wl-deals" name="deals_only" value="true" {{ "checked" if deals_only else "" }}
              hx-get="/wishlist/{{ source }}" hx-trigger="change" hx-target="#wishlist-table" hx-swap="outerHTML"
              hx-include="#wl-q,#wl-sort">
@@ -80,10 +80,10 @@
       {% set key = i[key_field] %}
       <tr>
         <td>
-          {% if source == "audible" and i.cover_url %}<img src="{{ i.cover_url }}" alt="" height="44" loading="lazy" style="border-radius: 4px;">
-          {% elif source == "steam" and i.header_image %}<img src="{{ i.header_image }}" alt="" height="44" loading="lazy" style="border-radius: 4px;">
-          {% elif source == "gog" and i.cover_url %}<img src="{{ i.cover_url }}" alt="" height="44" loading="lazy" style="border-radius: 4px;">
-          {% elif source == "chirp" and i.cover_url %}<img src="{{ i.cover_url }}" alt="" height="44" loading="lazy" style="border-radius: 4px;">
+          {% if source == "audible" and i.cover_url %}<img class="rounded-sm" src="{{ i.cover_url }}" alt="" height="44" loading="lazy">
+          {% elif source == "steam" and i.header_image %}<img class="rounded-sm" src="{{ i.header_image }}" alt="" height="44" loading="lazy">
+          {% elif source == "gog" and i.cover_url %}<img class="rounded-sm" src="{{ i.cover_url }}" alt="" height="44" loading="lazy">
+          {% elif source == "chirp" and i.cover_url %}<img class="rounded-sm" src="{{ i.cover_url }}" alt="" height="44" loading="lazy">
           {% endif %}
         </td>
         <td>
@@ -118,7 +118,7 @@
           {{ "%.2f"|format(i.current_price) }} {{ i.currency }}
           {% if i.discount_pct %}
           <span class="badge badge-ok">-{{ i.discount_pct }}%</span>
-          {% if i.list_price %}<br><span class="muted" style="text-decoration: line-through;">{{ "%.2f"|format(i.list_price) }}</span>{% endif %}
+          {% if i.list_price %}<br><span class="muted line-through">{{ "%.2f"|format(i.list_price) }}</span>{% endif %}
           {% endif %}
           {% else %}
           <span class="muted tip" title="No price returned for this item.">&mdash;</span>

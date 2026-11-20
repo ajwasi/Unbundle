@@ -12,7 +12,7 @@
     {{ refresh_result.missing }} no longer listed{% endif %}.
   </p>
   {% if refresh_result.second_pass_only_tracks %}
-  <p class="muted" style="margin-bottom: 0.4rem;">
+  <p class="muted mb-2">
     This sync pages through your library twice, sorted two different ways &mdash; a single
     ordering has been seen to stop around 10,000 rows on libraries larger than that, and a
     second, differently-sorted pass can reach rows the first one's cutoff missed. This time,
@@ -21,7 +21,7 @@
   </p>
   {% endif %}
   {% if refresh_result.candidates_seen and refresh_result.tracks_seen < refresh_result.candidates_seen %}
-  <p class="text-error" style="margin-bottom: 0.4rem;">
+  <p class="text-error mb-2">
     Most rows on the page were not recognised as tracks. That is more likely a parsing
     gap than an empty library &mdash; details below are key names only, no title, price
     or account data.
@@ -34,10 +34,10 @@
       Why no unmatched row shape was captured
       {%- endif -%}
     </summary>
-    <div class="scroll-box" style="margin-top: 0.6rem;">
+    <div class="scroll-box mt-2">
       {% if refresh_result.unmatched_item_shapes %}
       {% for shape in refresh_result.unmatched_item_shapes %}
-      <p class="muted" style="font-family: monospace; margin: 0 0 0.5rem;">{{ shape|join(", ") }}</p>
+      <p class="muted" style="font-family: monospace; margin: 0 0 var(--space-2)">{{ shape|join(", ") }}</p>
       {% endfor %}
       {% else %}
       <p class="muted">
@@ -53,21 +53,21 @@
   {% endif %}
   {% if refresh_result.diagnostic %}
   {% set d = refresh_result.diagnostic %}
-  <p class="text-error" style="margin-bottom: 0.4rem;">
+  <p class="text-error mb-2">
     Amazon answered with valid JSON, but nothing in it looked like a track &mdash; the response
     shape may not match what this app expects. Details below are key names, paths and counts
     only; no title, price or account data is included.
   </p>
   <details class="disclosure">
     <summary>Show what the response actually contained</summary>
-    <div class="scroll-box" style="margin-top: 0.6rem;">
+    <div class="scroll-box mt-2">
       <p><strong>Top-level keys ({{ d.top_level_keys|length }})</strong></p>
       <p class="muted" style="font-family: monospace;">{{ d.top_level_keys|join(", ") or "(none — not a JSON object)" }}</p>
 
       {% if d.record_shapes %}
       <p><strong>Likely data records</strong></p>
       {% for path, fields in d.record_shapes %}
-      <p style="margin: 0 0 0.6rem;"><code>{{ path }}</code><br><span class="muted">{{ fields|join(", ") }}</span></p>
+      <p style="margin: 0 0 var(--space-2)"><code>{{ path }}</code><br><span class="muted">{{ fields|join(", ") }}</span></p>
       {% endfor %}
       {% endif %}
 
@@ -86,7 +86,7 @@
   {% endif %}
 
   <div class="toolbar">
-    <form hx-post="/amazon-music/refresh" hx-target="#amazon-music-table" hx-swap="outerHTML" style="margin: 0; display: flex; gap: 0.75rem; align-items: center;">
+    <form class="m-0 row" hx-post="/amazon-music/refresh" hx-target="#amazon-music-table" hx-swap="outerHTML">
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="q" value="{{ q }}">
       <input type="hidden" name="sort" value="{{ sort }}">
@@ -111,7 +111,7 @@
       <option value="tracks" {{ "selected" if sort == "tracks" else "" }}>Track count</option>
     </select>
     {% if missing_count %}
-    <label style="display: flex; align-items: center; gap: 0.4rem; font-weight: normal;">
+    <label class="label-inline">
       <input type="checkbox" id="music-albums-show-missing" name="show_missing" value="true" {{ "checked" if show_missing else "" }}
              hx-get="/amazon-music" hx-trigger="change" hx-target="#amazon-music-table" hx-swap="outerHTML"
              hx-include="#music-albums-q,#music-albums-sort">
@@ -130,7 +130,7 @@
     <input type="hidden" name="sort" value="{{ sort }}">
     <input type="hidden" name="show_missing" value="{{ 'true' if show_missing else '' }}">
     {% if albums %}
-    <div class="toolbar" style="margin-bottom: 0.5rem;">
+    <div class="toolbar mb-2">
       <button type="submit" id="music-albums-selected-btn" disabled>Download selected</button>
       <button type="submit" id="music-albums-all-btn"
               onclick="document.querySelectorAll('#music-albums-download-form .album-check').forEach(function (c) { c.checked = false; })">
@@ -144,7 +144,7 @@
                           #music-albums-download-form .album-check:checked">
         Refresh selected covers
       </button>
-      <span id="amazon-music-select-all-note" class="muted" style="font-size: 0.85em;" role="status" aria-live="polite" {{ "hidden" if shown_so_far >= total_albums else "" }}>
+      <span id="amazon-music-select-all-note" class="muted text-sm" role="status" aria-live="polite" {{ "hidden" if shown_so_far >= total_albums else "" }}>
         The header checkbox only selects albums already loaded below — scroll to load the rest first, or use "Download all" for everything.
       </span>
     </div>

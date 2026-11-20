@@ -11,30 +11,30 @@
 
 <form hx-post="/settings/navidrome" hx-target="#navidrome-card-body" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-  <div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 420px;">
+  <div class="stack stack-form">
     <label>
       Server URL
-      <input type="text" name="base_url" value="{{ navidrome_base_url }}" placeholder="https://navidrome.example.com" style="width: 100%;">
+      <input class="w-full" type="text" name="base_url" value="{{ navidrome_base_url }}" placeholder="https://navidrome.example.com">
     </label>
     <label>
       Username
-      <input type="text" name="username" value="{{ navidrome_username }}" style="width: 100%;">
+      <input class="w-full" type="text" name="username" value="{{ navidrome_username }}">
     </label>
     <label>
       Password {% if navidrome_has_password %}<span class="muted">(leave blank to keep the saved one)</span>{% endif %}
-      <input type="password" name="password" placeholder="{{ '••••••••' if navidrome_has_password else '' }}" style="width: 100%;">
+      <input class="w-full" type="password" name="password" placeholder="{{ '••••••••' if navidrome_has_password else '' }}">
     </label>
-    <button type="submit" style="align-self: flex-start;">{{ 'Reconnect' if navidrome_status == 'error' else 'Save' }}</button>
+    <button class="self-start" type="submit">{{ 'Reconnect' if navidrome_status == 'error' else 'Save' }}</button>
   </div>
 </form>
 
 {% if navidrome_status != 'not_configured' %}
-<form hx-post="/settings/navidrome/refresh" hx-target="#navidrome-card-body" hx-swap="innerHTML" style="margin-top: 0.6rem; display: inline;">
+<form class="mt-2 inline" hx-post="/settings/navidrome/refresh" hx-target="#navidrome-card-body" hx-swap="innerHTML">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <button type="submit">Refresh library</button>
 </form>
-<form hx-post="/settings/navidrome/disconnect" hx-target="#navidrome-card-body" hx-swap="innerHTML"
-      hx-confirm="Disconnect Navidrome? This removes the saved server URL and login; already-matched data is kept until the next refresh." style="margin-top: 0.6rem; display: inline;">
+<form class="mt-2 inline" hx-post="/settings/navidrome/disconnect" hx-target="#navidrome-card-body" hx-swap="innerHTML"
+      hx-confirm="Disconnect Navidrome? This removes the saved server URL and login; already-matched data is kept until the next refresh.">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   <button type="submit" class="danger">Disconnect</button>
 </form>

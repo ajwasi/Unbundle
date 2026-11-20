@@ -18,11 +18,11 @@
             <input type="hidden" name="dir" value="{{ dir }}" class="steam-filter">
           </th>
           <th>
-            <input type="search" name="name" value="{{ name }}" placeholder="Filter..." class="steam-filter" style="width: 100%;"
+            <input type="search" name="name" value="{{ name }}" placeholder="Filter..." class="steam-filter w-full"
                    hx-get="/steam" hx-target="#steam-games-table" hx-swap="outerHTML"
                    hx-trigger="keyup changed delay:300ms" hx-include=".steam-filter">
           </th>
-          <th style="white-space: nowrap;">
+          <th class="nowrap">
             <input type="number" name="playtime_min" value="{{ playtime_min if playtime_min is not none else '' }}" placeholder="min hrs" class="steam-filter" style="width: 4.5rem;"
                    hx-get="/steam" hx-target="#steam-games-table" hx-swap="outerHTML"
                    hx-trigger="keyup changed delay:300ms" hx-include=".steam-filter">

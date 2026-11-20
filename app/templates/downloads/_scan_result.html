@@ -36,7 +36,7 @@
       {% endfor %}
     </tbody>
   </table>
-  <div class="toolbar" style="margin-top: 0.75rem;">
+  <div class="toolbar mt-3">
     <button type="submit" id="commit-selected-btn" disabled>Commit Selected</button>
     <button type="submit" id="commit-all-btn"
             onclick="document.querySelectorAll('#scan-commit-form .scan-item-check').forEach(function (c) { c.checked = false; })">
@@ -55,7 +55,7 @@
 {% endif %}
 
 {% if result.ambiguous %}
-<p class="muted" style="margin-top: 0.75rem;"><strong>Ambiguous (never auto-committed)</strong> — the same filename matches more than one library item:</p>
+<p class="muted mt-3"><strong>Ambiguous (never auto-committed)</strong> — the same filename matches more than one library item:</p>
 {% if result.ambiguous|length > preview_limit %}
 <p class="muted">Showing the first {{ preview_limit }} of {{ result.ambiguous|length }} ambiguous matches.</p>
 {% endif %}
