@@ -97,6 +97,7 @@ DEFAULT_ORDER = {
 # _context() below special-cases it as a Python-side sort instead. Every
 # source has the "Lowest seen" column, so every source can sort by it.
 _LOWEST_SORT_KEY = "lowest"
+_DISCOUNT_SORT_KEY = "discount"
 
 
 def _counts(db: Session) -> dict[str, int]:
@@ -163,12 +164,19 @@ def _context(
     columns = SORT_COLUMNS[source]
     descending = dir == "desc"
     lowest_prices = _lowest(db, source)
-    if sort == _LOWEST_SORT_KEY:
+    python_sorts = {
+        _LOWEST_SORT_KEY: lambda i: lowest_prices.get(getattr(i, key_field)),
+        # discount_pct is a computed property on three of the four stores, so
+        # it can't be an ORDER BY; "no discount" counts as unknown.
+        _DISCOUNT_SORT_KEY: lambda i: i.discount_pct or None,
+    }
+    if sort in python_sorts:
+        value_of = python_sorts[sort]
         items = query.all()
-        priced = [i for i in items if getattr(i, key_field) in lowest_prices]
-        unpriced = [i for i in items if getattr(i, key_field) not in lowest_prices]
-        priced.sort(key=lambda i: lowest_prices[getattr(i, key_field)], reverse=descending)
-        items = priced + unpriced  # unknown values last in either direction
+        known = [i for i in items if value_of(i) is not None]
+        unknown = [i for i in items if value_of(i) is None]
+        known.sort(key=value_of, reverse=descending)
+        items = known + unknown  # unknown values last in either direction
     elif sort in columns:
         column = columns[sort]
         items = query.order_by(column.is_(None), column.desc() if descending else column.asc()).all()
@@ -195,7 +203,7 @@ def _context(
         "q": q,
         "sort": sort,
         "dir": "desc" if descending else "asc",
-        "sortable": [*columns, _LOWEST_SORT_KEY],
+        "sortable": [*columns, _DISCOUNT_SORT_KEY, _LOWEST_SORT_KEY],
         "deals_only": deals_only,
         "last_synced": db.query(func.max(model.last_seen_at)).scalar(),
         "result": result,
