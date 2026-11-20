@@ -8,6 +8,7 @@
 
 {% macro filter_input(name, value, placeholder='', width='9rem', type='search') %}
 <input type="{{ type }}" name="{{ name }}" value="{{ value if value is not none else '' }}" placeholder="{{ placeholder }}"
+       aria-label="{{ (name | replace('_', ' ') | capitalize) if type == 'date' else (placeholder or name | replace('_', ' ') | capitalize) }}"
        class="audible-filter" style="width: {{ width }};"
        hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
        hx-trigger="keyup changed delay:300ms" hx-include=".audible-filter">
