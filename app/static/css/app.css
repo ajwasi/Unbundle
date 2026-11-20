@@ -1039,6 +1039,7 @@ th, td {
 .compare-table th:nth-child(4), .compare-table td:nth-child(4) { width: 22%; }
 
 th a { text-decoration: none; color: var(--text); }
+th a:hover { text-decoration: underline; }
 
 .badge {
   display: inline-block;

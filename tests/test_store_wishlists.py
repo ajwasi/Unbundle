@@ -387,7 +387,7 @@ def test_sorting_by_author_orders_steam_wishlist_by_developer(authed_client, db)
 def test_gog_sort_options_omit_author(authed_client, db):
     _seed_gog(db)
     resp = authed_client.get("/wishlist/gog")
-    assert 'value="author"' not in resp.text
+    assert "sort=author" not in resp.text
 
 
 def test_sorting_by_lowest_orders_items_by_historical_low_price(authed_client, db):
