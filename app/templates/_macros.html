@@ -25,6 +25,22 @@
 </a>
 {% endmacro %}
 
+{# A sortable <th> that cycles ascending -> descending -> cleared on repeat
+   clicks (the third click drops the sort params entirely, so the page falls
+   back to its own default order). `base_url` already carries the page's other
+   filters and must contain a "?". aria-sort tells screen readers which column
+   is sorted and how. #}
+{% macro cycle_sort_th(base_url, target, col, label, sort, dir) %}
+{% set active = sort == col %}
+<th{% if active %} aria-sort="{{ 'ascending' if dir == 'asc' else 'descending' }}"{% endif %}>
+  <a href="#" hx-target="{{ target }}" hx-swap="outerHTML"
+     hx-get="{{ base_url }}{% if not active %}&sort={{ col }}&dir=asc{% elif dir == 'asc' %}&sort={{ col }}&dir=desc{% endif %}"
+     title="{{ 'Sorted ascending. Click for descending.' if active and dir == 'asc' else ('Sorted descending. Click to clear.' if active else 'Click to sort') }}">
+    {{ label }}{% if active %} {{ ('&#9650;' if dir == 'asc' else '&#9660;') | safe }}{% endif %}
+  </a>
+</th>
+{% endmacro %}
+
 {# The badge vocabulary. A badge says what KIND of thing a state is, not what
    colour it should be — pick the meaning, never a colour class:
 

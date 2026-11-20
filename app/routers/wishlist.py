@@ -55,42 +55,47 @@ _PRICE_MODELS = {
     "chirp": (ChirpWishlistPrice, "url_path"),
 }
 
-SORTS = {
+# Column headers sort the table: click once for ascending, again for
+# descending, a third time to clear back to the store's own order below.
+# Values are the ascending basis; direction is applied in _context().
+SORT_COLUMNS = {
     "audible": {
-        "added": AudibleWishlistItem.added_at.desc(),
-        "title": AudibleWishlistItem.title.asc(),
-        "price": AudibleWishlistItem.current_price.asc(),
-        "rating": AudibleWishlistItem.rating.desc(),
-        "author": AudibleWishlistItem.authors.asc(),
+        "title": func.lower(AudibleWishlistItem.title),
+        "author": func.lower(AudibleWishlistItem.authors),
+        "rating": AudibleWishlistItem.rating,
+        "price": AudibleWishlistItem.current_price,
     },
     "steam": {
-        "added": SteamWishlistItem.priority.asc(),
-        "title": SteamWishlistItem.name.asc(),
-        "price": SteamWishlistItem.current_price.asc(),
-        "rating": SteamWishlistItem.metacritic.desc(),
-        "author": SteamWishlistItem.developers.asc(),
+        "title": func.lower(SteamWishlistItem.name),
+        "author": func.lower(SteamWishlistItem.developers),
+        "rating": SteamWishlistItem.metacritic,
+        "price": SteamWishlistItem.current_price,
     },
+    # No "author"/"rating" for GOG — its wishlist model carries neither field
+    # (see GogWishlistItem's own docstring on the rating gap).
     "gog": {
-        "added": GogWishlistItem.first_seen_at.desc(),
-        "title": GogWishlistItem.title.asc(),
-        "price": GogWishlistItem.current_price.asc(),
-        # No "author"/"rating" here — GOG's wishlist model carries neither
-        # field (see GogWishlistItem's own docstring on the rating gap).
+        "title": func.lower(GogWishlistItem.title),
+        "price": GogWishlistItem.current_price,
     },
     "chirp": {
-        "added": ChirpWishlistItem.first_seen_at.desc(),
-        "title": ChirpWishlistItem.title.asc(),
-        "price": ChirpWishlistItem.current_price.asc(),
-        "author": ChirpWishlistItem.authors.asc(),
+        "title": func.lower(ChirpWishlistItem.title),
+        "author": func.lower(ChirpWishlistItem.authors),
+        "price": ChirpWishlistItem.current_price,
     },
+}
+
+# What "no sort" means: the order the store itself gives the list.
+DEFAULT_ORDER = {
+    "audible": AudibleWishlistItem.added_at.desc(),
+    "steam": SteamWishlistItem.priority.asc(),
+    "gog": GogWishlistItem.first_seen_at.desc(),
+    "chirp": ChirpWishlistItem.first_seen_at.desc(),
 }
 
 # "lowest" sorts by _lowest()'s per-item historical-low price, which isn't a
 # mapped column (it's aggregated separately from the price-history table), so
-# it can't join SORTS' order_by expressions — _context() below special-cases
-# it as a Python-side sort instead. Listed here anyway so every source offers
-# it in the sort dropdown, same as the "Lowest seen" column already shown
-# for every source regardless of what else that source supports.
+# _context() below special-cases it as a Python-side sort instead. Every
+# source has the "Lowest seen" column, so every source can sort by it.
 _LOWEST_SORT_KEY = "lowest"
 
 
@@ -144,7 +149,8 @@ def _context(
     db: Session,
     source: str,
     q: str = "",
-    sort: str = "added",
+    sort: str = "",
+    dir: str = "asc",
     deals_only: bool = False,
     result: dict | None = None,
     error: str | None = None,
@@ -154,13 +160,21 @@ def _context(
     if q:
         query = _search(query, source, q)
 
-    sorts = SORTS[source]
+    columns = SORT_COLUMNS[source]
+    descending = dir == "desc"
     lowest_prices = _lowest(db, source)
     if sort == _LOWEST_SORT_KEY:
         items = query.all()
-        items.sort(key=lambda i: lowest_prices.get(getattr(i, key_field), float("inf")))
+        priced = [i for i in items if getattr(i, key_field) in lowest_prices]
+        unpriced = [i for i in items if getattr(i, key_field) not in lowest_prices]
+        priced.sort(key=lambda i: lowest_prices[getattr(i, key_field)], reverse=descending)
+        items = priced + unpriced  # unknown values last in either direction
+    elif sort in columns:
+        column = columns[sort]
+        items = query.order_by(column.is_(None), column.desc() if descending else column.asc()).all()
     else:
-        items = query.order_by(sorts.get(sort, sorts["added"])).all()
+        sort = ""
+        items = query.order_by(DEFAULT_ORDER[source]).all()
     if deals_only:
         items = [i for i in items if i.discount_pct]
 
@@ -180,7 +194,8 @@ def _context(
         ),
         "q": q,
         "sort": sort,
-        "sorts": list(sorts.keys()) + [_LOWEST_SORT_KEY],
+        "dir": "desc" if descending else "asc",
+        "sortable": [*columns, _LOWEST_SORT_KEY],
         "deals_only": deals_only,
         "last_synced": db.query(func.max(model.last_seen_at)).scalar(),
         "result": result,
@@ -202,13 +217,14 @@ def wishlist_page(
     request: Request,
     source: str,
     q: str = "",
-    sort: str = "added",
+    sort: str = "",
+    dir: str = "asc",
     deals_only: bool = False,
     db: Session = Depends(get_db),
 ):
     if source not in SOURCES:
         raise HTTPException(status_code=404, detail="Unknown wishlist source")
-    context = _context(db, source, q.strip(), sort, deals_only)
+    context = _context(db, source, q.strip(), sort, dir, deals_only)
     template = "wishlist/_table.html" if request.headers.get("HX-Request") else "wishlist/index.html"
     return templates.TemplateResponse(request, template, context)
 
@@ -251,7 +267,9 @@ async def refresh_wishlist(
     request: Request,
     source: str,
     q: str = Form(""),
-    sort: str = Form("added"),
+    sort: str = Form(""),
+    dir: str = Form("asc"),
+    deals_only: bool = Form(False),
     db: Session = Depends(get_db),
 ):
     if source not in SOURCES:
@@ -271,5 +289,5 @@ async def refresh_wishlist(
 
     if result is not None:
         _record_health(db, source)
-    context = _context(db, source, q.strip(), sort, result=result, error=error)
+    context = _context(db, source, q.strip(), sort, dir, deals_only, result=result, error=error)
     return templates.TemplateResponse(request, "wishlist/_table.html", context)

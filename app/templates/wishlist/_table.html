@@ -1,3 +1,4 @@
+{% from "_macros.html" import cycle_sort_th %}
 <div id="wishlist-table">
   <div class="store-tabs">
     {% for src in sources %}
@@ -22,6 +23,8 @@
       <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="q" value="{{ q }}">
       <input type="hidden" name="sort" value="{{ sort }}">
+      <input type="hidden" name="dir" value="{{ dir }}">
+      {% if deals_only %}<input type="hidden" name="deals_only" value="true">{% endif %}
       <button type="submit">Sync {{ source_labels[source] }}</button>
       {% if source == "steam" %}
       <span class="muted htmx-indicator tip" title="Steam has no batch endpoint, so this makes one request per wishlisted game.">Checking prices, one game at a time&hellip;</span>
@@ -38,23 +41,13 @@
     <input type="search" id="wl-q" name="q" value="{{ q }}" placeholder="Search this list"
            hx-get="/wishlist/{{ source }}" hx-trigger="keyup changed delay:300ms, search"
            hx-target="#wishlist-table" hx-swap="outerHTML"
-           hx-include="#wl-sort,#wl-deals" style="flex: 1; max-width: 20rem;">
-    <select id="wl-sort" name="sort" hx-get="/wishlist/{{ source }}" hx-trigger="change"
-            hx-target="#wishlist-table" hx-swap="outerHTML" hx-include="#wl-q,#wl-deals">
-      {% for s in sorts %}
-      <option value="{{ s }}" {{ "selected" if sort == s else "" }}>
-        {%- if s == "added" %}{{ "Wishlist order" if source == "steam" else "Recently added" }}
-        {%- elif s == "rating" %}Highest rated
-        {%- elif s == "author" %}{{ "Developer" if source == "steam" else "Author" }}
-        {%- elif s == "lowest" %}Lowest seen
-        {%- else %}{{ s|capitalize }}{% endif -%}
-      </option>
-      {% endfor %}
-    </select>
+           hx-include="#wl-sort,#wl-dir,#wl-deals" style="flex: 1; max-width: 20rem;">
+    <input type="hidden" id="wl-sort" name="sort" value="{{ sort }}">
+    <input type="hidden" id="wl-dir" name="dir" value="{{ dir }}">
     <label class="label-inline">
       <input type="checkbox" id="wl-deals" name="deals_only" value="true" {{ "checked" if deals_only else "" }}
              hx-get="/wishlist/{{ source }}" hx-trigger="change" hx-target="#wishlist-table" hx-swap="outerHTML"
-             hx-include="#wl-q,#wl-sort">
+             hx-include="#wl-q,#wl-sort,#wl-dir">
       On sale only{% if deal_count %} ({{ deal_count }}){% endif %}
     </label>
     <span class="muted">{{ items|length }} of {{ total }}</span>
@@ -63,15 +56,18 @@
   <div class="table-scroll">
   <table>
     <thead>
+      {% set base = "/wishlist/" ~ source ~ "?q=" ~ (q | urlencode) ~ "&deals_only=" ~ ("true" if deals_only else "false") %}
       <tr>
         <th></th>
-        <th>Title</th>
-        <th>{% if source == "steam" %}Developer{% elif source in ("audible", "chirp") %}Author{% else %}&nbsp;{% endif %}</th>
-        {% if source in ("audible", "steam") %}
-        <th>{% if source == "audible" %}Rating{% else %}Metacritic{% endif %}</th>
+        {{ cycle_sort_th(base, "#wishlist-table", "title", "Title", sort, dir) }}
+        {% if "author" in sortable %}
+        {{ cycle_sort_th(base, "#wishlist-table", "author", "Developer" if source == "steam" else "Author", sort, dir) }}
+        {% else %}<th>&nbsp;</th>{% endif %}
+        {% if "rating" in sortable %}
+        {{ cycle_sort_th(base, "#wishlist-table", "rating", "Rating" if source == "audible" else "Metacritic", sort, dir) }}
         {% endif %}
-        <th>Price</th>
-        <th>Lowest seen</th>
+        {{ cycle_sort_th(base, "#wishlist-table", "price", "Price", sort, dir) }}
+        {{ cycle_sort_th(base, "#wishlist-table", "lowest", "Lowest seen", sort, dir) }}
         <th></th>
       </tr>
     </thead>
