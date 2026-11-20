@@ -32,6 +32,7 @@ from app.models.store_wishlist import (
 )
 from app.ratelimit import RateLimiter, rate_limit
 from app.services import source_health
+from app.services.owned_elsewhere import owned_elsewhere
 from app.sync import audible_sync, store_wishlist_sync
 from app.templates_env import templates
 
@@ -90,6 +91,14 @@ DEFAULT_ORDER = {
     "steam": SteamWishlistItem.priority.asc(),
     "gog": GogWishlistItem.first_seen_at.desc(),
     "chirp": ChirpWishlistItem.first_seen_at.desc(),
+}
+
+# How to read an item's title, for matching it against the other libraries.
+_TITLE_OF = {
+    "audible": lambda i: i.title,
+    "steam": lambda i: i.name,
+    "gog": lambda i: i.title,
+    "chirp": lambda i: i.title,
 }
 
 # "lowest" sorts by _lowest()'s per-item historical-low price, which isn't a
@@ -189,6 +198,7 @@ def _context(
     counts = _counts(db)
     return {
         "items": items,
+        "owned_elsewhere": owned_elsewhere(db, source, items, _TITLE_OF[source], lambda i: getattr(i, key_field)),
         "key_field": key_field,
         "owned_keys": _owned_keys(db, source),
         "lowest_prices": lowest_prices,
