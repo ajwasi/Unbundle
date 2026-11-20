@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -135,6 +136,13 @@ app.add_middleware(GZipMiddleware)
 # reach a route handler.
 app.add_middleware(SecurityHeadersMiddleware)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Browsers ask for /favicon.ico at the site root regardless of any <link>
+    (feed readers, bookmarks, the login page before any HTML is parsed)."""
+    return FileResponse(STATIC_DIR / "img" / "favicon.ico", media_type="image/x-icon")
 
 app.include_router(auth.router)
 app.include_router(settings_router.router)

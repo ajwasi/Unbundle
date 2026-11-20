@@ -245,7 +245,8 @@ def test_album_detail_page_shows_one_cover_and_no_per_row_covers(authed_client, 
     _seed(db)  # "Every Breath You Take" carries a real cover_url in the fixture
     resp = authed_client.get("/amazon-music/albums/B074JM9JHY")
 
-    assert resp.text.count("<img") == 1  # the single album-level cover, not one per track
+    # the single album-level cover, not one per track (the brand logo is chrome)
+    assert len(re.findall(r"<img(?![^>]*brand-icon)", resp.text)) == 1
     assert 'width="120"' in resp.text  # the larger, singular header image
     assert 'width="40"' not in resp.text  # the old per-row thumbnail size is gone
 

@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
@@ -437,7 +438,7 @@ def test_missing_authors_tab_shows_no_thumbnail_without_a_cached_profile(authed_
 
     resp = authed_client.get("/audible?view=missing_authors")
 
-    assert "<img" not in resp.text
+    assert not re.search(r"<img(?![^>]*brand-icon)", resp.text)
 
 
 def test_author_detail_page_shows_photo_and_bio_when_a_profile_is_cached(authed_client, db):
@@ -470,7 +471,7 @@ def test_author_detail_page_lists_owned_and_missing_books(authed_client, db):
     assert "Bobiverse #2" in resp.text
     assert "1 owned" in resp.text
     assert "1 missing" in resp.text
-    assert "<img" not in resp.text  # no author_asin captured on this row, so no profile lookup at all
+    assert not re.search(r"<img(?![^>]*brand-icon)", resp.text)  # no author_asin captured on this row, so no profile lookup at all
 
 
 def test_author_detail_page_does_not_match_a_different_author_with_a_similar_name(authed_client, db):

@@ -151,3 +151,36 @@ def test_audiobook_owned_on_another_service_is_flagged_and_movies_are_not_games(
     db.add(GogGame(product_id=70, title="Blade Runner", content_type="movie"))
     db.commit()
     assert "row-owned-elsewhere" not in authed_client.get("/wishlist/steam").text
+
+def _seed_discounts(db):
+    now = datetime.utcnow()
+    for appid, name, pct in [(1, "Mid", 25), (2, "Zed", 75), (3, "Alpha", 0), (4, "Unpriced", 50)]:
+        db.add(SteamWishlistItem(appid=appid, name=name, discount_pct=pct, current_price=10.0, list_price=20.0, currency="USD",
+                                 priority=appid, first_seen_at=now, last_seen_at=now))
+    db.commit()
+
+
+def test_discount_has_its_own_sortable_column(authed_client, db):
+    _seed_discounts(db)
+    html = authed_client.get("/wishlist/steam").text
+    assert "sort=discount" in html
+    assert 'badge badge-ok">-75%' in html
+    # the percentage no longer rides inside the Price cell
+    price_cell = re.search(r"10\.00 USD(.*?)</td>", html, re.S).group(1)
+    assert "%" not in price_cell
+
+
+def test_discount_sorts_both_ways_with_no_discount_last(authed_client, db):
+    _seed_discounts(db)
+    assert _order(authed_client.get("/wishlist/steam?sort=discount&dir=desc")) == ["Zed", "Unpriced", "Mid", "Alpha"]
+    assert _order(authed_client.get("/wishlist/steam?sort=discount&dir=asc")) == ["Mid", "Unpriced", "Zed", "Alpha"]
+
+
+def test_discount_sorts_on_stores_where_it_is_computed(authed_client, db):
+    from app.models.store_wishlist import GogWishlistItem
+    now = datetime.utcnow()
+    for pid, title, cur in [("1", "Small", 18.0), ("2", "Big", 5.0), ("3", "Full price", 20.0)]:
+        db.add(GogWishlistItem(product_id=pid, title=title, current_price=cur, list_price=20.0, first_seen_at=now, last_seen_at=now))
+    db.commit()
+    html = authed_client.get("/wishlist/gog?sort=discount&dir=desc").text
+    assert html.index("Big") < html.index("Small") < html.index("Full price")
