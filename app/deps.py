@@ -50,6 +50,8 @@ _STATIC_PREFIX = "/static"
 # this skips the whole middleware the same way /static does. Its own optional
 # METRICS_TOKEN bearer check (see routers/metrics.py) is the only auth this route gets.
 _METRICS_PATH = "/metrics"
+# Browsers fetch this at the site root before (and regardless of) any login, and it's only an icon.
+_FAVICON_PATH = "/favicon.ico"
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -84,7 +86,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path.startswith(_STATIC_PREFIX) or request.url.path == _METRICS_PATH:
+        if request.url.path.startswith(_STATIC_PREFIX) or request.url.path in (_METRICS_PATH, _FAVICON_PATH):
             return await call_next(request)
 
         # Ensured here (rather than lazily wherever a form happens to render) so

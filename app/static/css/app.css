@@ -166,7 +166,20 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   font-weight: var(--weight-semibold);
 }
 
-.auth-brand { margin: 0 0 var(--space-1); font-weight: var(--weight-bold); color: var(--muted); }
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+  color: var(--muted);
+}
+.auth-brand img { border-radius: 16px; }
+
+.brand-icon { vertical-align: middle; margin-right: var(--space-2); }
+nav.sidebar .brand-link { color: var(--text); text-decoration: none; display: inline-flex; align-items: center; }
 
 .auth-warning-banner a { color: white; text-decoration: underline; }
 
