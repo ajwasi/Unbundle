@@ -163,3 +163,34 @@ def test_icon_only_theme_toggle_has_a_hover_tooltip(authed_client):
     resp = authed_client.get("/downloads")
     assert 'id="theme-toggle"' in resp.text
     assert 'title="Toggle dark mode"' in resp.text
+
+
+def test_favicon_and_brand_assets_are_served_without_login(client):
+    for path, kind in [
+        ("/favicon.ico", "image/x-icon"),
+        ("/static/img/favicon-32.png", "image/png"),
+        ("/static/img/apple-touch-icon.png", "image/png"),
+        ("/static/img/icon-512.png", "image/png"),
+        ("/static/site.webmanifest", None),
+    ]:
+        resp = client.get(path, follow_redirects=False)
+        assert resp.status_code == 200, path
+        if kind:
+            assert resp.headers["content-type"].startswith(kind), path
+
+
+def test_manifest_icons_exist_on_disk():
+    import json
+    from pathlib import Path
+
+    static = Path(__file__).parent.parent / "app" / "static"
+    manifest = json.loads((static / "site.webmanifest").read_text(encoding="utf8"))
+    for icon in manifest["icons"]:
+        assert (static / icon["src"].removeprefix("/static/")).is_file(), icon["src"]
+
+
+def test_pages_link_the_icons_and_use_the_logo_not_an_emoji(authed_client):
+    html = authed_client.get("/").text
+    for needle in ('rel="icon"', 'rel="apple-touch-icon"', 'rel="manifest"', "/static/img/icon-128.png"):
+        assert needle in html, needle
+    assert "🎁" not in html

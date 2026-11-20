@@ -14,6 +14,12 @@
       if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
     })();
   </script>
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16.png">
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+  <link rel="manifest" href="/static/site.webmanifest">
+  <meta name="theme-color" content="#2f6da1">
   <link rel="stylesheet" href="/static/css/app.css">
   <script src="/static/js/htmx.min.js"></script>
   <script src="/static/js/tag-suggest.js"></script>
@@ -46,7 +52,7 @@
     <button type="button" id="nav-toggle" class="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar-nav">
       <span></span><span></span><span></span>
     </button>
-    <span class="mobile-bar-brand">🎁 Unbundle</span>
+    <span class="mobile-bar-brand"><img class="brand-icon" src="/static/img/icon-128.png" width="28" height="28" alt="">Unbundle</span>
   </div>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
   {% endif %}
@@ -57,7 +63,7 @@
     {% if not bare_layout %}
     <nav class="sidebar" id="sidebar-nav">
       <div class="brand">
-        <span>🎁 Unbundle</span>
+        <a href="/" class="brand-link"><img class="brand-icon" src="/static/img/icon-128.png" width="28" height="28" alt="">Unbundle</a>
         {% if not request.state.identity_label %}
         <button type="button" id="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
         {% endif %}

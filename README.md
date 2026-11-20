@@ -1,3 +1,5 @@
+<p align="center"><img src="app/static/img/banner.png" width="560" alt="Unbundle — track, check, enjoy"></p>
+
 # Unbundle
 
 Self-hosted web UI for [humble-cli](https://github.com/smbl64/humble-cli): browse your
