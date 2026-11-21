@@ -2,7 +2,7 @@
 # (app/version.py reads the resulting VERSION file) — kept out of the final
 # stage below so it never needs git installed or .git present in the actual
 # runtime image, just the one resulting file.
-FROM python:3.12-slim AS version
+FROM python:3.12-slim-trixie AS version
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY . .
@@ -14,7 +14,7 @@ COPY . .
 # common case and not worth alarming the build log with.
 RUN (git describe --tags --exact-match HEAD 2>/dev/null || git rev-parse --short HEAD) > VERSION || echo unknown > VERSION
 
-FROM python:3.12-slim
+FROM python:3.12-slim-trixie
 WORKDIR /app
 
 # Without this, Python fully block-buffers stdout/stderr whenever they aren't
@@ -68,7 +68,14 @@ ARG HUMBLE_CLI_SHA256_ARM64=870b5fad2376a4a58b69b1cd55776a159a9a66b559dea5c252cb
 # (-audible_key/-audible_iv, merged upstream in ffmpeg 4.4+) — a real codec
 # copy, not a re-encode, so this is cheap even though the package itself
 # isn't tiny.
+#
+# The first install pulls Debian's security fixes for zlib1g (1:1.3.dfsg+really1.3.1-1+deb13u1)
+# and glibc (libc6/libc-bin 2.41-12+deb13u5) into whatever the base image shipped
+# with: a published python image can lag Debian's archive by days or weeks.
+# --only-upgrade never installs anything new and names no version, so it keeps
+# working after Debian ships the next fix.
 RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade zlib1g libc6 libc-bin \
     && apt-get install -y --no-install-recommends ca-certificates curl gosu ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
