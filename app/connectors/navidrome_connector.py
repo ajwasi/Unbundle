@@ -49,7 +49,7 @@ def _auth_params(username: str, password: str) -> dict:
     # than MD5's own (otherwise weak) collision resistance; HTTPS is still
     # what protects the password and token values themselves in transit.
     salt = secrets.token_hex(6)
-    token = hashlib.md5((password + salt).encode("utf-8")).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]  # NOSONAR: MD5 is mandated by the Subsonic API (see above)
+    token = hashlib.md5((password + salt).encode("utf-8")).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
     return {"u": username, "t": token, "s": salt, "v": _API_VERSION, "c": _CLIENT_NAME, "f": "json"}
 
 
