@@ -54,7 +54,7 @@ def _derive_key(secret: str) -> bytes:
     # in the app, not just credential reads. Caching is safe here specifically because
     # this is a pure function of the secret string, not because slow-KDF-on-first-use
     # matters any less; it still fully applies to an offline attacker with just the DB file.
-    digest = hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), _CREDENTIAL_KEY_SALT, CREDENTIAL_KDF_ITERATIONS)
+    digest = hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), _CREDENTIAL_KEY_SALT, CREDENTIAL_KDF_ITERATIONS)  # NOSONAR: fixed, versioned KDF input (see above); changing it would orphan stored credentials
     return base64.urlsafe_b64encode(digest)
 
 

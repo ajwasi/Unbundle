@@ -645,7 +645,7 @@ def decrypt_track_url(ciphertext_b64: str, key: bytes, iv: bytes) -> str:
     decrypted URL from this account.
     """
     ciphertext = base64.b64decode(ciphertext_b64)
-    decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()
+    decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()  # NOSONAR: decrypting Chirp's own fixed scheme; we cannot choose the mode
     plaintext = decryptor.update(ciphertext) + decryptor.finalize()
     # Strips exactly one trailing byte rather than doing full PKCS7
     # unpadding — replicated as-is from the confirmed-working reference

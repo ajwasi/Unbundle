@@ -95,7 +95,7 @@ RUN case "${TARGETARCH}" in \
       arm64) expected="${HUMBLE_CLI_SHA256_ARM64}" ;; \
       *) echo "No pinned humble-cli checksum for TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
     esac \
-    && curl -fsSL \
+    && curl -fsSL --proto '=https' --tlsv1.2 \
       "https://github.com/smbl64/humble-cli/releases/download/${HUMBLE_CLI_VERSION}/humble-cli-linux-${TARGETARCH}.tar.gz" \
       -o /tmp/humble-cli.tar.gz \
     && echo "${expected}  /tmp/humble-cli.tar.gz" | sha256sum -c - \

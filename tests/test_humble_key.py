@@ -78,3 +78,24 @@ def test_saving_the_key_in_settings_still_writes_the_file(authed_client, db, key
 
     assert resp.status_code == 200
     assert key_path.read_text(encoding="utf-8") == KEY
+
+
+def test_an_existing_looser_file_is_replaced_and_tightened(key_path):
+    key_path.parent.mkdir(parents=True)
+    key_path.write_text("old-and-much-longer-session-value", encoding="utf-8")
+    if os.name != "nt":
+        os.chmod(key_path, 0o644)
+
+    humble_key.write_key_file(KEY)
+
+    assert key_path.read_text(encoding="utf-8") == KEY  # truncated, not overwritten in place
+    if os.name != "nt":
+        assert oct(key_path.stat().st_mode)[-3:] == "600"
+
+
+def test_the_file_location_never_depends_on_the_key_value(key_path, tmp_path):
+    hostile = "../../../../etc/passwd"
+    humble_key.write_key_file(hostile)
+
+    assert key_path.read_text(encoding="utf-8") == hostile
+    assert [p for p in tmp_path.rglob("*") if p.is_file()] == [key_path]
