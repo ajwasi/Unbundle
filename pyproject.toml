@@ -16,34 +16,34 @@ license = { text = "AGPL-3.0-or-later" }
 # action (re-run the full suite, update the pin here), not something that
 # happens automatically on the next build.
 dependencies = [
-    "fastapi==0.141.1",
-    "uvicorn[standard]==0.52.4",
-    "sqlalchemy==2.0.52",
-    "alembic==1.19.2",
+    "fastapi==0.165.0",
+    "uvicorn[standard]==0.54.0",
+    "sqlalchemy==2.1.9",
+    "alembic==1.20.1",
     "httpx==0.28.1",
-    "pydantic-settings==2.15.0",
+    "pydantic-settings==2.16.3",
     "itsdangerous==2.2.0",
-    "cryptography==50.0.1",
+    "cryptography==50.0.2",
     "jinja2==3.1.6",
-    "python-multipart==0.0.32",
-    "authlib==1.9.5",
-    "audible==0.12.0",
-    "nh3==0.3.7",
+    "python-multipart==0.0.34",
+    "authlib==1.9.10",
+    "audible==0.13.1",
+    "nh3==0.3.8",
     "opentelemetry-api==1.45.2",
     "opentelemetry-sdk==1.45.2",
     "opentelemetry-exporter-prometheus==0.66b2",
     "opentelemetry-instrumentation-fastapi==0.66b2",
     "opentelemetry-exporter-otlp-proto-http==1.45.2",
     "opentelemetry-instrumentation-httpx==0.66b2",
-    "playwright==1.63.0",
+    "playwright==1.65.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest==9.1.1",
-    "pytest-asyncio==1.4.0",
+    "pytest==9.2.0",
+    "pytest-asyncio==1.5.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.17.5",
+    "ruff==0.17.6",
 ]
 # psycopg3, not psycopg2 (SQLAlchemy 2.0's actively-recommended modern driver).
 # [binary] vendors a statically-linked libpq in the wheel, so no apt-get
@@ -51,7 +51,7 @@ dev = [
 # a plain local `pip install`). DSN scheme must be postgresql+psycopg://
 # (bare postgresql:// resolves to psycopg2 by default, which isn't installed).
 postgres = [
-    "psycopg[binary]==3.3.5",
+    "psycopg[binary]==3.3.9",
 ]
 
 [build-system]
