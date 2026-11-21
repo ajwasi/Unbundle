@@ -80,6 +80,10 @@ def gog_products():
 
 
 if __name__ == "__main__":
+    import os
+
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8090)
+    # Loopback unless told otherwise. The docker-compose "mock-api" service sets
+    # MOCK_API_HOST so the app container can reach it over the compose network.
+    uvicorn.run(app, host=os.environ.get("MOCK_API_HOST", "127.0.0.1"), port=8090)

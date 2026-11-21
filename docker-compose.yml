@@ -100,6 +100,9 @@ services:
     build: .
     profiles: ["demo"]
     command: ["python", "-m", "mock_api.main"]
+    environment:
+      # Reachable from the app container over the compose network only (no "ports").
+      - MOCK_API_HOST=0.0.0.0
     restart: unless-stopped
 
   # Both behind the "observability" profile — `docker compose up` alone never

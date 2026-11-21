@@ -25,10 +25,16 @@ from app.models.credential import SOURCE_HUMBLE, Credential
 
 def write_key_file(session_key: str) -> None:
     """Write the key in humble-cli's own format: plaintext, 0600."""
+    # The path comes only from server configuration (HUMBLE_CLI_KEY_PATH); the
+    # form field supplies the file's *contents*, never any part of its location.
     key_path = settings.humble_cli_key_path
     key_path.parent.mkdir(parents=True, exist_ok=True)
-    key_path.write_text(session_key, encoding="utf-8")
-    os.chmod(key_path, 0o600)
+    # Created 0600 from the first byte. write_text() then chmod() would leave the
+    # key readable under the process umask for the instant in between.
+    fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # NOSONAR: fixed config path, see above
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(session_key)
+    os.chmod(key_path, 0o600)  # also tightens a file an older version created with looser permissions
 
 
 def sync_key_file_from_db(db: Session) -> bool:
