@@ -30,7 +30,7 @@ jobs:
           python-version: "3.12" # matches the Dockerfile's base image
 
       - name: Install dependencies
-        run: pip install -e ".[dev]" # SQLite only — the suite never touches Postgres, see conftest.py
+        run: "pip install --require-hashes --only-binary :all: --no-binary pbkdf2,pyaes -r requirements-dev.txt" # SQLite only — the suite never touches Postgres, see conftest.py
 
       - name: Lint
         run: ruff check app tests

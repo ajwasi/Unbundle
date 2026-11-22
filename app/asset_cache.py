@@ -154,21 +154,6 @@ def _clear_failure(failure_key: str) -> None:
         _recent_failures.pop(failure_key, None)
 
 
-_PRIVATE_NETWORKS = [
-    ipaddress.ip_network(net)
-    for net in (
-        "127.0.0.0/8",
-        "10.0.0.0/8",  # NOSONAR: SSRF block list, not a hardcoded endpoint
-        "172.16.0.0/12",  # NOSONAR: SSRF block list, not a hardcoded endpoint
-        "192.168.0.0/16",  # NOSONAR: SSRF block list, not a hardcoded endpoint
-        "169.254.0.0/16",  # NOSONAR: SSRF block list, not a hardcoded endpoint
-        "0.0.0.0/8",
-        "::1/128",
-        "fc00::/7",
-        "fe80::/10",
-    )
-]
-
 # BM (2 bytes) — BMP's own full magic number, no coding mistake here, the
 # format just doesn't have a longer one — is deliberately excluded from this
 # list even though the extension map still supports BMP: two bytes is weak
@@ -215,7 +200,9 @@ def _is_fetchable_url(remote_url: str) -> bool:
     mapped = getattr(ip, "ipv4_mapped", None)
     if mapped is not None:
         ip = mapped
-    return not any(ip in net for net in _PRIVATE_NETWORKS)
+    # is_private covers loopback, RFC 1918, link-local, unique-local and
+    # "this network" ranges; the explicit flags add the rest.
+    return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_reserved or ip.is_multicast)
 
 
 _NAMESPACE_RE = re.compile(r"^[a-zA-Z0-9_-]+$")

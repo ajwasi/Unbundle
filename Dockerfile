@@ -105,12 +105,15 @@ RUN case "${TARGETARCH}" in \
     && chmod +x /usr/local/bin/humble-cli \
     && /usr/local/bin/humble-cli --version
 
-COPY pyproject.toml ./
+COPY requirements.txt ./
 # [postgres] is always installed — one shared image supports either backend
 # unconditionally, since switching is just a DATABASE_URL change (see
 # docker-compose.postgres.yml), never a rebuild. psycopg[binary] adds no
 # apt-get packages of its own (vendors libpq in the wheel).
-RUN pip install --no-cache-dir ".[postgres]"
+# Hash-locked and wheels-only. pbkdf2 and pyaes (transitive deps of audible)
+# publish no wheels, so they alone build from their hash-verified sdists.
+# Regenerate with the uv command in the header of requirements.txt.
+RUN pip install --no-cache-dir --require-hashes --only-binary :all: --no-binary pbkdf2,pyaes -r requirements.txt
 
 # A fixed, world-readable install location — playwright's own default
 # (~/.cache/ms-playwright, under whichever user runs `playwright install`,
