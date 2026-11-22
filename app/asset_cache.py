@@ -158,10 +158,10 @@ _PRIVATE_NETWORKS = [
     ipaddress.ip_network(net)
     for net in (
         "127.0.0.0/8",
-        "10.0.0.0/8",
-        "172.16.0.0/12",
-        "192.168.0.0/16",
-        "169.254.0.0/16",
+        "10.0.0.0/8",  # NOSONAR: SSRF block list, not a hardcoded endpoint
+        "172.16.0.0/12",  # NOSONAR: SSRF block list, not a hardcoded endpoint
+        "192.168.0.0/16",  # NOSONAR: SSRF block list, not a hardcoded endpoint
+        "169.254.0.0/16",  # NOSONAR: SSRF block list, not a hardcoded endpoint
         "0.0.0.0/8",
         "::1/128",
         "fc00::/7",

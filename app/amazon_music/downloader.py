@@ -35,6 +35,7 @@ import json
 import time
 from pathlib import Path
 
+import anyio
 import httpx
 from sqlalchemy.orm import Session
 
@@ -442,9 +443,9 @@ async def _run_one(job_id: int, download_id: str, client: httpx.AsyncClient, hea
 
                 bytes_written = 0
                 last_committed_at = time.monotonic()
-                with open(dest_path, "wb") as f:
+                async with await anyio.open_file(dest_path, "wb") as f:
                     async for chunk in resp.aiter_bytes():
-                        f.write(chunk)
+                        await f.write(chunk)
                         bytes_written += len(chunk)
                         now = time.monotonic()
                         if now - last_committed_at >= 1.0:

@@ -38,7 +38,7 @@
   </div>
 
   <div class="toolbar">
-    <input type="search" id="wl-q" name="q" value="{{ q }}" placeholder="Search this list"
+    <input aria-label="Search" type="search" id="wl-q" name="q" value="{{ q }}" placeholder="Search this list"
            hx-get="/wishlist/{{ source }}" hx-trigger="keyup changed delay:300ms, search"
            hx-target="#wishlist-table" hx-swap="outerHTML"
            hx-include="#wl-sort,#wl-dir,#wl-deals" style="flex: 1; max-width: 20rem;">

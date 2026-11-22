@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Iterator
 
 import httpx
@@ -355,7 +355,7 @@ def parse_delivery_url_metadata(delivery_url: str) -> dict:
     purchased_at = None
     if pt.isdigit():
         try:
-            purchased_at = datetime.utcfromtimestamp(int(pt) / 1000)
+            purchased_at = datetime.fromtimestamp(int(pt) / 1000, tz=timezone.utc).replace(tzinfo=None)
         except (ValueError, OSError, OverflowError):
             purchased_at = None
     return {"isrc": isrc, "purchased_at": purchased_at}

@@ -14,9 +14,9 @@
 
   <form method="post" action="/setup" id="setup-form">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-    <input class="w-full mb-2" type="email" name="username" value="{{ username | default('') }}" placeholder="Username (email address, optional)" autofocus>
-    <input class="w-full mb-2" type="password" name="password" id="setup-password" placeholder="Password" required>
-    <input class="w-full mb-2" type="password" name="confirm_password" id="setup-confirm-password" placeholder="Confirm password" required>
+    <input aria-label="Username" class="w-full mb-2" type="email" name="username" value="{{ username | default('') }}" placeholder="Username (email address, optional)">
+    <input aria-label="Password" class="w-full mb-2" type="password" name="password" id="setup-password" placeholder="Password" required>
+    <input aria-label="Confirm password" class="w-full mb-2" type="password" name="confirm_password" id="setup-confirm-password" placeholder="Confirm password" required>
     <p id="setup-password-mismatch" style="display: none; color: var(--error);">Passwords do not match.</p>
     <button class="w-full" type="submit">Set password &amp; continue</button>
   </form>

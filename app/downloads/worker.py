@@ -234,7 +234,8 @@ async def _poll_progress(job_id: int, bundle_name: str, expected: list, download
             }
             last_bytes, last_time = bytes_done, now
     except asyncio.CancelledError:
-        pass
+        # Normal shutdown path: nothing to clean up, but cancellation must propagate.
+        raise
 
 
 def _download_row(db: Session, *, gamekey: str, job_id: int, bundle_name: str, item) -> Download:

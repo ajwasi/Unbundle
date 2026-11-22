@@ -95,7 +95,9 @@ def test_hash_password_rejects_wrong_password():
 def test_hash_password_uses_a_random_salt():
     # Same password, hashed twice, must not produce identical output — a fixed
     # salt would make the stored hash vulnerable to a precomputed rainbow table.
-    assert hash_password("same-password") != hash_password("same-password")
+    first = hash_password("same-password")
+    second = hash_password("same-password")
+    assert first != second
 
 
 def test_verify_password_hash_rejects_malformed_stored_value():

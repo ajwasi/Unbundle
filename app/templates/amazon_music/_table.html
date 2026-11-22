@@ -23,11 +23,11 @@
   {% endif %}
 
   <div class="toolbar">
-    <input type="search" id="music-q" name="q" value="{{ q }}" placeholder="Search title, artist, album"
+    <input aria-label="Search" type="search" id="music-q" name="q" value="{{ q }}" placeholder="Search title, artist, album"
            hx-get="/amazon-music/albums/{{ album_key }}" hx-trigger="keyup changed delay:300ms, search"
            hx-target="#amazon-music-table" hx-swap="outerHTML"
            hx-include="#music-sort,#music-show-missing" style="flex: 1; max-width: 22rem;">
-    <select id="music-sort" name="sort" hx-get="/amazon-music/albums/{{ album_key }}" hx-trigger="change"
+    <select aria-label="Sort by" id="music-sort" name="sort" hx-get="/amazon-music/albums/{{ album_key }}" hx-trigger="change"
             hx-target="#amazon-music-table" hx-swap="outerHTML" hx-include="#music-q,#music-show-missing">
       <option value="added" {{ "selected" if sort == "added" else "" }}>Recently added</option>
       <option value="track_number" {{ "selected" if sort == "track_number" else "" }}>Track #</option>

@@ -99,11 +99,11 @@
   </div>
 
   <div class="toolbar">
-    <input type="search" id="music-albums-q" name="q" value="{{ q }}" placeholder="Search album or artist"
+    <input aria-label="Search" type="search" id="music-albums-q" name="q" value="{{ q }}" placeholder="Search album or artist"
            hx-get="/amazon-music" hx-trigger="keyup changed delay:300ms, search"
            hx-target="#amazon-music-table" hx-swap="outerHTML"
            hx-include="#music-albums-sort,#music-albums-show-missing" style="flex: 1; max-width: 22rem;">
-    <select id="music-albums-sort" name="sort" hx-get="/amazon-music" hx-trigger="change"
+    <select aria-label="Sort by" id="music-albums-sort" name="sort" hx-get="/amazon-music" hx-trigger="change"
             hx-target="#amazon-music-table" hx-swap="outerHTML" hx-include="#music-albums-q,#music-albums-show-missing">
       <option value="added" {{ "selected" if sort == "added" else "" }}>Recently added</option>
       <option value="album" {{ "selected" if sort == "album" else "" }}>Album</option>

@@ -30,7 +30,7 @@
   <input id="dest-name" type="text" name="name" placeholder="Name (e.g. Comics)" required style="flex: 1; min-width: 10rem;">
   <label for="dest-formats" class="sr-only">Formats</label>
   <input id="dest-formats" type="text" name="formats" placeholder="Formats, comma-separated (blank = any)" style="flex: 1; min-width: 12rem;">
-  <select name="tag_id">
+  <select aria-label="Tag" name="tag_id">
     <option value="">(any tag)</option>
     {% for t in all_tags %}
     <option value="{{ t.id }}">{{ t.name }}</option>

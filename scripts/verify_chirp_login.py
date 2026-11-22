@@ -36,7 +36,7 @@ from app.connectors import chirp_connector as chirp
 
 
 async def main() -> int:
-    email = os.environ.get("CHIRP_EMAIL") or input("Chirp email: ")
+    email = os.environ.get("CHIRP_EMAIL") or await asyncio.to_thread(input, "Chirp email: ")
     password = os.environ.get("CHIRP_PASSWORD") or getpass.getpass("Chirp password: ")
 
     async with httpx.AsyncClient(

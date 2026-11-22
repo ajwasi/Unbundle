@@ -31,7 +31,7 @@
     const countEl = document.getElementById('amazon-music-albums-count');
     if (!countEl) return;
     const shown = document.querySelectorAll('#amazon-music-table .amazon-music-album-row').length;
-    const total = parseInt(countEl.dataset.total, 10) || 0;
+    const total = Number.parseInt(countEl.dataset.total, 10) || 0;
     countEl.textContent = `Showing ${shown} of ${total} album(s)`;
     // The header "select all" checkbox only ever touches rows already in the
     // DOM — with infinite scroll, that's no longer necessarily every album,

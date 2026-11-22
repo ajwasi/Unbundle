@@ -20,13 +20,13 @@
     <input type="hidden" name="dir" value="{{ dir }}">
     <label for="bundle-search" class="sr-only">Search bundle name</label>
     <input class="flex-1" id="bundle-search" type="search" name="q" placeholder="Search bundle name..." value="{{ q }}">
-    <select name="category">
+    <select aria-label="Category" name="category">
       <option value="">All categories</option>
       {% for c in categories %}
       <option value="{{ c }}" {{ "selected" if c == category else "" }}>{{ c | format_category }}</option>
       {% endfor %}
     </select>
-    <select name="redeemed">
+    <select aria-label="Redeemed" name="redeemed">
       <option value="">Redeemed: All</option>
       <option value="unredeemed" {{ "selected" if redeemed == "unredeemed" else "" }}>Has unredeemed</option>
       <option value="redeemed" {{ "selected" if redeemed == "redeemed" else "" }}>Fully redeemed</option>
@@ -35,7 +35,7 @@
     <label for="bundle-min-items" class="sr-only">Minimum items</label>
     <input id="bundle-min-items" type="number" name="min_items" placeholder="Min items" min="0"
            value="{{ min_items if min_items is not none else '' }}" style="width: 8rem;">
-    <select name="tag_id">
+    <select aria-label="Tag" name="tag_id">
       <option value="">All tags</option>
       {% for t in all_tags %}
       <option value="{{ t.id }}" {{ "selected" if tag_id == t.id else "" }}>{{ t.name }}</option>

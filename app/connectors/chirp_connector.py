@@ -397,7 +397,7 @@ class ChirpPurchase:
 
 _MAX_PURCHASE_PAGES = 100
 _PURCHASE_ITEM_MARKER = 'data-purchase-item-id="'
-_ORDINAL_SUFFIX = re.compile(r"(\d+)(st|nd|rd|th)")
+_ORDINAL_SUFFIX = re.compile(r"(?<!\d)(\d+)(?:st|nd|rd|th)")
 
 
 def _parse_purchase_date(text: str) -> date | None:
@@ -417,8 +417,8 @@ def parse_purchases_page(page_html: str) -> tuple[list[ChirpPurchase], str | Non
     """
     purchases: list[ChirpPurchase] = []
     for order_chunk in page_html.split('<div class="purchase">')[1:]:
-        date_match = re.search(r'<div class="purchase-date">\s*(.*?)\s*</div>', order_chunk, re.S)
-        purchased_at = _parse_purchase_date(date_match.group(1)) if date_match else None
+        date_match = re.search(r'<div class="purchase-date">(.*?)</div>', order_chunk, re.S)
+        purchased_at = _parse_purchase_date(date_match.group(1).strip()) if date_match else None
 
         for item_chunk in order_chunk.split(_PURCHASE_ITEM_MARKER)[1:]:
             item_id_match = re.match(r'(\d+)"', item_chunk)
@@ -426,8 +426,8 @@ def parse_purchases_page(page_html: str) -> tuple[list[ChirpPurchase], str | Non
             title_match = re.search(r'<div class="title">\s*<a[^>]*>(.*?)</a>', item_chunk, re.S)
             if not (item_id_match and url_match and title_match):
                 continue
-            list_match = re.search(r'<div class="list-price( free)?">\s*(.*?)\s*</div>', item_chunk, re.S)
-            invoice_match = re.search(r'<div class="invoice-price">\s*(.*?)\s*</div>', item_chunk, re.S)
+            list_match = re.search(r'<div class="list-price( free)?">(.*?)</div>', item_chunk, re.S)
+            invoice_match = re.search(r'<div class="invoice-price">(.*?)</div>', item_chunk, re.S)
             is_free = bool(list_match and list_match.group(1))
             purchases.append(
                 ChirpPurchase(
@@ -435,8 +435,8 @@ def parse_purchases_page(page_html: str) -> tuple[list[ChirpPurchase], str | Non
                     url_path=url_match.group(1),
                     title=html_module.unescape(title_match.group(1).strip()),
                     purchased_at=purchased_at,
-                    paid_price=0.0 if is_free else _parse_price(invoice_match.group(1) if invoice_match else None),
-                    list_price=None if is_free or not list_match else _parse_price(list_match.group(2)),
+                    paid_price=0.0 if is_free else _parse_price(invoice_match.group(1).strip() if invoice_match else None),
+                    list_price=None if is_free or not list_match else _parse_price(list_match.group(2).strip()),
                     is_free=is_free,
                 )
             )
@@ -525,11 +525,11 @@ def parse_wishlist_page(page_html: str) -> list[ChirpWishlistEntry]:
         title_match = re.search(r"<h3[^>]*>\s*<a[^>]*>(.*?)</a>", chunk, re.S)
         byline_match = re.search(r"<h4[^>]*>(.*?)</h4>", chunk, re.S)
         cover_match = re.search(r'<img[^>]*\bsrc="([^"]+)"', chunk)
-        discount_match = re.search(r'discountPrice[^"]*"[^>]*>\s*([^<]*?)\s*</div>', chunk)
-        listing_match = re.search(r'listingPrice[^"]*"[^>]*>\s*([^<]*?)\s*</div>', chunk)
+        discount_match = re.search(r'discountPrice[^"]*"[^>]*>([^<]*)</div>', chunk)
+        listing_match = re.search(r'listingPrice[^"]*"[^>]*>([^<]*)</div>', chunk)
 
-        current = _parse_price(discount_match.group(1)) if discount_match else None
-        listing = _parse_price(listing_match.group(1)) if listing_match else None
+        current = _parse_price(discount_match.group(1).strip()) if discount_match else None
+        listing = _parse_price(listing_match.group(1).strip()) if listing_match else None
         if current is None:
             current = listing
             listing = None
@@ -890,12 +890,12 @@ def parse_series_books(series_html: str) -> list[ChirpSeriesBook]:
         if not (url_match and title_match):
             continue
         byline_match = re.search(r"<h4[^>]*>(.*?)</h4>", chunk, re.S)
-        number_match = re.search(r'data-testid="series-number">\s*(.*?)\s*</span>', chunk, re.S)
-        discount_match = re.search(r'discountPrice[^"]*"[^>]*>\s*([^<]*?)\s*</div>', chunk)
-        listing_match = re.search(r'listingPrice[^"]*"[^>]*>\s*([^<]*?)\s*</div>', chunk)
+        number_match = re.search(r'data-testid="series-number">(.*?)</span>', chunk, re.S)
+        discount_match = re.search(r'discountPrice[^"]*"[^>]*>([^<]*)</div>', chunk)
+        listing_match = re.search(r'listingPrice[^"]*"[^>]*>([^<]*)</div>', chunk)
 
-        current = _parse_price(discount_match.group(1)) if discount_match else None
-        listing = _parse_price(listing_match.group(1)) if listing_match else None
+        current = _parse_price(discount_match.group(1).strip()) if discount_match else None
+        listing = _parse_price(listing_match.group(1).strip()) if listing_match else None
         if current is None:
             current = listing
             listing = None

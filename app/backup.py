@@ -18,7 +18,7 @@ import shutil
 import sqlite3
 import sys
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -133,7 +133,7 @@ def list_backups() -> list[dict]:
         {
             "name": f.name,
             "size_bytes": f.stat().st_size,
-            "created_at": datetime.utcfromtimestamp(f.stat().st_mtime),
+            "created_at": datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).replace(tzinfo=None),
         }
         for f in files
     ]

@@ -14,6 +14,7 @@ task getting garbage-collected mid-run.
 
 import time
 
+import anyio
 from sqlalchemy.orm import Session
 
 from app.asyncio_utils import spawn_background_task
@@ -92,9 +93,9 @@ async def _run(job_id: int, asin: str, pdf_url: str, title: str) -> None:
 
                     bytes_written = 0
                     last_committed_at = time.monotonic()
-                    with open(dest_path, "wb") as f:
+                    async with await anyio.open_file(dest_path, "wb") as f:
                         async for chunk in resp.aiter_bytes():
-                            f.write(chunk)
+                            await f.write(chunk)
                             bytes_written += len(chunk)
                             now = time.monotonic()
                             if now - last_committed_at >= 1.0:

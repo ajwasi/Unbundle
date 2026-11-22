@@ -496,7 +496,7 @@ def test_scan_form_shows_a_root_dropdown_only_when_multiple_roots_configured(aut
     monkeypatch.setattr("app.config.settings.scan_roots", f"{root0},{root1}")
 
     resp = authed_client.get("/downloads")
-    assert 'select name="root_index"' in resp.text
+    assert '<select aria-label="Download folder" name="root_index"' in resp.text
     assert "comics-library" in resp.text
 
 
@@ -505,7 +505,7 @@ def test_scan_form_has_no_dropdown_with_a_single_root(authed_client, tmp_path, m
     monkeypatch.setattr("app.config.settings.scan_roots", "")
 
     resp = authed_client.get("/downloads")
-    assert 'select name="root_index"' not in resp.text
+    assert '<select aria-label="Download folder" name="root_index"' not in resp.text
 
 
 def test_scan_at_scale_750_matched_750_ambiguous_750_unmatched(authed_client, db, make_bundle, tmp_path, monkeypatch):
