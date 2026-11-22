@@ -24,38 +24,42 @@ SESSION_COOKIE_NAME = "unbundle_session"
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30  # 30 days
 PBKDF2_ITERATIONS = 200_000
 
-# Fixed, non-secret, application-level salt — not per-installation-random. The
-# risk this KDF defends against is an offline brute-force of a possibly weak,
-# hand-typed APP_SECRET_KEY (there's exactly one installation's worth of
-# credentials to protect, so a static salt costs nothing here); what actually
-# slows that attack down is the iteration count, which a per-call random salt
-# wouldn't add on its own anyway — and a *random* salt would need its own
-# persisted storage with no natural home (Fernet's key must be reproducible
-# from settings.app_secret_key alone on every call, with no other state).
+# Credentials are encrypted under a key derived from APP_SECRET_KEY with PBKDF2.
+# Current ("v2") tokens carry their own random 16-byte salt inline:
 #
-# Deliberately NOT renamed to "unbundle" alongside the app's other branding:
-# this exact byte string is baked into the derived key for every credential
-# already encrypted under it. Changing it would silently make every existing
-# installation's stored Humble/Steam/GOG credentials and password hash
-# permanently undecryptable on upgrade — it's an internal KDF input, not
-# user-visible, so the old name costs nothing to leave here indefinitely.
-_CREDENTIAL_KEY_SALT = b"humble-tracker:credential-encryption:v1"
+#     v2:<urlsafe-base64 salt>:<fernet token>
+#
+# so every stored credential has a unique salt, nothing extra has to be
+# persisted, and a DB backup stays self-contained and portable. The salt is not
+# secret; it only defeats precomputed key tables shared across installations.
+#
+# Tokens written before that ("v1") used a fixed application-level salt, baked
+# into the derived key of every credential encrypted that way. It is kept here
+# solely so decrypt_json() can still read them; it is deliberately NOT renamed
+# to "unbundle" with the rest of the branding, because changing it would make
+# those rows permanently undecryptable. Any re-save of a credential (or
+# `python -m app.cli rotate-secret-key`) rewrites it as v2.
+_LEGACY_FIXED_SALT = b"humble-tracker:credential-encryption:v1"
+_V2_PREFIX = b"v2:"
+_SALT_BYTES = 16
 CREDENTIAL_KDF_ITERATIONS = 200_000
 
 
-@functools.lru_cache(maxsize=8)
-def _derive_key(secret: str) -> bytes:
-    # 200k PBKDF2 rounds is deliberately slow (~100ms+) — the whole point is
-    # making offline brute-force of a weak secret expensive. That cost is only
-    # worth paying once per distinct secret per process, though: settings.app_secret_key
-    # is fixed for the life of a running process (rotating it requires the CLI tool
-    # below plus a restart), and AuthMiddleware calls into this, via is_auth_configured(),
-    # on every single request — uncached, that would add 100ms+ to every page load
-    # in the app, not just credential reads. Caching is safe here specifically because
-    # this is a pure function of the secret string, not because slow-KDF-on-first-use
-    # matters any less; it still fully applies to an offline attacker with just the DB file.
-    digest = hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), _CREDENTIAL_KEY_SALT, CREDENTIAL_KDF_ITERATIONS)  # NOSONAR: fixed, versioned KDF input (see above); changing it would orphan stored credentials
+@functools.lru_cache(maxsize=64)
+def _kdf(secret: str, salt: bytes) -> bytes:
+    # 200k PBKDF2 rounds is deliberately slow (~100ms+) — the point is making
+    # offline brute-force of a weak secret expensive. It is only worth paying
+    # once per distinct (secret, salt) per process, and AuthMiddleware reads the
+    # app-auth credential on every request, so the result is cached: a pure
+    # function of its inputs, safe to memoise. The cache holds one entry per
+    # stored credential salt plus rotation temporaries.
+    digest = hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), salt, CREDENTIAL_KDF_ITERATIONS)
     return base64.urlsafe_b64encode(digest)
+
+
+def _derive_key(secret: str) -> bytes:
+    """The v1 (fixed-salt) key — read-only compatibility, never used to encrypt."""
+    return _kdf(secret, _LEGACY_FIXED_SALT)
 
 
 @functools.lru_cache(maxsize=8)
@@ -71,32 +75,30 @@ def _derive_key_legacy(secret: str) -> bytes:
     return base64.urlsafe_b64encode(digest)
 
 
-def _fernet_for_key(secret: str) -> Fernet:
-    return Fernet(_derive_key(secret))
-
-
-def _fernet() -> Fernet:
-    return _fernet_for_key(settings.app_secret_key)
-
-
 def encrypt_json(data: dict, secret_key: str | None = None) -> bytes:
     """secret_key overrides settings.app_secret_key — used only by the
     rotate-secret-key CLI tool to encrypt under a *new* key before that key
     is actually the one configured in the running environment.
     """
     payload = json.dumps(data).encode("utf-8")
-    fernet = _fernet_for_key(secret_key) if secret_key is not None else _fernet()
-    return fernet.encrypt(payload)
+    salt = os.urandom(_SALT_BYTES)
+    key = _kdf(secret_key if secret_key is not None else settings.app_secret_key, salt)
+    return _V2_PREFIX + base64.urlsafe_b64encode(salt) + b":" + Fernet(key).encrypt(payload)
 
 
-def decrypt_json(token: bytes) -> dict:
+def decrypt_json(token: bytes, secret_key: str | None = None) -> dict:
+    secret = secret_key if secret_key is not None else settings.app_secret_key
     try:
-        payload = _fernet().decrypt(token)
-    except InvalidToken:
-        try:
-            payload = Fernet(_derive_key_legacy(settings.app_secret_key)).decrypt(token)
-        except InvalidToken as exc:
-            raise ValueError("Could not decrypt stored credential — APP_SECRET_KEY may have changed") from exc
+        if token.startswith(_V2_PREFIX):
+            _, salt_b64, fernet_token = token.split(b":", 2)
+            payload = Fernet(_kdf(secret, base64.urlsafe_b64decode(salt_b64))).decrypt(fernet_token)
+        else:
+            try:
+                payload = Fernet(_derive_key(secret)).decrypt(token)
+            except InvalidToken:
+                payload = Fernet(_derive_key_legacy(secret)).decrypt(token)
+    except (InvalidToken, ValueError) as exc:
+        raise ValueError("Could not decrypt stored credential — APP_SECRET_KEY may have changed") from exc
     return json.loads(payload.decode("utf-8"))
 
 
