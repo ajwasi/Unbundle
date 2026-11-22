@@ -397,7 +397,7 @@ class ChirpPurchase:
 
 _MAX_PURCHASE_PAGES = 100
 _PURCHASE_ITEM_MARKER = 'data-purchase-item-id="'
-_ORDINAL_SUFFIX = re.compile(r"(?<!\d)(\d+)(?:st|nd|rd|th)")
+_ORDINAL_SUFFIX = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)\b")
 
 
 def _parse_purchase_date(text: str) -> date | None:
