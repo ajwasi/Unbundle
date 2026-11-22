@@ -19,13 +19,13 @@
           style="display: flex; gap: var(--space-3); flex: 1; margin: 0">
       <label for="download-history-search" class="sr-only">Search bundle name</label>
       <input class="flex-1" id="download-history-search" type="search" name="q" placeholder="Search bundle name..." value="{{ q }}">
-      <select name="status">
+      <select aria-label="Status" name="status">
         <option value="">All statuses</option>
         {% for s in ["queued", "running", "verifying", "completed", "failed", "canceled"] %}
         <option value="{{ s }}" {{ "selected" if s == status else "" }}>{{ s | title }}</option>
         {% endfor %}
       </select>
-      <select name="file_format">
+      <select aria-label="File format" name="file_format">
         <option value="">All formats</option>
         {% for f in all_formats %}
         <option value="{{ f }}" {{ "selected" if f == file_format else "" }}>{{ f }}</option>
@@ -59,7 +59,7 @@
   <form hx-post="/downloads/scan" hx-target="#scan-result" hx-swap="innerHTML" style="display: flex; gap: var(--space-3)">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     {% if scan_roots|length > 1 %}
-    <select name="root_index" style="flex: 0 0 auto;">
+    <select aria-label="Download folder" name="root_index" style="flex: 0 0 auto;">
       {% for r in scan_roots %}
       <option value="{{ r.index }}">{{ r.label }}</option>
       {% endfor %}
@@ -67,7 +67,7 @@
     {% else %}
     <input type="hidden" name="root_index" value="0">
     {% endif %}
-    <input class="flex-1" type="text" name="folder" placeholder="subfolder (optional — blank scans the whole root)">
+    <input aria-label="Subfolder" class="flex-1" type="text" name="folder" placeholder="subfolder (optional — blank scans the whole root)">
     <button type="submit" class="secondary">Preview</button>
   </form>
   <div class="mt-3" id="scan-result"></div>
@@ -84,7 +84,7 @@
   <form hx-post="/downloads/scan/audible" hx-target="#audible-scan-result" hx-swap="innerHTML" style="display: flex; gap: var(--space-3)">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
     {% if scan_roots|length > 1 %}
-    <select name="root_index" style="flex: 0 0 auto;">
+    <select aria-label="Download folder" name="root_index" style="flex: 0 0 auto;">
       {% for r in scan_roots %}
       <option value="{{ r.index }}">{{ r.label }}</option>
       {% endfor %}
@@ -92,7 +92,7 @@
     {% else %}
     <input type="hidden" name="root_index" value="0">
     {% endif %}
-    <input class="flex-1" type="text" name="folder" placeholder="subfolder (optional — blank scans the whole root)">
+    <input aria-label="Subfolder" class="flex-1" type="text" name="folder" placeholder="subfolder (optional — blank scans the whole root)">
     <button type="submit" class="secondary">Preview</button>
   </form>
   <div class="mt-3" id="audible-scan-result"></div>

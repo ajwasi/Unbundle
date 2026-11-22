@@ -19,7 +19,7 @@ limited and this is a manual refresh, not a crawler.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from app.http import async_client
@@ -79,7 +79,7 @@ def parse_wishlist(payload: dict) -> list[SteamWishlistEntry]:
             SteamWishlistEntry(
                 appid=appid,
                 priority=int(item.get("priority") or 0),
-                added_at=datetime.utcfromtimestamp(added) if isinstance(added, (int, float)) and added else None,
+                added_at=datetime.fromtimestamp(added, tz=timezone.utc).replace(tzinfo=None) if isinstance(added, (int, float)) and added else None,
             )
         )
     return entries

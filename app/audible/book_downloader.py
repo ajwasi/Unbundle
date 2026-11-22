@@ -33,6 +33,7 @@ import json
 import time
 from pathlib import Path
 
+import anyio
 import audible
 from audible.aescipher import decrypt_voucher_from_licenserequest
 from sqlalchemy.orm import Session
@@ -405,9 +406,9 @@ async def _download_aaxc(url: str, dest_path, job: AudibleBookDownload, db: Sess
             bytes_written = 0
             last_committed_at = time.monotonic()
             last_bytes = 0
-            with open(dest_path, "wb") as f:
+            async with await anyio.open_file(dest_path, "wb") as f:
                 async for chunk in resp.aiter_bytes():
-                    f.write(chunk)
+                    await f.write(chunk)
                     bytes_written += len(chunk)
                     now = time.monotonic()
                     if now - last_committed_at >= 1.0:

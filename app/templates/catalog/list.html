@@ -21,7 +21,7 @@
            hx-get="/catalog" hx-trigger="change" hx-target="#catalog-table" hx-swap="outerHTML" hx-include="#catalog-q,#catalog-tag">
     Show only duplicates
   </label>
-  <select id="catalog-tag" name="tag_id"
+  <select aria-label="Tag" id="catalog-tag" name="tag_id"
           hx-get="/catalog" hx-trigger="change" hx-target="#catalog-table" hx-swap="outerHTML" hx-include="#catalog-q,#dupes-only">
     <option value="">All tags</option>
     {% for t in all_tags %}

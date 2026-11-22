@@ -77,7 +77,7 @@
     </div>
     <div class="filter-group">
       <span>Progress</span>
-      <select name="progress" class="audible-filter" style="width: 9rem;"
+      <select aria-label="Progress" name="progress" class="audible-filter" style="width: 9rem;"
               hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
               hx-trigger="change" hx-include=".audible-filter">
         <option value="">All</option>
@@ -88,7 +88,7 @@
     </div>
     <div class="filter-group">
       <span>Ownership</span>
-      <select name="owned" class="audible-filter" style="width: 9rem;"
+      <select aria-label="Ownership" name="owned" class="audible-filter" style="width: 9rem;"
               hx-get="/audible" hx-target="#audible-books-table" hx-swap="outerHTML"
               hx-trigger="change" hx-include=".audible-filter">
         <option value="">All</option>

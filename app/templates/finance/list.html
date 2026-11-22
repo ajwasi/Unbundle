@@ -7,25 +7,25 @@
 <div class="toolbar">
   <form id="finance-filters" hx-get="/finance" hx-target="#finance-results" hx-swap="innerHTML" hx-trigger="change"
         class="filter-row">
-    <select name="year">
+    <select aria-label="Year" name="year">
       <option value="">All years</option>
       {% for y in all_years %}
       <option value="{{ y }}" {{ "selected" if y == year else "" }}>{{ y }}</option>
       {% endfor %}
     </select>
-    <select name="month">
+    <select aria-label="Month" name="month">
       <option value="">All months</option>
       {% for num, name in months %}
       <option value="{{ '%02d'|format(num) }}" {{ "selected" if '%02d'|format(num) == month else "" }}>{{ name }}</option>
       {% endfor %}
     </select>
-    <select name="category">
+    <select aria-label="Category" name="category">
       <option value="">All types</option>
       {% for c in all_categories %}
       <option value="{{ c }}" {{ "selected" if c == category else "" }}>{{ c | format_category }}</option>
       {% endfor %}
     </select>
-    <select name="tag_id">
+    <select aria-label="Tag" name="tag_id">
       <option value="">All tags</option>
       {% for t in all_tags %}
       <option value="{{ t.id }}" {{ "selected" if tag_id == t.id else "" }}>{{ t.name }}</option>

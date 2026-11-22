@@ -25,18 +25,18 @@
   {% endif %}
 
   <div class="toolbar">
-    <input type="search" id="deals-q" name="q" value="{{ q }}" placeholder="Search title or developer"
+    <input aria-label="Search" type="search" id="deals-q" name="q" value="{{ q }}" placeholder="Search title or developer"
            hx-get="/deals/gog" hx-trigger="keyup changed delay:300ms, search"
            hx-target="#deals-table" hx-swap="outerHTML"
            hx-include="#deals-sort,#deals-hide-owned,#deals-min" style="flex: 1; max-width: 20rem;">
-    <select id="deals-sort" name="sort" hx-get="/deals/gog" hx-trigger="change"
+    <select aria-label="Sort by" id="deals-sort" name="sort" hx-get="/deals/gog" hx-trigger="change"
             hx-target="#deals-table" hx-swap="outerHTML" hx-include="#deals-q,#deals-hide-owned,#deals-min">
       <option value="discount" {{ "selected" if sort == "discount" else "" }}>Biggest discount</option>
       <option value="price" {{ "selected" if sort == "price" else "" }}>Lowest price</option>
       <option value="rating" {{ "selected" if sort == "rating" else "" }}>Highest rated</option>
       <option value="title" {{ "selected" if sort == "title" else "" }}>Title</option>
     </select>
-    <select id="deals-min" name="min_discount" hx-get="/deals/gog" hx-trigger="change"
+    <select aria-label="Minimum discount" id="deals-min" name="min_discount" hx-get="/deals/gog" hx-trigger="change"
             hx-target="#deals-table" hx-swap="outerHTML" hx-include="#deals-q,#deals-sort,#deals-hide-owned">
       <option value="0" {{ "selected" if min_discount == 0 else "" }}>Any discount</option>
       <option value="50" {{ "selected" if min_discount == 50 else "" }}>50%+</option>

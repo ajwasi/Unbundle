@@ -1,3 +1,4 @@
+import asyncio
 import re
 import shutil
 import tempfile
@@ -96,6 +97,11 @@ def delete_backup_route(request: Request, filename: str, db: Session = Depends(g
     return templates.TemplateResponse(request, "settings/_backup_form.html", backup_context(db, error))
 
 
+def _save_upload(src, dest: Path) -> None:
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(src, f)
+
+
 @router.post("/backups/restore", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
 async def restore_backup_route(request: Request, backup_file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not backup.backups_supported():
@@ -105,8 +111,7 @@ async def restore_backup_route(request: Request, backup_file: UploadFile = File(
     error = None
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir) / "upload.db"
-        with open(tmp_path, "wb") as f:
-            shutil.copyfileobj(backup_file.file, f)
+        await asyncio.to_thread(_save_upload, backup_file.file, tmp_path)
 
         try:
             backup.restore_backup(db, tmp_path)

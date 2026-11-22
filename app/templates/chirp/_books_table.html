@@ -8,7 +8,7 @@
 
 <div id="chirp-books-table">
   <div class="toolbar">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search title, author, narrator..." class="chirp-filter"
+    <input aria-label="Search" type="search" name="q" value="{{ q }}" placeholder="Search title, author, narrator..." class="chirp-filter"
            hx-get="/chirp" hx-target="#chirp-books-table" hx-swap="outerHTML"
            hx-trigger="keyup changed delay:300ms" hx-include=".chirp-filter" style="flex: 1; max-width: 20rem;">
     <input type="hidden" name="sort" value="{{ sort }}" class="chirp-filter">

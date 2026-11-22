@@ -52,7 +52,7 @@ example to parse from.
 import html as html_module
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 
@@ -294,7 +294,7 @@ def parse_order_history(html: str) -> list[GogOrderItem]:
         chunk = html[match.end():chunk_end]
 
         date_match = _ORDER_DATE.search(chunk)
-        purchased_at = datetime.utcfromtimestamp(int(date_match.group(1))) if date_match else None
+        purchased_at = datetime.fromtimestamp(int(date_match.group(1)), tz=timezone.utc).replace(tzinfo=None) if date_match else None
 
         product_starts = list(_PRODUCT_ROW_START.finditer(chunk))
         for p_index, p_match in enumerate(product_starts):

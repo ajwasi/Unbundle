@@ -1,6 +1,6 @@
 <div id="audible-missing-authors">
   <div class="toolbar mb-3">
-    <input type="search" name="author_q" value="{{ author_q }}" placeholder="Search authors&hellip;"
+    <input aria-label="Search authors" type="search" name="author_q" value="{{ author_q }}" placeholder="Search authors&hellip;"
            hx-get="/audible?view=missing_authors" hx-trigger="keyup changed delay:300ms, search"
            hx-target="#audible-missing-authors" hx-swap="outerHTML" style="flex: 1; max-width: 22rem;">
   </div>
