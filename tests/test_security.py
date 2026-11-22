@@ -44,8 +44,7 @@ def test_encrypt_json_can_target_a_key_other_than_the_configured_one():
     token = encrypt_json({"a": 1}, secret_key="a-different-key")
     with pytest.raises(ValueError):
         decrypt_json(token)  # wrong under the still-configured settings.app_secret_key
-    other_fernet = Fernet(_derive_key("a-different-key"))
-    assert json.loads(other_fernet.decrypt(token)) == {"a": 1}
+    assert decrypt_json(token, secret_key="a-different-key") == {"a": 1}
 
 
 def test_decrypt_rejects_tampered_token():
@@ -120,3 +119,29 @@ def test_check_app_password_db_override_takes_precedence(db):
     # The original env-var password must stop working once a DB override exists —
     # this is the whole point of the emergency `set-password` CLI recovery tool.
     assert not check_app_password("test-password", db)
+
+
+def test_every_encryption_gets_its_own_random_salt():
+    first = encrypt_json({"a": 1})
+    second = encrypt_json({"a": 1})
+    assert first.startswith(b"v2:") and second.startswith(b"v2:")
+    assert first.split(b":", 2)[1] != second.split(b":", 2)[1]
+
+
+def test_decrypt_json_still_opens_a_v1_fixed_salt_token():
+    # Written by every release before per-credential salts.
+    v1_token = Fernet(_derive_key("test-only-secret-key")).encrypt(json.dumps({"v1": True}).encode("utf-8"))
+    assert decrypt_json(v1_token) == {"v1": True}
+
+
+def test_v2_token_with_tampered_salt_is_rejected():
+    token = encrypt_json({"a": 1})
+    prefix, salt, rest = token.split(b":", 2)
+    tampered = b":".join([prefix, b"A" * len(salt), rest])
+    with pytest.raises(ValueError):
+        decrypt_json(tampered)
+
+
+def test_malformed_v2_token_is_rejected():
+    with pytest.raises(ValueError):
+        decrypt_json(b"v2:not-enough-parts")

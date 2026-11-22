@@ -6,7 +6,7 @@ from cryptography.fernet import Fernet
 from app.cli import _count_stored_credentials, _disable_oidc, _rotate_secret_key, _set_password, rotate_secret_key
 from app.config import SECRET_KEY_FILENAME, settings
 from app.models.credential import SOURCE_APP_AUTH, SOURCE_GOG, SOURCE_OIDC, STATUS_NOT_CONFIGURED, Credential
-from app.security import _derive_key, _derive_key_legacy, check_app_password, decrypt_json, encrypt_json
+from app.security import _derive_key_legacy, check_app_password, decrypt_json, encrypt_json
 
 
 def _refuse_to_prompt(*args, **kwargs):
@@ -111,8 +111,7 @@ def test_rotate_secret_key_result_is_readable_under_the_new_key_only(db):
     # "test-only-secret-key") — this is the whole point: rotation actually rotates.
     with pytest.raises(ValueError):
         decrypt_json(cred.encrypted_payload)
-    new_key_fernet = Fernet(_derive_key("brand-new-key"))
-    assert json.loads(new_key_fernet.decrypt(cred.encrypted_payload)) == {"issuer": "x"}
+    assert decrypt_json(cred.encrypted_payload, secret_key="brand-new-key") == {"issuer": "x"}
 
 
 def test_rotate_secret_key_migrates_a_pre_upgrade_legacy_format_row_too(db):
@@ -128,8 +127,7 @@ def test_rotate_secret_key_migrates_a_pre_upgrade_legacy_format_row_too(db):
     assert _count_stored_credentials() == 1
 
     cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one()
-    new_key_fernet = Fernet(_derive_key("brand-new-key"))
-    assert json.loads(new_key_fernet.decrypt(cred.encrypted_payload)) == {"legacy": True}
+    assert decrypt_json(cred.encrypted_payload, secret_key="brand-new-key") == {"legacy": True}
 
 
 def test_rotate_secret_key_with_generated_key_mints_a_fresh_one_with_no_prompt(db, monkeypatch, tmp_path):
@@ -151,8 +149,7 @@ def test_rotate_secret_key_with_generated_key_mints_a_fresh_one_with_no_prompt(d
     assert new_key and new_key != settings.app_secret_key
 
     cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one()
-    new_key_fernet = Fernet(_derive_key(new_key))
-    assert json.loads(new_key_fernet.decrypt(cred.encrypted_payload)) == {"issuer": "x"}
+    assert decrypt_json(cred.encrypted_payload, secret_key=new_key) == {"issuer": "x"}
 
 
 def test_rotate_secret_key_with_explicit_key_prompts_and_writes_no_file(db, monkeypatch, tmp_path):
@@ -170,6 +167,5 @@ def test_rotate_secret_key_with_explicit_key_prompts_and_writes_no_file(db, monk
     rotate_secret_key()
 
     cred = db.query(Credential).filter(Credential.source == SOURCE_OIDC).one()
-    new_key_fernet = Fernet(_derive_key("typed-new-key"))
-    assert json.loads(new_key_fernet.decrypt(cred.encrypted_payload)) == {"issuer": "x"}
+    assert decrypt_json(cred.encrypted_payload, secret_key="typed-new-key") == {"issuer": "x"}
     assert not (tmp_path / SECRET_KEY_FILENAME).exists()
