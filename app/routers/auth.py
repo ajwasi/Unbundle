@@ -86,6 +86,22 @@ def _login_context(db: Session, next: str, error: str | None) -> dict:
     }
 
 
+def _safe_next(value: str | None) -> str:
+    """A same-site relative target built from the parsed path and query only, or
+    "/" for anything else (absolute URLs, scheme-relative "//host", backslash
+    tricks, control characters). The result is reassembled from components, so
+    no request-supplied scheme or host can ever reach the Location header.
+    """
+    if not value or not value.startswith("/") or value.startswith(("//", "/\\")):
+        return "/"
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):
+        return "/"
+    parsed = urlparse(value)
+    if parsed.netloc or parsed.scheme:
+        return "/"
+    return parsed.path + (f"?{parsed.query}" if parsed.query else "")
+
+
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: str = "/", db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "auth/login.html", _login_context(db, next, None))
@@ -96,17 +112,7 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
     if is_password_disabled(db) or not check_app_password(password, db):
         context = _login_context(db, next, "Incorrect password")
         return templates.TemplateResponse(request, "auth/login.html", context, status_code=401)
-    if (
-        next
-        and next.startswith("/")
-        and not next.startswith("//")
-        and not next.startswith("/\\")
-        and not urlparse(next).netloc
-        and not urlparse(next).scheme
-    ):
-        response = RedirectResponse(url=next, status_code=303)
-    else:
-        response = RedirectResponse(url="/", status_code=303)
+    response = RedirectResponse(url=_safe_next(next), status_code=303)
     response.set_cookie(
         SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.https_enabled
     )
@@ -207,17 +213,7 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
     identity = identity_from_userinfo(token.get("userinfo") or {})
 
     stored_next = request.session.pop("oidc_next", "/")
-    if (
-        stored_next
-        and stored_next.startswith("/")
-        and not stored_next.startswith("//")
-        and not stored_next.startswith("/\\")
-        and not urlparse(stored_next).netloc
-        and not urlparse(stored_next).scheme
-    ):
-        response = RedirectResponse(url=stored_next, status_code=303)
-    else:
-        response = RedirectResponse(url="/", status_code=303)
+    response = RedirectResponse(url=_safe_next(stored_next), status_code=303)
     response.set_cookie(
         SESSION_COOKIE_NAME,
         create_session_token(identity=identity),

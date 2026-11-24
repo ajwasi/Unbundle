@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import AsyncMock, patch
 
 from app.models.credential import SOURCE_APP_AUTH, SOURCE_OIDC, STATUS_OK, Credential
@@ -368,3 +369,19 @@ def test_oidc_callback_failure_shows_login_error(client, db):
         resp = client.get("/auth/oidc/callback?error=access_denied")
     assert resp.status_code == 401
     assert "SSO login failed" in resp.text
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["//evil.example", "/\evil.example", "https://evil.example", "javascript:alert(1)", "/\t/evil.example", "/a\nb", "", None, "relative"],
+)
+def test_safe_next_rejects_everything_but_same_site_paths(value):
+    from app.routers.auth import _safe_next
+
+    assert _safe_next(value) == "/"
+
+
+def test_safe_next_keeps_path_and_query():
+    from app.routers.auth import _safe_next
+
+    assert _safe_next("/steam?name=x&sort=title#frag") == "/steam?name=x&sort=title"

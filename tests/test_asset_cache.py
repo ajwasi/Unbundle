@@ -410,3 +410,10 @@ def test_failed_fetches_are_pruned_once_the_cap_is_hit():
 
     assert len(asset_cache._recent_failures) <= asset_cache._MAX_FAILURE_ENTRIES
     assert "ns::newest" in asset_cache._recent_failures  # the just-added entry always survives its own insertion
+
+
+@pytest.mark.parametrize("url", ["https://x.example/a.b\..\c", "https://x.example/a.toolongext", "https://x.example/a."])
+def test_guess_extension_never_returns_an_unsafe_suffix(url):
+    from app.asset_cache import _guess_extension
+
+    assert _guess_extension(url, "image/jpeg") == ".jpg"

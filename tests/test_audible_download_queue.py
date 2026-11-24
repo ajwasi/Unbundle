@@ -17,6 +17,7 @@ from app.models.audible_book_download import (
 )
 from app.models.audible_local_file import SOURCE_SCAN, AudibleLocalFile
 from app.models.credential import SOURCE_AUDIBLE, STATUS_OK, Credential
+from app.config import settings
 from app.models.download_settings import DownloadSettings
 from app.security import encrypt_json
 
@@ -291,7 +292,8 @@ def test_library_table_has_checkboxes_and_marks_books_already_on_disk(authed_cli
     assert resp.text.count(">On disk<") == 1
 
 
-def test_detail_page_shows_a_scanned_book_as_downloaded(authed_client, db, tmp_path):
+def test_detail_page_shows_a_scanned_book_as_downloaded(authed_client, db, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "scan_root_dir", tmp_path)
     _connect(db)
     _add_books(db, "Scanned Book")
     f = tmp_path / "Scanned Book.m4b"
@@ -447,3 +449,18 @@ def test_a_completed_download_is_remembered_as_a_local_file(db, tmp_path):
 
     row = db.get(AudibleLocalFile, "B001")
     assert (row.path, row.size_bytes, row.source) == (str(m4b), 9, "download")
+
+
+def test_book_file_route_refuses_a_path_outside_every_configured_root(authed_client, db, tmp_path, monkeypatch):
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    monkeypatch.setattr(settings, "scan_root_dir", allowed)
+    monkeypatch.setattr(settings, "downloads_dir", allowed)
+    _connect(db)
+    _add_books(db, "Elsewhere")
+    outside = tmp_path / "secret.m4b"
+    outside.write_bytes(b"nope")
+    db.add(AudibleLocalFile(asin="B001", path=str(outside), size_bytes=4, source=SOURCE_SCAN))
+    db.commit()
+
+    assert authed_client.get("/audible/B001/book/file").status_code == 404

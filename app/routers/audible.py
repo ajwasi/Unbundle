@@ -30,6 +30,7 @@ from app.models.credential import STATUS_NOT_CONFIGURED, Credential, SOURCE_AUDI
 from app.ratelimit import RateLimiter, rate_limit
 from app.routers.destination_crud import destinations_context, register_simple_destination_routes
 from app.audible.scan import normalize
+from app.config import settings
 from app.sync import audible_sync, audiobookshelf_sync, plex_sync
 from app.templates_env import templates
 
@@ -632,14 +633,37 @@ def pdf_download_status(request: Request, asin: str, db: Session = Depends(get_d
     return templates.TemplateResponse(request, "audible/_pdf_status.html", _pdf_status_context(db, asin))
 
 
+def _served_file(db: Session, path: str) -> Path | None:
+    """The resolved file at `path` if it exists *and* lives under a root this
+    app is configured to write or scan (downloads dir, scan roots, Audible
+    destinations); None otherwise. The stored path comes from the DB, never
+    straight from the request, but a row pointing outside those roots must not
+    be servable regardless of how it got there.
+    """
+    if not path:
+        return None
+    roots = [settings.downloads_dir, *settings.scan_root_list()]
+    roots += [Path(d.path) for d in db.query(AudibleDownloadDestination).all()]
+    try:
+        resolved = Path(path).resolve()
+        if not resolved.is_file():
+            return None
+        if any(resolved.is_relative_to(root.resolve()) for root in roots):
+            return resolved
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 @router.get("/{asin}/pdf/file")
 def download_pdf_file(asin: str, db: Session = Depends(get_db)):
     job = pdf_downloader.latest_status(db, asin)
-    if job is None or job.status != STATUS_COMPLETED or not job.downloaded_path:
+    served = _served_file(db, job.downloaded_path) if job is not None and job.status == STATUS_COMPLETED else None
+    if served is None:
         return HTMLResponse("No completed PDF download found for this title.", status_code=404)
     book = db.get(AudibleBook, asin)
     filename = f"{book.title}.pdf" if book else f"{asin}.pdf"
-    return FileResponse(job.downloaded_path, filename=filename, media_type="application/pdf")
+    return FileResponse(served, filename=filename, media_type="application/pdf")
 
 
 @router.post("/{asin}/book/download", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])
@@ -667,8 +691,9 @@ def download_book_file(asin: str, db: Session = Depends(get_db)):
     if not path:
         local = db.get(AudibleLocalFile, asin)
         path = local.path if local is not None else ""
-    if not path or not Path(path).is_file():
+    served = _served_file(db, path)
+    if served is None:
         return HTMLResponse("No completed audiobook download found for this title.", status_code=404)
     book = db.get(AudibleBook, asin)
     filename = f"{book.title}.m4b" if book else f"{asin}.m4b"
-    return FileResponse(path, filename=filename, media_type="audio/mp4")
+    return FileResponse(served, filename=filename, media_type="audio/mp4")
