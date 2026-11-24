@@ -4,7 +4,7 @@ Both paths converge on the same session cookie, so nothing downstream of login n
 to know or care which method was actually used.
 """
 
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from authlib.integrations.base_client.errors import OAuthError
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -86,6 +86,16 @@ def _login_context(db: Session, next: str, error: str | None) -> dict:
     }
 
 
+def _redirect_to_next(request: Request, value: str | None) -> RedirectResponse:
+    """303 to the same-site target `value` names, or "/". The final URL is
+    resolved against this request's own origin and re-checked, so the Location
+    header can only ever point back at this host."""
+    safe = _safe_next(value)
+    if urlparse(urljoin(str(request.base_url), safe)).netloc != request.url.netloc:
+        safe = "/"
+    return RedirectResponse(url=safe, status_code=303)
+
+
 def _safe_next(value: str | None) -> str:
     """A same-site relative target built from the parsed path and query only, or
     "/" for anything else (absolute URLs, scheme-relative "//host", backslash
@@ -112,7 +122,7 @@ def login_submit(request: Request, password: str = Form(...), next: str = Form("
     if is_password_disabled(db) or not check_app_password(password, db):
         context = _login_context(db, next, "Incorrect password")
         return templates.TemplateResponse(request, "auth/login.html", context, status_code=401)
-    response = RedirectResponse(url=_safe_next(next), status_code=303)
+    response = _redirect_to_next(request, next)
     response.set_cookie(
         SESSION_COOKIE_NAME, create_session_token(), httponly=True, samesite="lax", secure=settings.https_enabled
     )
@@ -213,7 +223,7 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
     identity = identity_from_userinfo(token.get("userinfo") or {})
 
     stored_next = request.session.pop("oidc_next", "/")
-    response = RedirectResponse(url=_safe_next(stored_next), status_code=303)
+    response = _redirect_to_next(request, stored_next)
     response.set_cookie(
         SESSION_COOKIE_NAME,
         create_session_token(identity=identity),

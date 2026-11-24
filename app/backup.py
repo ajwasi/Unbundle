@@ -120,7 +120,8 @@ def valid_backup_names() -> set[str]:
 def backup_path(filename: str) -> Path | None:
     """The real on-disk path of an existing backup, taken from the directory
     listing itself (never built from the caller's string), or None."""
-    return next((p for p in backups_dir().glob("humble-*.db") if p.name == filename), None)
+    listing = {p.name: p for p in backups_dir().glob("humble-*.db")}
+    return listing.get(filename)
 
 
 def delete_backup(filename: str) -> bool:

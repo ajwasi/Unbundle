@@ -244,7 +244,17 @@ def _safe_log_url(remote_url: str) -> str:
         return "(unparseable URL)"
 
 
-_SAFE_EXT_RE = re.compile(r"\.[A-Za-z0-9]{1,4}")
+# The on-disk extension is always one of these constants — never text lifted
+# from the URL — so a crafted URL cannot influence the cache file's name.
+_ALLOWED_EXTS = {
+    ".jpg": ".jpg",
+    ".jpeg": ".jpeg",
+    ".png": ".png",
+    ".webp": ".webp",
+    ".gif": ".gif",
+    ".bmp": ".bmp",
+    ".avif": ".avif",
+}
 
 
 def _guess_extension(remote_url: str, content_type: str) -> str:
@@ -252,8 +262,9 @@ def _guess_extension(remote_url: str, content_type: str) -> str:
         suffix = Path(httpx.URL(remote_url).path).suffix
     except TypeError:
         suffix = ""
-    if suffix and _SAFE_EXT_RE.fullmatch(suffix):
-        return suffix
+    known = _ALLOWED_EXTS.get(suffix.lower())
+    if known:
+        return known
     return _EXT_BY_CONTENT_TYPE.get(content_type.split(";")[0].strip().lower(), ".jpg")
 
 
