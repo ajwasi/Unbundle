@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -645,12 +646,12 @@ def _served_file(db: Session, path: str) -> Path | None:
     roots = [settings.downloads_dir, *settings.scan_root_list()]
     roots += [Path(d.path) for d in db.query(AudibleDownloadDestination).all()]
     try:
-        resolved = Path(path).resolve()
-        if not resolved.is_file():
-            return None
-        if any(resolved.is_relative_to(root.resolve()) for root in roots):
-            return resolved
-    except (OSError, ValueError):
+        resolved = os.path.realpath(path)
+        for root in roots:
+            root_real = os.path.realpath(root)
+            if os.path.commonpath([resolved, root_real]) == root_real and os.path.isfile(resolved):
+                return Path(resolved)
+    except (OSError, ValueError):  # ValueError: commonpath across drives / mixed path types
         pass
     return None
 
