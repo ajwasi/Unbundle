@@ -244,12 +244,15 @@ def _safe_log_url(remote_url: str) -> str:
         return "(unparseable URL)"
 
 
+_SAFE_EXT_RE = re.compile(r"\.[A-Za-z0-9]{1,4}")
+
+
 def _guess_extension(remote_url: str, content_type: str) -> str:
     try:
         suffix = Path(httpx.URL(remote_url).path).suffix
     except TypeError:
         suffix = ""
-    if suffix and len(suffix) <= 5:
+    if suffix and _SAFE_EXT_RE.fullmatch(suffix):
         return suffix
     return _EXT_BY_CONTENT_TYPE.get(content_type.split(";")[0].strip().lower(), ".jpg")
 

@@ -79,12 +79,12 @@ def run_backup_now(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/backups/{filename}/download")
 def download_backup(filename: str):
-    # Checked against the real directory listing rather than sanitized-and-joined
-    # — no path-traversal surface at all since the value must already be one of
-    # the files actually present, never a caller-controlled path.
-    if filename not in backup.valid_backup_names():
+    # The served path is the directory listing's own entry (backup_path), never
+    # one built from the caller's string — no path-traversal surface.
+    path = backup.backup_path(filename)
+    if path is None:
         raise HTTPException(status_code=404, detail="Backup not found")
-    return FileResponse(backup.backups_dir() / filename, filename=filename, media_type="application/octet-stream")
+    return FileResponse(path, filename=path.name, media_type="application/octet-stream")
 
 
 @router.post("/backups/{filename}/delete", response_class=HTMLResponse, dependencies=[Depends(require_csrf)])

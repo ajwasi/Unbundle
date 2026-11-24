@@ -1,0 +1,7 @@
+# Snyk policy file
+version: v1.25.0
+# Test fixtures intentionally contain throwaway passwords/keys; exclude them
+# from Snyk Code so real findings in app/ aren't buried.
+exclude:
+  code:
+    - tests/**
