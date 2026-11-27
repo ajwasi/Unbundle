@@ -20,6 +20,7 @@ from app.ratelimit import RateLimiter, rate_limit
 from app.services import source_health
 from app.services.bundle_tiles import CATEGORY_LABELS, build_tiles, grouped
 from app.services.catalog import avg_item_value, build_catalog
+from app.services.owned_elsewhere import owned_via_title, storefront_library_titles
 from app.templates_env import templates
 
 router = APIRouter()
@@ -96,17 +97,22 @@ async def compare(request: Request, url: str, view: str = "list", db: Session = 
 
     detail = await storefront.fetch_bundle_detail(url)
     catalog = build_catalog(db)
+    libraries = storefront_library_titles(db)
 
     def _row(item: storefront.StorefrontItem) -> dict:
         owned_entry = catalog.get(item.machine_name)
         avg_value = avg_item_value(owned_entry["bundles"]) if owned_entry else None
+        # No id match: fall back to the title, so a game owned on Steam/GOG or
+        # re-listed under a new machine_name still reads as owned.
+        owned_via = [] if owned_entry else owned_via_title(libraries, item.name)
         return {
             "machine_name": item.machine_name,
             "name": item.name,
             "content_type": item.content_type,
             "msrp_amount": item.msrp_amount,
             "avg_paid": avg_value,
-            "owned": bool(owned_entry),
+            "owned": bool(owned_entry) or bool(owned_via),
+            "owned_via": owned_via,
             "owned_count": len(owned_entry["bundles"]) if owned_entry else 0,
             # Already parsed out of the same page fetch — see StorefrontItem.
             "description": item.description,

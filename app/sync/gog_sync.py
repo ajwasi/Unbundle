@@ -11,6 +11,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.audible.scan import normalize
 from app.connectors import gog_connector
 from app.connectors.gog_connector import CONTENT_TYPE_GAME
 from app.models.bundle_entitlement import BundleEntitlement
@@ -32,8 +33,8 @@ def get_gog_credential(db: Session) -> dict | None:
 
 def match_entitlements_to_gog(db: Session) -> int:
     """Prefers gog_id when Humble happens to provide one (rare — see
-    BundleEntitlement's docstring), falling back to a case-insensitive exact
-    title match otherwise. Name matching is the only signal available for
+    BundleEntitlement's docstring), falling back to a case- and punctuation-
+    insensitive exact title match otherwise. Name matching is the only signal available for
     real GOG-type entitlements in practice: confirmed against this account's
     actual history that Humble's key_name for a GOG entry is a clean,
     unadorned title (e.g. "Liberated", "Wanderlust: Travel Stories") that
@@ -49,7 +50,7 @@ def match_entitlements_to_gog(db: Session) -> int:
     # rather than let a coincidentally-titled movie register a false match.
     owned_games = db.query(GogGame.product_id, GogGame.title).filter(GogGame.content_type == CONTENT_TYPE_GAME).all()
     owned_ids = {product_id for product_id, _ in owned_games}
-    owned_titles = {title.strip().casefold() for _, title in owned_games}
+    owned_titles = {n for _, title in owned_games if (n := normalize(title or ""))}
 
     matched = 0
     for row in db.query(BundleEntitlement).all():
@@ -78,7 +79,7 @@ def match_entitlements_to_gog(db: Session) -> int:
         if key_type != "gog":
             continue
 
-        row.gog_owned = row.key_name.strip().casefold() in owned_titles
+        row.gog_owned = normalize(row.key_name or "") in owned_titles
         matched += 1
 
     db.commit()

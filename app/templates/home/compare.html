@@ -46,6 +46,7 @@
         <p class="item-meta">
           {% if row.owned %}
           <span class="badge badge-ok">Already owned</span>
+          {% if row.owned_via %}<span class="muted">via {{ row.owned_via|join(", ") }}</span>{% endif %}
           {% if row.owned_count > 1 %}
           <button type="button" class="secondary btn-sm"
                   hx-get="/catalog/item/{{ row.machine_name }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"
@@ -104,6 +105,7 @@
         <td>
           {% if row.owned %}
           <span class="badge badge-ok">Already owned</span>
+          {% if row.owned_via %}<span class="muted">via {{ row.owned_via|join(", ") }}</span>{% endif %}
           {% if row.owned_count > 1 %}
           <button type="button" class="secondary btn-sm"
                   hx-get="/catalog/item/{{ row.machine_name }}/bundles" hx-target="#bundles-modal-content" hx-swap="innerHTML"

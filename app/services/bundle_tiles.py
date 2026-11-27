@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.connectors import storefront
 from app.models.bundle import Bundle
 from app.services.catalog import build_catalog
+from app.services.owned_elsewhere import owned_via_title, storefront_library_titles
 
 
 CATEGORY_LABELS = [("games", "Games"), ("books", "Books"), ("software", "Software")]
@@ -47,6 +48,7 @@ async def build_tiles(bundles: list[storefront.StorefrontBundle], db: Session) -
     """
     details = await asyncio.gather(*(fetch_detail_safe(b) for b in bundles))
     catalog = build_catalog(db)
+    libraries = storefront_library_titles(db)
     purchased_gamekeys_by_machine_name = {
         name: gamekey
         for name, gamekey in db.query(Bundle.machine_name, Bundle.gamekey).filter(Bundle.machine_name != "").all()
@@ -57,7 +59,9 @@ async def build_tiles(bundles: list[storefront.StorefrontBundle], db: Session) -
         owned_count = total_count = None
         if detail is not None:
             total_count = len(detail.items)
-            owned_count = sum(1 for item in detail.items if item.machine_name in catalog)
+            owned_count = sum(
+                1 for item in detail.items if item.machine_name in catalog or owned_via_title(libraries, item.name)
+            )
         owned_gamekey = purchased_gamekeys_by_machine_name.get(bundle.machine_name)
         tiles.append(
             {

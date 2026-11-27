@@ -278,3 +278,18 @@ async def test_refresh_gog_library_does_not_match_a_bundle_line_item_to_any_game
         await gog_sync.refresh_gog_library(db)
 
     assert db.get(GogGame, 1).paid_price is None
+
+
+def test_match_entitlements_gog_title_match_ignores_punctuation_and_symbols(db):
+    import json
+
+    ent = _seed_bundle_and_entitlement(db)
+    ent.raw_json = json.dumps({"key_type": "gog"})
+    ent.key_name = "Wanderlust Travel Stories"
+    db.add(GogGame(product_id=5, title="Wanderlust: Travel Stories", image_url="", content_type="game"))
+    db.commit()
+
+    gog_sync.match_entitlements_to_gog(db)
+
+    db.refresh(ent)
+    assert ent.gog_owned is True

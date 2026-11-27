@@ -189,6 +189,56 @@ def test_home_owned_ratio_badge_is_ok_when_fully_owned(authed_client, make_bundl
     assert 'class="badge badge-ok">1/1 owned' in resp.text
 
 
+def test_home_owned_ratio_counts_a_game_owned_on_steam_by_title(authed_client, db):
+    from app.models.steam_game import SteamGame
+
+    db.add(SteamGame(appid=1, name="Journey to the Savage Planet", playtime_forever_minutes=0, img_icon_url=""))
+    db.commit()
+    bundles = [_bundle(category="games", name="Game One")]
+    detail = StorefrontBundleDetail(
+        name="Game One",
+        msrp_total=None,
+        items=[
+            StorefrontItem(machine_name="journeytothesavageplanet", name="Journey To The Savage Planet", content_type="game", msrp_amount=None),
+            StorefrontItem(machine_name="other", name="Something Else", content_type="game", msrp_amount=None),
+        ],
+        tiers=[],
+    )
+    with patch("app.routers.home.storefront.fetch_current_bundles", new=AsyncMock(return_value=bundles)),          patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=detail)):
+        resp = authed_client.get("/")
+    assert "1/2 owned" in resp.text
+
+
+def test_compare_marks_item_owned_via_steam_title_when_no_humble_purchase(authed_client, db):
+    from app.models.steam_game import SteamGame
+
+    db.add(SteamGame(appid=1, name="Subnautica: Below Zero", playtime_forever_minutes=0, img_icon_url=""))
+    db.commit()
+    item = StorefrontItem(machine_name="subnautica_belowzero", name="Subnautica: Below Zero", content_type="game", msrp_amount=20.0)
+    detail = StorefrontBundleDetail(
+        name="B", msrp_total=20.0, items=[item],
+        tiers=[StorefrontTier(identifier="initial", label="Pay $5", price_amount=5.0, is_bta=False, items=[item])],
+    )
+    with patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=detail)):
+        resp = authed_client.get("/storefront/compare?url=https://www.humblebundle.com/games/x")
+    assert "Already owned" in resp.text
+    assert "via Steam" in resp.text
+    assert "New to you" not in resp.text
+
+
+def test_compare_marks_item_owned_when_same_title_has_a_different_machine_name(authed_client, make_bundle):
+    make_bundle(gamekey="GK1", order=make_order(subproducts=[make_subproduct("Alien", machine_name="alien_oldbundle")]))
+    item = StorefrontItem(machine_name="alien_softwarebundle", name="Alien", content_type="software", msrp_amount=5.0)
+    detail = StorefrontBundleDetail(
+        name="B", msrp_total=5.0, items=[item],
+        tiers=[StorefrontTier(identifier="initial", label="Pay $5", price_amount=5.0, is_bta=False, items=[item])],
+    )
+    with patch("app.routers.home.storefront.fetch_bundle_detail", new=AsyncMock(return_value=detail)):
+        resp = authed_client.get("/storefront/compare?url=https://www.humblebundle.com/software/x")
+    assert "Already owned" in resp.text
+    assert "via Humble Bundle" in resp.text
+
+
 def test_home_marks_a_bundle_already_purchased_by_machine_name(authed_client, make_bundle):
     make_bundle(gamekey="GK1", order=make_order(machine_name="samebundle"))
     bundles = [_bundle(category="games", name="Game One", machine_name="samebundle")]
