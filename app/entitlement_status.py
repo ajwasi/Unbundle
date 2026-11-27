@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.audible.scan import normalize
 from app.connectors.gog_connector import CONTENT_TYPE_GAME
 from app.connectors.humble_connector import order_page_url
 from app.models.bundle import Bundle
@@ -33,19 +34,22 @@ def parse_expiration(raw: dict) -> datetime | None:
 
 def owned_title_sets(db: Session) -> tuple[set[str], set[str]]:
     """(steam_titles, gog_titles) — every owned game's display name/title,
-    casefolded, from each synced library. Lets a caller flag "you might
+    normalized (app.audible.scan.normalize: case and punctuation insensitive,
+    so "Osiris: New Dawn" matches "Osiris New Dawn" and a mangled "™" doesn't
+    break a match), from each synced library. Lets a caller flag "you might
     already own this under a different listing" even when the entitlement's
     own recorded platform-specific ID doesn't match anything — a different
     edition/re-release under a different Steam appid, for instance, or a
     game whose gog_id was never populated in the first place (see
     sync/gog_sync.py's own docstring on how rare a real gog_id actually is).
     """
-    steam_titles = {name.strip().casefold() for (name,) in db.query(SteamGame.name).all()}
+    steam_titles = {n for (name,) in db.query(SteamGame.name).all() if (n := normalize(name or ""))}
     # GogGame now also holds movies (see its own docstring) — only games are a
     # plausible "you might already own this" match for a Steam/Humble game key.
     gog_titles = {
-        title.strip().casefold()
+        n
         for (title,) in db.query(GogGame.title).filter(GogGame.content_type == CONTENT_TYPE_GAME).all()
+        if (n := normalize(title or ""))
     }
     return steam_titles, gog_titles
 
@@ -93,7 +97,7 @@ def unredeemed_rows(db: Session, platform: str) -> list[dict]:
         except (ValueError, TypeError):
             raw = {}
         expires_at = parse_expiration(raw)
-        title = ent.key_name.strip().casefold()
+        title = normalize(ent.key_name or "")
         owned_elsewhere = title in self_titles or title in other_titles
         result.append(
             {

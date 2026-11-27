@@ -58,6 +58,25 @@ def _library_titles(db: Session, service: str) -> set[str]:
     raise ValueError(service)
 
 
+# Libraries a *storefront* bundle item can already be owned in: a game bought on
+# Steam/GOG outside Humble, or the same title under a different Humble
+# machine_name (a re-listed or re-issued item). Item ids (machine_name) are the
+# exact signal and are checked first by callers; this is the title fallback.
+_STOREFRONT_LIBRARIES = ("Steam", "GOG", HUMBLE)
+
+
+def storefront_library_titles(db: Session) -> dict[str, set[str]]:
+    return {service: _library_titles(db, service) for service in _STOREFRONT_LIBRARIES}
+
+
+def owned_via_title(libraries: dict[str, set[str]], name: str) -> list[str]:
+    """Services whose library holds an item with this title (normalized)."""
+    needle = normalize(name or "")
+    if not needle:
+        return []
+    return [service for service, titles in libraries.items() if needle in titles]
+
+
 # Every library a wishlist item could already be owned in, per wishlist store,
 # minus the store itself.
 _OTHER_SERVICES = {
